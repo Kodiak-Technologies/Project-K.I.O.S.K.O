@@ -1,0 +1,37 @@
+# Build + deploy del backend a Cloud Run con Cloud Build.
+# Uso:  gcloud builds submit --config cloudbuild.yaml .
+# Requiere: Artifact Registry repo "kiosko" creado y los secretos en Secret Manager.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$SHORT_SHA
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$SHORT_SHA
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - kiosko-backend
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$SHORT_SHA
+      - --region=${_REGION}
+      - --allow-unauthenticated
+      # Conexión a Cloud SQL por socket Unix (sin exponer IP pública de la BD):
+      - --add-cloudsql-instances=$PROJECT_ID:${_REGION}:${_SQL_INSTANCE}
+      - --set-secrets=DATABASE_URL=kiosko-database-url:latest,SECRET_KEY=kiosko-secret-key:latest
+      - --set-env-vars=ENVIRONMENT=production,CORS_ORIGINS=${_CORS_ORIGINS}
+
+substitutions:
+  _REGION: us-central1
+  _SQL_INSTANCE: kiosko-db
+  _CORS_ORIGINS: https://TU-PROYECTO.vercel.app
+
+options:
+  logging: CLOUD_LOGGING_ONLY

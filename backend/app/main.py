@@ -1,6 +1,37 @@
-# Entry point de FastAPI. Cada módulo monta aquí su router cuando implemente su infrastructure/http.
+# Entry point de FastAPI: crea la app, registra middlewares/manejadores de error
+# y monta los routers de cada módulo.
 from fastapi import FastAPI
 
-app = FastAPI(title="Tienda Sistema API")
+from app.modules.modulo_a_seguridad.infrastructure.http.auth_router import router as auth_router
+from app.modules.modulo_a_seguridad.infrastructure.http.bitacora_router import (
+    router as bitacora_router,
+)
+from app.modules.modulo_a_seguridad.infrastructure.http.configuracion_router import (
+    router as configuracion_router,
+)
+from app.modules.modulo_a_seguridad.infrastructure.http.roles_router import router as roles_router
+from app.modules.modulo_a_seguridad.infrastructure.http.usuarios_router import (
+    router as usuarios_router,
+)
+from app.shared.http.error_handlers import registrar_error_handlers
+from app.shared.http.middlewares import registrar_middlewares
 
-# TODO: app.include_router(...) por cada módulo (modulo_a_seguridad, modulo_b_inventario, modulo_c_ventas, modulo_d_documentos)
+app = FastAPI(title="Tienda Sistema API", docs_url="/docs")
+
+registrar_middlewares(app)
+registrar_error_handlers(app)
+
+# --- Módulo A: Seguridad, Accesos, Configuración y Auditoría (Matías) ---
+app.include_router(auth_router)
+app.include_router(usuarios_router)
+app.include_router(roles_router)
+app.include_router(bitacora_router)
+app.include_router(configuracion_router)
+
+# --- Módulo B (Brayan), C (Clever) y D (Fabrizio): montar sus routers aquí ---
+
+
+@app.get("/health", tags=["Infra"])
+async def health():
+    """Usado por Cloud Run para verificar que la app está viva."""
+    return {"status": "ok"}
