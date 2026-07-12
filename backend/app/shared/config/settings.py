@@ -1,15 +1,25 @@
-# Configuración global vía variables de entorno (Pydantic Settings). Mínimo indispensable para levantar la app.
-from pydantic_settings import BaseSettings
+# Configuración global vía variables de entorno (Pydantic Settings).
+# Solo variables verdaderamente transversales; lo específico de un módulo no va acá.
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # TODO (cualquier módulo puede añadir aquí variables verdaderamente globales; lo específico de un módulo no va acá)
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
     environment: str = "local"
     database_url: str = "postgresql+asyncpg://tienda:tienda@localhost:5432/tienda_sistema"
-    secret_key: str = "change-me"
 
-    class Config:
-        env_file = ".env"
+    # Firma de los JWT. En producción viene de Secret Manager, nunca del repo.
+    secret_key: str = "change-me"
+    jwt_algorithm: str = "HS256"
+    access_token_ttl_minutos: int = 15
+
+    # Orígenes permitidos para CORS (dominio de Vercel en producción), separados por coma.
+    cors_origins: str = "http://localhost:5173"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()
