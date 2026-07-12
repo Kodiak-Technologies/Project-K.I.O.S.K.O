@@ -1,0 +1,6 @@
+{
+  "_comentario": "Config editable en runtime: logo, canales de notificación activos, etc. Módulo A la administra.",
+  "nombre_negocio": "",
+  "logo_url": "",
+  "canales_notificacion_activos": []
+}
