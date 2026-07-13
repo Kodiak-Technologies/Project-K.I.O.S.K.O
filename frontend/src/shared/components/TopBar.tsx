@@ -1,87 +1,109 @@
-// Barra superior: logo + nombre del negocio, controles de paleta/tipografía
-// (la clienta los pidió AQUÍ, no escondidos en configuración) y cierre de sesión.
-import { useState } from "react";
+// Barra superior: hamburguesa (abre el sidebar en pantallas chicas), controles
+// de paleta/tipografía (la clienta los pidió AQUÍ, no escondidos en configuración)
+// y cierre de sesión. Superficie blanca: el color de marca vive en los acentos.
+import { useEffect, useRef, useState } from "react";
+import { LogOut, Menu, Palette } from "lucide-react";
 import { useAuthContext } from "../lib/auth-context";
 import { useTema } from "../lib/theme-context";
 
 const TIPOGRAFIAS = ["Inter", "Roboto", "Poppins", "Lato", "Montserrat", "system-ui"];
 
-export function TopBar() {
-  const { usuario, logout } = useAuthContext();
+function ControlesDeTema() {
   const { tema, aplicarTema } = useTema();
-  const [mostrarTema, setMostrarTema] = useState(false);
+  const [abierto, setAbierto] = useState(false);
+  const contenedor = useRef<HTMLDivElement>(null);
+
+  // Cerrar al hacer clic fuera del popover.
+  useEffect(() => {
+    if (!abierto) return;
+    const manejar = (e: MouseEvent) => {
+      if (!contenedor.current?.contains(e.target as Node)) setAbierto(false);
+    };
+    document.addEventListener("mousedown", manejar);
+    return () => document.removeEventListener("mousedown", manejar);
+  }, [abierto]);
 
   return (
-    <header
-      className="flex items-center justify-between gap-2 px-3 py-2 text-white shadow"
-      style={{ backgroundColor: "var(--color-primario)" }}
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        {tema.logoUrl && (
-          <img src={tema.logoUrl} alt="Logo" className="h-8 w-8 rounded bg-white object-contain p-0.5" />
-        )}
-        <span className="truncate text-lg font-semibold">{tema.nombreNegocio}</span>
-      </div>
-
-      <div className="flex items-center gap-2">
-        {/* Controles de tema en la barra superior (pedido explícito de la clienta) */}
-        <div className="relative">
-          <button
-            onClick={() => setMostrarTema(!mostrarTema)}
-            className="rounded px-2 py-1 text-sm hover:bg-white/20"
-            title="Personalizar colores y tipografía"
-          >
-            🎨
-          </button>
-          {mostrarTema && (
-            <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border bg-white p-3 text-gray-800 shadow-lg">
-              <label className="mb-2 flex items-center justify-between text-sm">
-                Color primario
-                <input
-                  type="color"
-                  value={tema.colorPrimario}
-                  onChange={(e) => aplicarTema({ colorPrimario: e.target.value })}
-                />
-              </label>
-              <label className="mb-2 flex items-center justify-between text-sm">
-                Color secundario
-                <input
-                  type="color"
-                  value={tema.colorSecundario}
-                  onChange={(e) => aplicarTema({ colorSecundario: e.target.value })}
-                />
-              </label>
-              <label className="flex items-center justify-between gap-2 text-sm">
-                Tipografía
-                <select
-                  className="rounded border px-1 py-0.5"
-                  value={tema.tipografia}
-                  onChange={(e) => aplicarTema({ tipografia: e.target.value })}
-                >
-                  {TIPOGRAFIAS.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="mt-2 text-xs text-gray-500">
-                El ADMIN puede guardar estos valores para todos en Configuración.
-              </p>
-            </div>
-          )}
+    <div className="relative" ref={contenedor}>
+      <button
+        onClick={() => setAbierto(!abierto)}
+        title="Personalizar colores y tipografía"
+        aria-label="Personalizar colores y tipografía"
+        className="flex min-h-tactil min-w-11 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+      >
+        <Palette className="h-5 w-5" aria-hidden />
+      </button>
+      {abierto && (
+        <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-zinc-200 bg-white p-3 shadow-lg">
+          <label className="mb-2 flex items-center justify-between text-sm text-zinc-700">
+            Color primario
+            <input
+              type="color"
+              value={tema.colorPrimario}
+              onChange={(e) => aplicarTema({ colorPrimario: e.target.value })}
+            />
+          </label>
+          <label className="mb-2 flex items-center justify-between text-sm text-zinc-700">
+            Color secundario
+            <input
+              type="color"
+              value={tema.colorSecundario}
+              onChange={(e) => aplicarTema({ colorSecundario: e.target.value })}
+            />
+          </label>
+          <label className="flex items-center justify-between gap-2 text-sm text-zinc-700">
+            Tipografía
+            <select
+              className="rounded-lg border border-zinc-300 px-2 py-1 text-sm"
+              value={tema.tipografia}
+              onChange={(e) => aplicarTema({ tipografia: e.target.value })}
+            >
+              {TIPOGRAFIAS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-2 text-xs text-zinc-500">
+            El ADMIN puede guardar estos valores para todos en Configuración.
+          </p>
         </div>
+      )}
+    </div>
+  );
+}
 
+export function TopBar({ alAbrirMenu }: { alAbrirMenu: () => void }) {
+  const { usuario, logout } = useAuthContext();
+
+  return (
+    <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 py-2 sm:px-4">
+      <button
+        onClick={alAbrirMenu}
+        aria-label="Abrir menú"
+        className="flex min-h-tactil min-w-11 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 lg:hidden"
+      >
+        <Menu className="h-5 w-5" aria-hidden />
+      </button>
+
+      <div className="flex-1" />
+
+      <div className="flex items-center gap-1 sm:gap-2">
+        <ControlesDeTema />
         {usuario && (
           <>
-            <span className="hidden text-sm sm:inline">
-              {usuario.nombre} <span className="opacity-75">({usuario.rol})</span>
-            </span>
+            <div className="hidden text-right sm:block">
+              <p className="text-sm font-medium leading-tight text-zinc-800">{usuario.nombre}</p>
+              <p className="text-xs leading-tight text-zinc-400">{usuario.rol}</p>
+            </div>
             <button
               onClick={() => void logout()}
-              className="rounded bg-white/20 px-2 py-1 text-sm hover:bg-white/30"
+              title="Cerrar sesión"
+              aria-label="Cerrar sesión"
+              className="flex min-h-tactil min-w-11 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
             >
-              Salir
+              <LogOut className="h-5 w-5" aria-hidden />
             </button>
           </>
         )}

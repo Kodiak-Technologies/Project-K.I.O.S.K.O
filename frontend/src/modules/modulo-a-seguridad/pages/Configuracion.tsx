@@ -1,10 +1,22 @@
 // Página de configuración e identidad visual (solo ADMIN): nombre, logo, colores,
 // tipografía y parámetros de seguridad (TTL de sesión, intentos, bloqueo).
 import { useEffect, useState, type FormEvent } from "react";
+import { Save } from "lucide-react";
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  PageHeader,
+  PageSpinner,
+  Select,
+} from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
 import { useTema } from "../../../shared/lib/theme-context";
 import { configuracionHttpAdapter } from "../services/configuracion.http-adapter";
 import type { Configuracion as ConfiguracionDto } from "../types";
+
+const TIPOGRAFIAS = ["Inter", "Roboto", "Poppins", "Lato", "Montserrat", "system-ui"];
 
 export default function Configuracion() {
   const { aplicarTema } = useTema();
@@ -67,46 +79,55 @@ export default function Configuracion() {
     }
   }
 
-  if (!config && !error) return <p className="text-gray-500">Cargando configuración…</p>;
-  if (!config) return <p className="text-red-600">{error}</p>;
+  if (!config && !error) return <PageSpinner texto="Cargando configuración…" />;
+  if (!config) return <Alert tono="peligro">{error}</Alert>;
 
   return (
     <div className="max-w-2xl">
-      <h2 className="mb-4 text-lg font-semibold">Configuración del negocio</h2>
+      <PageHeader
+        titulo="Configuración del negocio"
+        descripcion="Identidad visual y parámetros de seguridad; aplican para todos los usuarios."
+      />
 
-      {mensaje && <p className="mb-3 rounded bg-green-50 px-3 py-2 text-sm text-green-700">{mensaje}</p>}
-      {error && <p className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {mensaje && (
+        <div className="mb-4">
+          <Alert tono="exito">{mensaje}</Alert>
+        </div>
+      )}
+      {error && (
+        <div className="mb-4">
+          <Alert tono="peligro">{error}</Alert>
+        </div>
+      )}
 
-      <form onSubmit={manejarGuardar} className="space-y-6">
-        <fieldset className="rounded-lg border bg-white p-4">
-          <legend className="px-1 text-sm font-medium text-gray-700">Identidad visual</legend>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">
-              Nombre comercial
-              <input
-                className="mt-1 w-full rounded border px-3 py-2"
-                value={config.nombre_negocio}
-                onChange={(e) => actualizarCampo("nombre_negocio", e.target.value)}
-              />
-            </label>
-            <label className="text-sm">
-              Logo (PNG/JPG/WebP/SVG, máx. 500 KB)
+      <form onSubmit={(e) => void manejarGuardar(e)} className="space-y-4">
+        <Card titulo="Identidad visual" descripcion="Cómo se ve el sistema para todo el personal.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Nombre comercial"
+              value={config.nombre_negocio}
+              onChange={(e) => actualizarCampo("nombre_negocio", e.target.value)}
+            />
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-zinc-700">
+                Logo (PNG/JPG/WebP/SVG, máx. 500 KB)
+              </span>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                className="mt-1 w-full text-sm"
+                className="w-full text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
                 onChange={(e) => void manejarLogo(e.target.files?.[0])}
               />
             </label>
-            <label className="flex items-center justify-between text-sm">
-              Color primario
+            <label className="flex min-h-tactil items-center justify-between rounded-lg border border-zinc-300 px-3 text-sm text-zinc-700">
+              Color primario (acentos)
               <input
                 type="color"
                 value={config.color_primario}
                 onChange={(e) => actualizarCampo("color_primario", e.target.value)}
               />
             </label>
-            <label className="flex items-center justify-between text-sm">
+            <label className="flex min-h-tactil items-center justify-between rounded-lg border border-zinc-300 px-3 text-sm text-zinc-700">
               Color secundario
               <input
                 type="color"
@@ -114,79 +135,64 @@ export default function Configuracion() {
                 onChange={(e) => actualizarCampo("color_secundario", e.target.value)}
               />
             </label>
-            <label className="text-sm sm:col-span-2">
-              Tipografía
-              <select
-                className="mt-1 w-full rounded border px-3 py-2"
+            <div className="sm:col-span-2">
+              <Select
+                label="Tipografía"
                 value={config.tipografia}
                 onChange={(e) => actualizarCampo("tipografia", e.target.value)}
               >
-                {["Inter", "Roboto", "Poppins", "Lato", "Montserrat", "system-ui"].map((t) => (
+                {TIPOGRAFIAS.map((t) => (
                   <option key={t}>{t}</option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </div>
           </div>
-        </fieldset>
+        </Card>
 
-        <fieldset className="rounded-lg border bg-white p-4">
-          <legend className="px-1 text-sm font-medium text-gray-700">Seguridad de sesiones</legend>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">
-              Sesión ADMIN (minutos)
-              <input
+        <Card titulo="Seguridad de sesiones" descripcion="Cuánto duran las sesiones y el bloqueo por intentos fallidos.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Input
+                label="Sesión ADMIN (minutos)"
                 type="number"
                 min={1}
-                className="mt-1 w-full rounded border px-3 py-2"
                 value={config.session_ttl_admin_minutos}
                 onChange={(e) => actualizarCampo("session_ttl_admin_minutos", Number(e.target.value))}
               />
-              <span className="text-xs text-gray-500">43200 = 30 días</span>
-            </label>
-            <label className="text-sm">
-              Sesión CAJERO (minutos)
-              <input
+              <p className="mt-1 text-xs text-zinc-500">43200 = 30 días</p>
+            </div>
+            <div>
+              <Input
+                label="Sesión CAJERO (minutos)"
                 type="number"
                 min={1}
-                className="mt-1 w-full rounded border px-3 py-2"
                 value={config.session_ttl_cajero_minutos}
                 onChange={(e) => actualizarCampo("session_ttl_cajero_minutos", Number(e.target.value))}
               />
-              <span className="text-xs text-gray-500">720 = 12 horas</span>
-            </label>
-            <label className="text-sm">
-              Intentos máximos de login
-              <input
-                type="number"
-                min={1}
-                max={10}
-                className="mt-1 w-full rounded border px-3 py-2"
-                value={config.max_intentos_login}
-                onChange={(e) => actualizarCampo("max_intentos_login", Number(e.target.value))}
-              />
-            </label>
-            <label className="text-sm">
-              Minutos de bloqueo
-              <input
-                type="number"
-                min={1}
-                max={1440}
-                className="mt-1 w-full rounded border px-3 py-2"
-                value={config.minutos_bloqueo}
-                onChange={(e) => actualizarCampo("minutos_bloqueo", Number(e.target.value))}
-              />
-            </label>
+              <p className="mt-1 text-xs text-zinc-500">720 = 12 horas</p>
+            </div>
+            <Input
+              label="Intentos máximos de login"
+              type="number"
+              min={1}
+              max={10}
+              value={config.max_intentos_login}
+              onChange={(e) => actualizarCampo("max_intentos_login", Number(e.target.value))}
+            />
+            <Input
+              label="Minutos de bloqueo"
+              type="number"
+              min={1}
+              max={1440}
+              value={config.minutos_bloqueo}
+              onChange={(e) => actualizarCampo("minutos_bloqueo", Number(e.target.value))}
+            />
           </div>
-        </fieldset>
+        </Card>
 
-        <button
-          type="submit"
-          disabled={guardando}
-          className="rounded-lg px-4 py-2 font-medium text-white disabled:opacity-60"
-          style={{ backgroundColor: "var(--color-primario)" }}
-        >
+        <Button type="submit" cargando={guardando} icono={<Save className="h-4 w-4" aria-hidden />}>
           {guardando ? "Guardando…" : "Guardar configuración"}
-        </button>
+        </Button>
       </form>
     </div>
   );
