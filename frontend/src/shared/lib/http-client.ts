@@ -70,6 +70,11 @@ httpClient.interceptors.response.use(
   }
 );
 
+/** True si el endpoint aún no existe (módulo cuyo backend no está desplegado). */
+export function servicioNoDisponible(error: unknown): boolean {
+  return axios.isAxiosError(error) && (!error.response || [404, 501, 503].includes(error.response.status));
+}
+
 /** Extrae el mensaje de error legible que envía el backend (campo `detail`). */
 export function mensajeDeError(error: unknown): string {
   if (axios.isAxiosError(error)) {

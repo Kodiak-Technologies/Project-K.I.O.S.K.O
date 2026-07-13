@@ -1,8 +1,13 @@
 // Página de inicio de sesión. REGLA DE NEGOCIO: no existe "Crear cuenta" —
-// solo el ADMIN crea usuarios desde Gestión de Usuarios.
+// solo el ADMIN crea usuarios desde Gestión de Usuarios. Los usernames son
+// siempre en minúsculas (misma regla que al crearlos), por eso el toLowerCase.
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
+import { Store } from "lucide-react";
+import { Alert } from "../../../shared/components/ui";
+import { Button } from "../../../shared/components/ui";
+import { Input } from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
 import { useTema } from "../../../shared/lib/theme-context";
 import { useAuth } from "../hooks/useAuth";
@@ -44,58 +49,54 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm rounded-xl border bg-white p-6 shadow-sm">
-        <div className="mb-6 text-center">
-          {tema.logoUrl && (
-            <img src={tema.logoUrl} alt="Logo" className="mx-auto mb-2 h-16 w-16 rounded object-contain" />
-          )}
-          <h1 className="text-xl font-semibold" style={{ color: "var(--color-primario)" }}>
-            {tema.nombreNegocio}
-          </h1>
-          <p className="text-sm text-gray-500">Inicia sesión para continuar</p>
-        </div>
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4">
+      <div className="w-full max-w-sm">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-tarjeta sm:p-8">
+          <div className="mb-6 text-center">
+            {tema.logoUrl ? (
+              <img
+                src={tema.logoUrl}
+                alt="Logo"
+                className="mx-auto mb-3 h-14 w-14 rounded-xl object-contain"
+              />
+            ) : (
+              <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-zinc-900 text-white">
+                <Store className="h-7 w-7" aria-hidden />
+              </span>
+            )}
+            <h1 className="text-xl font-semibold text-zinc-900">{tema.nombreNegocio}</h1>
+            <p className="mt-0.5 text-sm text-zinc-500">Inicia sesión para continuar</p>
+          </div>
 
-        <form onSubmit={manejarEnvio} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Usuario</label>
-            <input
+          <form onSubmit={manejarEnvio} className="space-y-4">
+            <Input
+              label="Usuario"
               type="text"
               autoComplete="username"
               autoCapitalize="none"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2"
               placeholder="ej. vendedor1"
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Contraseña</label>
-            <input
+            <Input
+              label="Contraseña"
               type="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2"
             />
-          </div>
 
-          {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
-              {error}
-            </p>
-          )}
+            {error && <Alert tono="peligro">{error}</Alert>}
 
-          <button
-            type="submit"
-            disabled={enviando}
-            className="w-full rounded-lg px-4 py-2 font-medium text-white disabled:opacity-60"
-            style={{ backgroundColor: "var(--color-primario)" }}
-          >
-            {enviando ? "Ingresando…" : "Ingresar"}
-          </button>
-        </form>
-        {/* Sin enlace de registro: las cuentas las crea únicamente el ADMIN. */}
+            <Button type="submit" cargando={enviando} className="w-full">
+              {enviando ? "Ingresando…" : "Ingresar"}
+            </Button>
+          </form>
+          {/* Sin enlace de registro: las cuentas las crea únicamente el ADMIN. */}
+        </div>
+        <p className="mt-4 text-center text-xs text-zinc-400">
+          ¿Olvidaste tu contraseña? Pídele al administrador que la resetee.
+        </p>
       </div>
     </div>
   );
