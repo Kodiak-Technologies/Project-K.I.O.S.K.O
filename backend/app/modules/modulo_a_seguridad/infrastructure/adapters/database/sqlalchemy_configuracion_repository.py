@@ -50,4 +50,8 @@ class SqlAlchemyConfiguracionRepository:
         fila.minutos_bloqueo = configuracion.minutos_bloqueo
         fila.updated_by = configuracion.updated_by
         await self._db.flush()
+        # updated_at lo genera la BD en el UPDATE (onupdate=func.now()), así que tras
+        # el flush queda "expirado". Hay que recargarlo con refresh() async: leerlo
+        # directo dispararía una carga síncrona y explota con MissingGreenlet.
+        await self._db.refresh(fila)
         return _a_entidad(fila)

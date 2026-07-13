@@ -12,13 +12,14 @@ Este documento explica cómo está construida la interfaz, qué componentes comp
 - **PROHIBIDO usar emojis en la UI.** Los íconos son componentes React de `lucide-react` (`<Package />`, `<Wallet />`, etc.).
 - **Solo tema claro.**
 - **Responsive real**: denso en escritorio, táctil en tablet. Todo botón, input e ítem de navegación mide mínimo 44px de alto (`min-h-tactil`).
-- **Acento de marca configurable**: la dueña puede cambiar el color primario/secundario y la tipografía desde Configuración. Esos valores viajan como variables CSS (`--color-primario`, `--color-secundario`, `--tipografia`) y en Tailwind se usan como `text-marca`, `bg-marca`, etc. El default es gris casi negro (`#18181b`). **No** los uses para estados — para eso están los tonos de abajo.
+- **Acento de marca configurable**: la dueña puede cambiar el color primario/secundario y la tipografía desde Configuración. Esos valores viajan como variables CSS (`--color-primario`, `--color-secundario`, `--tipografia`) y en Tailwind se usan como `text-marca`, `bg-marca`, etc. El default es gris casi negro (`#18181b`). El primario pinta los **botones primarios, el bloque del logo y el ítem activo del sidebar**; el secundario, los íconos de los accesos rápidos del Inicio. **No** los uses para estados — para eso están los tonos de abajo.
 
 ### Tokens (en `tailwind.config.ts`)
 
 | Token | Uso | Clases |
 |---|---|---|
-| `marca` / `marca-secundario` | Acento configurable (indicador activo del sidebar, foco) | `bg-marca`, `ring-marca` |
+| `marca` | Color primario de la dueña: botones primarios, bloque del logo, ítem activo del sidebar, foco | `bg-marca`, `text-marca`, `ring-marca` |
+| `marca-secundario` | Color secundario de la dueña: íconos de los accesos rápidos del Inicio | `text-marca-secundario` |
 | `exito` (+ `-suave`, `-intenso`) | Operación correcta, activo, caja abierta | `bg-exito-suave text-green-800` |
 | `peligro` (+ variantes) | Errores, eliminar, anular, sin stock | `bg-peligro-suave text-red-800` |
 | `alerta` (+ variantes) | Pendiente, stock bajo, bloqueos | `bg-alerta-suave text-yellow-800` |
@@ -55,7 +56,7 @@ import { Button, Card, Table, Badge, Modal, Input, Select,
 ## 3. Layout
 
 - **Sidebar izquierdo** (`shared/components/Sidebar.tsx`): navegación agrupada por módulo (Ventas, Inventario, Documentos, Seguridad), filtra ítems `soloAdmin` según el rol, y **Configuración va SIEMPRE anclada al fondo** (decisión de diseño). En escritorio es fijo; en tablet/móvil es un drawer que abre la hamburguesa de la topbar.
-- **TopBar** (`shared/components/TopBar.tsx`): blanca y mínima — hamburguesa (solo pantallas chicas), popover de personalización de colores/tipografía (la clienta lo pidió ahí, no escondido en Configuración) y logout.
+- **TopBar** (`shared/components/TopBar.tsx`): blanca y mínima — hamburguesa (solo pantallas chicas), **campanita de notificaciones** (badge con el conteo de no leídas y popover con las entrantes; el historial completo, leídas incluidas, vive en la página Notificaciones del sidebar) y logout. La personalización de colores/tipografía se hace en Configuración.
 - Para agregar una página de tu módulo: crea la page, regístrala en el `routes.tsx` de tu módulo (ya montado en `App.tsx`) y agrega el enlace en `GRUPOS` de `Sidebar.tsx` con su ícono de lucide.
 
 ---

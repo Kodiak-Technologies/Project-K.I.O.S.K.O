@@ -10,8 +10,8 @@ export function useVenta() {
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
 
+  // `cargando` es solo para la primera carga; las recargas son silenciosas.
   const recargar = useCallback(async (desde?: string, hasta?: string) => {
-    setCargando(true);
     setError(null);
     try {
       setVentas(await ventasHttpAdapter.listar(desde, hasta));

@@ -1,19 +1,24 @@
-// Barra superior: hamburguesa (abre el sidebar en pantallas chicas), controles
-// de paleta/tipografía (la clienta los pidió AQUÍ, no escondidos en configuración)
-// y cierre de sesión. Superficie blanca: el color de marca vive en los acentos.
+// Barra superior: hamburguesa (abre el sidebar en pantallas chicas), campanita
+// con las notificaciones NO leídas y cierre de sesión. La página de
+// Notificaciones del sidebar muestra el historial completo (leídas incluidas);
+// la campanita es solo el "entrante". Personalización de colores: Configuración.
 import { useEffect, useRef, useState } from "react";
-import { LogOut, Menu, Palette } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { Bell, LogOut, Menu } from "lucide-react";
+// Import cruzado consciente: las notificaciones son del módulo D, igual que el
+// POS consume el catálogo del módulo B a través de su puerto.
+import { useNotificaciones } from "../../modules/modulo-d-documentos/hooks/useNotificaciones";
 import { useAuthContext } from "../lib/auth-context";
-import { useTema } from "../lib/theme-context";
 
-const TIPOGRAFIAS = ["Inter", "Roboto", "Poppins", "Lato", "Montserrat", "system-ui"];
-
-function ControlesDeTema() {
-  const { tema, aplicarTema } = useTema();
+function CampanaNotificaciones() {
+  const { notificaciones, noDisponible, recargar, marcarLeida } = useNotificaciones();
   const [abierto, setAbierto] = useState(false);
   const contenedor = useRef<HTMLDivElement>(null);
+  const ubicacion = useLocation();
 
-  // Cerrar al hacer clic fuera del popover.
+  const noLeidas = notificaciones.filter((n) => !n.leida);
+
+  // Cerrar al hacer clic fuera o al navegar.
   useEffect(() => {
     if (!abierto) return;
     const manejar = (e: MouseEvent) => {
@@ -22,52 +27,73 @@ function ControlesDeTema() {
     document.addEventListener("mousedown", manejar);
     return () => document.removeEventListener("mousedown", manejar);
   }, [abierto]);
+  useEffect(() => setAbierto(false), [ubicacion.pathname]);
+
+  function alternar() {
+    const abriendo = !abierto;
+    setAbierto(abriendo);
+    if (abriendo) void recargar(); // refrescar el "entrante" cada vez que se abre
+  }
 
   return (
     <div className="relative" ref={contenedor}>
       <button
-        onClick={() => setAbierto(!abierto)}
-        title="Personalizar colores y tipografía"
-        aria-label="Personalizar colores y tipografía"
-        className="flex min-h-tactil min-w-11 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+        onClick={alternar}
+        title="Notificaciones"
+        aria-label={`Notificaciones${noLeidas.length > 0 ? ` (${noLeidas.length} sin leer)` : ""}`}
+        className="relative flex min-h-tactil min-w-11 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
       >
-        <Palette className="h-5 w-5" aria-hidden />
+        <Bell className="h-5 w-5" aria-hidden />
+        {noLeidas.length > 0 && (
+          <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-peligro px-1 text-[10px] font-semibold leading-none text-white">
+            {noLeidas.length > 9 ? "9+" : noLeidas.length}
+          </span>
+        )}
       </button>
+
       {abierto && (
-        <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-zinc-200 bg-white p-3 shadow-lg">
-          <label className="mb-2 flex items-center justify-between text-sm text-zinc-700">
-            Color primario
-            <input
-              type="color"
-              value={tema.colorPrimario}
-              onChange={(e) => aplicarTema({ colorPrimario: e.target.value })}
-            />
-          </label>
-          <label className="mb-2 flex items-center justify-between text-sm text-zinc-700">
-            Color secundario
-            <input
-              type="color"
-              value={tema.colorSecundario}
-              onChange={(e) => aplicarTema({ colorSecundario: e.target.value })}
-            />
-          </label>
-          <label className="flex items-center justify-between gap-2 text-sm text-zinc-700">
-            Tipografía
-            <select
-              className="rounded-lg border border-zinc-300 px-2 py-1 text-sm"
-              value={tema.tipografia}
-              onChange={(e) => aplicarTema({ tipografia: e.target.value })}
-            >
-              {TIPOGRAFIAS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
+        <div className="absolute right-0 z-20 mt-2 w-80 max-w-[90vw] rounded-xl border border-zinc-200 bg-white shadow-lg">
+          <header className="border-b border-zinc-100 px-4 py-2.5">
+            <p className="text-sm font-semibold text-zinc-900">Notificaciones nuevas</p>
+          </header>
+
+          {noDisponible || noLeidas.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-zinc-500">
+              {noDisponible ? "El módulo de notificaciones aún no está conectado." : "Nada nuevo por ahora."}
+            </p>
+          ) : (
+            <ul className="max-h-80 divide-y divide-zinc-100 overflow-y-auto">
+              {noLeidas.slice(0, 6).map((n) => (
+                <li key={n.id} className="flex items-start gap-2 px-4 py-2.5">
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-info-intenso" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-zinc-800">{n.titulo}</p>
+                    <p className="line-clamp-2 text-xs text-zinc-500">{n.mensaje}</p>
+                    {n.created_at && (
+                      <p className="mt-0.5 text-[11px] text-zinc-400">
+                        {new Date(n.created_at).toLocaleString("es-PE")}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => void marcarLeida(n.id)}
+                    className="shrink-0 rounded px-1.5 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+                  >
+                    Leída
+                  </button>
+                </li>
               ))}
-            </select>
-          </label>
-          <p className="mt-2 text-xs text-zinc-500">
-            El ADMIN puede guardar estos valores para todos en Configuración.
-          </p>
+            </ul>
+          )}
+
+          <footer className="border-t border-zinc-100 px-4 py-2">
+            <Link
+              to="/notificaciones"
+              className="block text-center text-sm font-medium text-marca hover:underline"
+            >
+              Ver todas las notificaciones
+            </Link>
+          </footer>
         </div>
       )}
     </div>
@@ -78,7 +104,8 @@ export function TopBar({ alAbrirMenu }: { alAbrirMenu: () => void }) {
   const { usuario, logout } = useAuthContext();
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 py-2 sm:px-4">
+    // h-16 fija, la misma del header del sidebar: los bordes quedan al ras.
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 sm:px-4">
       <button
         onClick={alAbrirMenu}
         aria-label="Abrir menú"
@@ -90,7 +117,7 @@ export function TopBar({ alAbrirMenu }: { alAbrirMenu: () => void }) {
       <div className="flex-1" />
 
       <div className="flex items-center gap-1 sm:gap-2">
-        <ControlesDeTema />
+        <CampanaNotificaciones />
         {usuario && (
           <>
             <div className="hidden text-right sm:block">

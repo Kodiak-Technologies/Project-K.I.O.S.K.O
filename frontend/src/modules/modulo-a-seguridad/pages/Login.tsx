@@ -60,7 +60,7 @@ export default function Login() {
                 className="mx-auto mb-3 h-14 w-14 rounded-xl object-contain"
               />
             ) : (
-              <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-zinc-900 text-white">
+              <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-marca text-white">
                 <Store className="h-7 w-7" aria-hidden />
               </span>
             )}
