@@ -32,12 +32,29 @@ interface TemaContextValue {
 
 const TemaContext = createContext<TemaContextValue | null>(null);
 
+// Las tipografías del selector no vienen instaladas con la app: hay que cargar
+// la elegida desde Google Fonts. Sin esto, cambiar la fuente no se ve (el
+// navegador no la encuentra y cae al fallback del sistema).
+function cargarFuente(tipografia: string) {
+  if (tipografia === "system-ui") return; // esa sí existe siempre
+  const href = `https://fonts.googleapis.com/css2?family=${tipografia.replace(/ /g, "+")}:wght@400;500;600;700&display=swap`;
+  let link = document.getElementById("fuente-tema") as HTMLLinkElement | null;
+  if (!link) {
+    link = document.createElement("link");
+    link.id = "fuente-tema";
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+  }
+  if (link.href !== href) link.href = href;
+}
+
 function aplicarVariablesCss(tema: Tema) {
   const raiz = document.documentElement;
   raiz.style.setProperty("--color-primario", tema.colorPrimario);
   raiz.style.setProperty("--color-secundario", tema.colorSecundario);
   raiz.style.setProperty("--tipografia", tema.tipografia);
-  document.body.style.fontFamily = `${tema.tipografia}, system-ui, sans-serif`;
+  cargarFuente(tema.tipografia);
+  document.body.style.fontFamily = `"${tema.tipografia}", system-ui, sans-serif`;
 }
 
 export function TemaProvider({ children }: { children: ReactNode }) {

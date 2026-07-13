@@ -10,8 +10,8 @@ export function useProductos() {
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
 
+  // `cargando` es solo para la primera carga; las recargas son silenciosas.
   const recargar = useCallback(async (busqueda?: string) => {
-    setCargando(true);
     setError(null);
     try {
       setProductos(await productosHttpAdapter.listar(busqueda));

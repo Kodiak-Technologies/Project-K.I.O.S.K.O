@@ -12,7 +12,8 @@ export function useBitacora(filtrosIniciales: FiltrosBitacora = {}) {
 
   useEffect(() => {
     let cancelado = false;
-    setCargando(true);
+    // Sin setCargando(true) acá: el spinner es solo para la primera carga. Al
+    // filtrar o paginar, la tabla anterior queda visible hasta que llega la nueva.
     setError(null);
     bitacoraHttpAdapter
       .consultar(filtros)

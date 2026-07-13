@@ -10,8 +10,9 @@ export function useNotificaciones() {
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
 
+  // `cargando` es solo para la primera carga; las recargas son silenciosas
+  // (la campanita de la TopBar recarga cada vez que se abre).
   const recargar = useCallback(async () => {
-    setCargando(true);
     setError(null);
     try {
       setNotificaciones(await notificacionesHttpAdapter.listar());
@@ -35,5 +36,5 @@ export function useNotificaciones() {
     [recargar]
   );
 
-  return { notificaciones, cargando, error, noDisponible, marcarLeida };
+  return { notificaciones, cargando, error, noDisponible, recargar, marcarLeida };
 }

@@ -11,8 +11,9 @@ export function useUsuarios() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // `cargando` es solo para la PRIMERA carga: las recargas tras una acción son
+  // silenciosas para que la tabla no desaparezca (se sentía como refresh de página).
   const recargar = useCallback(async () => {
-    setCargando(true);
     setError(null);
     try {
       const [listaUsuarios, listaRoles] = await Promise.all([
