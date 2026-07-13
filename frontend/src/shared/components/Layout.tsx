@@ -1,45 +1,40 @@
-// Layout autenticado: barra superior + navegación (responsive desde 360 px) + contenido.
-import { NavLink, Outlet } from "react-router-dom";
-import { useAuthContext } from "../lib/auth-context";
+// Layout autenticado: sidebar fijo en escritorio, drawer deslizante en
+// tablet/móvil, topbar y área de contenido.
+import { useEffect, useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
-const enlaces = [
-  { a: "/usuarios", texto: "Usuarios", soloAdmin: true },
-  { a: "/bitacora", texto: "Bitácora", soloAdmin: true },
-  { a: "/configuracion", texto: "Configuración", soloAdmin: true },
-  // Los módulos B, C y D agregan aquí sus enlaces cuando monten sus rutas.
-];
-
 export function Layout() {
-  const { usuario } = useAuthContext();
-  const esAdmin = usuario?.rol === "ADMIN";
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const ubicacion = useLocation();
+
+  // Al navegar, el drawer se cierra solo.
+  useEffect(() => setMenuAbierto(false), [ubicacion.pathname]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <TopBar />
-      <nav className="flex gap-1 overflow-x-auto border-b bg-white px-2 py-1">
-        {enlaces
-          .filter((e) => !e.soloAdmin || esAdmin)
-          .map((e) => (
-            <NavLink
-              key={e.a}
-              to={e.a}
-              className={({ isActive }) =>
-                `whitespace-nowrap rounded px-3 py-1.5 text-sm ${
-                  isActive ? "text-white" : "text-gray-700 hover:bg-gray-100"
-                }`
-              }
-              style={({ isActive }) =>
-                isActive ? { backgroundColor: "var(--color-primario)" } : undefined
-              }
-            >
-              {e.texto}
-            </NavLink>
-          ))}
-      </nav>
-      <main className="mx-auto max-w-5xl p-3 sm:p-6">
-        <Outlet />
-      </main>
+    <div className="min-h-screen bg-zinc-50">
+      {/* Sidebar fijo (escritorio) */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 lg:block">
+        <Sidebar />
+      </aside>
+
+      {/* Drawer (tablet/móvil) */}
+      {menuAbierto && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-zinc-900/40" onClick={() => setMenuAbierto(false)} aria-hidden />
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-xl">
+            <Sidebar />
+          </aside>
+        </div>
+      )}
+
+      <div className="lg:pl-64">
+        <TopBar alAbrirMenu={() => setMenuAbierto(true)} />
+        <main className="mx-auto max-w-6xl p-3 sm:p-6">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

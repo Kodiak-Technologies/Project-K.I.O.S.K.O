@@ -19,7 +19,7 @@ from app.modules.modulo_a_seguridad.infrastructure.adapters.database.models impo
 from app.modules.modulo_a_seguridad.infrastructure.adapters.security.bcrypt_password_hasher import (
     BcryptPasswordHasher,
 )
-from app.shared.database.session import SessionLocal
+from app.shared.database.session import SessionLocal, engine
 
 ROLES = [
     ("ADMIN", "Dueña de la tienda: control total del sistema."),
@@ -47,8 +47,8 @@ PERMISOS = [
 
 
 async def seed() -> None:
-    admin_username = os.environ.get("ADMIN_USERNAME", "admin")
-    admin_password = os.environ.get("ADMIN_PASSWORD")
+    admin_username = os.environ.get("ADMIN_USERNAME", "pepe")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "pepe")
     if not admin_password:
         print("ERROR: define la variable de entorno ADMIN_PASSWORD (nunca va en el código).")
         sys.exit(1)
@@ -118,6 +118,10 @@ async def seed() -> None:
 
         await db.commit()
         print(f"Seed completado: roles, {len(PERMISOS)} permisos, usuario '{admin_username}' y configuración.")
+
+    # Cierra el pool antes de que asyncio.run() cierre el loop; si no, en Windows
+    # las conexiones SSL se destruyen con el loop ya cerrado ("Event loop is closed").
+    await engine.dispose()
 
 
 if __name__ == "__main__":

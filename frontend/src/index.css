@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Variables del tema. --color-primario/--color-secundario/--tipografia las
+   sobreescribe theme-context con lo que la dueña guarda en Configuración. */
+:root {
+  --color-primario: #18181b;
+  --color-secundario: #71717a;
+  --tipografia: "Inter";
+}
+
+@layer base {
+  body {
+    @apply bg-zinc-50 font-sans text-zinc-900 antialiased;
+  }
+
+  /* Foco visible y consistente en todo el sistema (accesibilidad teclado). */
+  :focus-visible {
+    @apply outline-none ring-2 ring-marca ring-offset-2 ring-offset-white;
+  }
+
+  /* En tablet no queremos el resaltado azul nativo al tocar. */
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}

@@ -13,8 +13,10 @@ export interface Tema {
 }
 
 const TEMA_POR_DEFECTO: Tema = {
-  colorPrimario: "#2563eb",
-  colorSecundario: "#f59e0b",
+  // Acento gris casi negro: el sistema es en escala de grises y el color queda
+  // reservado para estados. La dueña puede elegir otro acento en Configuración.
+  colorPrimario: "#18181b",
+  colorSecundario: "#71717a",
   tipografia: "Inter",
   nombreNegocio: "Mi Tienda",
   logoUrl: "",

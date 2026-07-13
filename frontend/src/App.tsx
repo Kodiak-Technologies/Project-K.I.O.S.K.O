@@ -1,23 +1,58 @@
 // Router raíz: monta las rutas de cada módulo dentro del Layout autenticado.
-// Los módulos B, C y D agregan sus rutas igual que rutasModuloA.
-import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom";
+import { Link, Navigate, RouterProvider, createBrowserRouter } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
+import { ArrowRight, Package, ScrollText, ShoppingCart, Users, Wallet } from "lucide-react";
 import { rutasModuloA } from "./modules/modulo-a-seguridad/routes";
+import { rutasModuloB } from "./modules/modulo-b-inventario/routes";
+import { rutasModuloC } from "./modules/modulo-c-ventas/routes";
+import { rutasModuloD } from "./modules/modulo-d-documentos/routes";
 import Login from "./modules/modulo-a-seguridad/pages/Login";
 import { Layout } from "./shared/components/Layout";
 import { ProtectedRoute } from "./shared/components/ProtectedRoute";
+import { Card, PageHeader } from "./shared/components/ui";
 import { AuthProvider } from "./shared/lib/auth-context";
 import { TemaProvider } from "./shared/lib/theme-context";
 import { useAuthContext } from "./shared/lib/auth-context";
 
-function Inicio() {
-  // El ADMIN aterriza en Usuarios; el CAJERO, de momento, en una bienvenida
-  // (cuando existan los módulos B/C/D, irá al POS).
-  const { usuario } = useAuthContext();
-  if (usuario?.rol === "ADMIN") return <Navigate to="/usuarios" replace />;
+function AccesoRapido({ a, titulo, detalle, icono: Icono }: { a: string; titulo: string; detalle: string; icono: LucideIcon }) {
   return (
-    <p className="text-gray-600">
-      Bienvenido, {usuario?.nombre}. Los módulos de ventas e inventario estarán disponibles pronto.
-    </p>
+    <Link to={a} className="group">
+      <Card className="h-full transition-colors group-hover:border-zinc-400">
+        <div className="flex items-start justify-between">
+          <div className="rounded-lg bg-zinc-100 p-2.5">
+            <Icono className="h-5 w-5 text-zinc-600" aria-hidden />
+          </div>
+          <ArrowRight className="h-4 w-4 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-500" aria-hidden />
+        </div>
+        <p className="mt-3 font-medium text-zinc-900">{titulo}</p>
+        <p className="mt-0.5 text-sm text-zinc-500">{detalle}</p>
+      </Card>
+    </Link>
+  );
+}
+
+function Inicio() {
+  const { usuario } = useAuthContext();
+  const esAdmin = usuario?.rol === "ADMIN";
+
+  return (
+    <div>
+      <PageHeader
+        titulo={`Hola, ${usuario?.nombre ?? ""}`}
+        descripcion="¿Qué necesitas hacer hoy?"
+      />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <AccesoRapido a="/pos" titulo="Punto de venta" detalle="Registrar una venta" icono={ShoppingCart} />
+        <AccesoRapido a="/caja" titulo="Caja" detalle="Abrir o cerrar el turno" icono={Wallet} />
+        <AccesoRapido a="/catalogo" titulo="Catálogo" detalle="Consultar stock y precios" icono={Package} />
+        {esAdmin && (
+          <>
+            <AccesoRapido a="/usuarios" titulo="Usuarios" detalle="Cuentas del personal" icono={Users} />
+            <AccesoRapido a="/bitacora" titulo="Bitácora" detalle="Quién hizo qué y cuándo" icono={ScrollText} />
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -33,7 +68,9 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Inicio /> },
       ...rutasModuloA,
-      // ...rutasModuloB, ...rutasModuloC, ...rutasModuloD
+      ...rutasModuloB,
+      ...rutasModuloC,
+      ...rutasModuloD,
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },
