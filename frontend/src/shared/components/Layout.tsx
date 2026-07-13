@@ -2,6 +2,7 @@
 // tablet/móvil, topbar y área de contenido.
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { AcercaDelSistema } from "./AcercaDelSistema";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -31,10 +32,13 @@ export function Layout() {
 
       <div className="lg:pl-64">
         <TopBar alAbrirMenu={() => setMenuAbierto(true)} />
-        <main className="mx-auto max-w-6xl p-3 sm:p-6">
+        <main className="mx-auto max-w-6xl p-3 sm:p-6 pb-20">
           <Outlet />
         </main>
       </div>
+
+      {/* "!" flotante abajo a la derecha con el Acerca del sistema */}
+      <AcercaDelSistema />
     </div>
   );
 }

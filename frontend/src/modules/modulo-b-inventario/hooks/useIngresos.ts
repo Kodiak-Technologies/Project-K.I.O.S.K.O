@@ -10,8 +10,8 @@ export function useIngresos() {
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
 
+  // `cargando` es solo para la primera carga; las recargas son silenciosas.
   const recargar = useCallback(async () => {
-    setCargando(true);
     setError(null);
     try {
       setIngresos(await ingresosHttpAdapter.listar());
