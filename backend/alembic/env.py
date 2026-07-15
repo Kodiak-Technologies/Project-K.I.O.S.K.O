@@ -14,7 +14,8 @@ from app.shared.database.base_model import Base
 
 # Modelos de cada módulo (importar = registrar sus tablas en Base.metadata):
 from app.modules.modulo_a_seguridad.infrastructure.adapters.database import models as _modelos_a  # noqa: F401
-# TODO módulos B, C y D: importar aquí sus models.py cuando existan.
+from app.modules.modulo_d_documentos.infrastructure.adapters.database import models as _modelos_d  # noqa: F401
+# TODO módulos B y C: importar aquí sus models.py cuando existan.
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
