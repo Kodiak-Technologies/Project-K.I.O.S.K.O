@@ -16,6 +16,9 @@ from app.modules.modulo_a_seguridad.infrastructure.adapters.database.models impo
     RolPermisoModel,
     UsuarioModel,
 )
+from app.modules.modulo_d_documentos.infrastructure.adapters.database.models import (
+    ConfigNotificacionesModel,
+)
 from app.modules.modulo_a_seguridad.infrastructure.adapters.security.bcrypt_password_hasher import (
     BcryptPasswordHasher,
 )
@@ -116,8 +119,15 @@ async def seed() -> None:
         if config is None:
             db.add(ConfiguracionNegocioModel(id=1))
 
+        # --- Configuración de notificaciones (fila única) ---
+        config_notif = (
+            await db.execute(select(ConfigNotificacionesModel).where(ConfigNotificacionesModel.id == 1))
+        ).scalar_one_or_none()
+        if config_notif is None:
+            db.add(ConfigNotificacionesModel(id=1))
+
         await db.commit()
-        print(f"Seed completado: roles, {len(PERMISOS)} permisos, usuario '{admin_username}' y configuración.")
+        print(f"Seed completado: roles, {len(PERMISOS)} permisos, usuario '{admin_username}', configuración y notificaciones.")
 
     # Cierra el pool antes de que asyncio.run() cierre el loop; si no, en Windows
     # las conexiones SSL se destruyen con el loop ya cerrado ("Event loop is closed").
