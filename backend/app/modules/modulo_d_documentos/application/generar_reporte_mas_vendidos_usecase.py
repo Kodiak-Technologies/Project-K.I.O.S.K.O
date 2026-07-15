@@ -1,44 +1,46 @@
 from collections import defaultdict
 
-from app.modules.modulo_d_documentos.domain.entities import ResumenReporte, TopProducto
+from app.modules.modulo_d_documentos.domain.entities import TopProducto
 from app.modules.modulo_d_documentos.domain.ports.venta_data_provider_port import VentaDataProviderPort
 
 
-class GenerarReporteVentasUseCase:
+class GenerarReporteMasVendidosUseCase:
     def __init__(self, venta_data: VentaDataProviderPort) -> None:
         self._venta_data = venta_data
 
-    async def ejecutar(self, desde: str, hasta: str) -> ResumenReporte:
+    async def ejecutar(
+        self,
+        desde: str,
+        hasta: str,
+        criterio: str = "unidades",
+        categoria_id: int | None = None,
+    ) -> list[TopProducto]:
         ventas = await self._venta_data.listar_ventas(desde=desde, hasta=hasta)
-
-        total_vendido = sum(v.get("total", 0) for v in ventas)
-        numero_ventas = len(ventas)
 
         producto_stats: dict[str, dict] = defaultdict(lambda: {"cantidad": 0, "total": 0.0})
 
         for venta in ventas:
             items = await self._venta_data.obtener_detalle_venta(venta["id"])
             for item in items:
+                if categoria_id is not None:
+                    if item.get("categoria_id") != categoria_id:
+                        continue
+
                 nombre = item.get("nombre", "Desconocido")
                 cantidad = item.get("cantidad", 0)
                 precio = item.get("precio_unitario", 0)
                 producto_stats[nombre]["cantidad"] += cantidad
                 producto_stats[nombre]["total"] += cantidad * precio
 
+        key_func = (
+            lambda x: x.cantidad if criterio == "unidades" else x.total
+        )
+
         top_productos = sorted(
             [TopProducto(nombre=k, cantidad=v["cantidad"], total=v["total"])
              for k, v in producto_stats.items()],
-            key=lambda x: x.total,
+            key=key_func,
             reverse=True,
-        )[:10]
+        )[:20]
 
-        resumen = ResumenReporte(
-            desde=desde,
-            hasta=hasta,
-            total_vendido=total_vendido,
-            numero_ventas=numero_ventas,
-            top_productos=top_productos,
-        )
-        resumen.calcular_ticket_promedio()
-
-        return resumen
+        return top_productos
