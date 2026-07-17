@@ -1,7 +1,7 @@
 // Página de historial de ventas con filtros. Anular requiere permiso de ADMIN
 // (el backend lo valida); acá solo se muestra la acción al ADMIN.
 import { useState } from "react";
-import { History } from "lucide-react";
+import { History, Printer } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -18,11 +18,14 @@ import {
 } from "../../../shared/components/ui";
 import { useAuthContext } from "../../../shared/lib/auth-context";
 import { mensajeDeError } from "../../../shared/lib/http-client";
+import { useTema } from "../../../shared/lib/theme-context";
+import { imprimirTicket, preferenciaPapel } from "../services/ticket-printer";
 import { useVenta } from "../hooks/useVenta";
 import type { Venta } from "../types";
 
 export default function HistorialVentas() {
   const { usuario } = useAuthContext();
+  const { tema } = useTema();
   const { ventas, cargando, error, noDisponible, recargar, anular } = useVenta();
   const esAdmin = usuario?.rol === "ADMIN";
 
@@ -95,6 +98,27 @@ export default function HistorialVentas() {
       titulo: "Estado",
       render: (v) =>
         v.anulada ? <Badge tono="peligro">Anulada</Badge> : <Badge tono="exito">Válida</Badge>,
+    },
+    {
+      // HU-C05: reimprimir el ticket si el cliente lo pide después
+      titulo: "Ticket",
+      render: (v) =>
+        v.anulada ? null : (
+          <Button
+            variante="fantasma"
+            compacto
+            title="Imprimir ticket"
+            aria-label={`Imprimir ticket de la venta ${v.id}`}
+            onClick={() =>
+              imprimirTicket(
+                v,
+                { nombre: tema.nombreNegocio, logoUrl: tema.logoUrl },
+                preferenciaPapel.obtener()
+              )
+            }
+            icono={<Printer className="h-4 w-4" aria-hidden />}
+          />
+        ),
     },
     ...(esAdmin
       ? [

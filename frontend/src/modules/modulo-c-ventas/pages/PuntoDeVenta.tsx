@@ -22,9 +22,10 @@ import { mensajeDeError } from "../../../shared/lib/http-client";
 import { useProductos } from "../../modulo-b-inventario/hooks/useProductos";
 import type { Producto } from "../../modulo-b-inventario/types";
 import { ModalCobro } from "../components/ModalCobro";
+import { ModalVentaRegistrada } from "../components/ModalVentaRegistrada";
 import { useCaja } from "../hooks/useCaja";
 import { useVenta } from "../hooks/useVenta";
-import type { ItemVenta, NuevoPago } from "../types";
+import type { ItemVenta, NuevoPago, Venta } from "../types";
 
 export default function PuntoDeVenta() {
   const { productos, cargando, noDisponible, recargar: recargarProductos } = useProductos();
@@ -34,6 +35,8 @@ export default function PuntoDeVenta() {
   const [busqueda, setBusqueda] = useState("");
   const [carrito, setCarrito] = useState<ItemVenta[]>([]);
   const [modalCobro, setModalCobro] = useState(false);
+  // HU-C05: venta recién cerrada, para ofrecer el ticket opcional y mostrar el vuelto
+  const [ventaRegistrada, setVentaRegistrada] = useState<Venta | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [avisoEscaneo, setAvisoEscaneo] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
@@ -175,8 +178,8 @@ export default function PuntoDeVenta() {
       );
       setCarrito([]);
       setModalCobro(false);
+      setVentaRegistrada(venta); // abre el modal con vuelto + ticket opcional
       void recargarProductos(); // refleja el stock ya descontado
-      inputBusqueda.current?.focus();
     } catch (e) {
       setErrorAccion(mensajeDeError(e));
     } finally {
@@ -399,6 +402,15 @@ export default function PuntoDeVenta() {
           setErrorAccion(null);
         }}
         alConfirmar={(pagos) => void manejarCobrar(pagos)}
+      />
+
+      {/* Post-venta (HU-C05): vuelto en grande + ticket térmico opcional */}
+      <ModalVentaRegistrada
+        venta={ventaRegistrada}
+        alCerrar={() => {
+          setVentaRegistrada(null);
+          inputBusqueda.current?.focus();
+        }}
       />
     </div>
   );
