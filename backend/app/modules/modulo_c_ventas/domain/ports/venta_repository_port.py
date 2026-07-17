@@ -1,8 +1,8 @@
-# Puerto: contrato para persistir/consultar ventas y sus detalles.
+# Puerto: contrato para persistir/consultar ventas, sus detalles y sus reversos.
 from abc import ABC, abstractmethod
 from datetime import date
 
-from app.modules.modulo_c_ventas.domain.entities import Venta
+from app.modules.modulo_c_ventas.domain.entities import Anulacion, Venta
 
 
 class VentaRepositoryPort(ABC):
@@ -25,3 +25,17 @@ class VentaRepositoryPort(ABC):
     async def actualizar_estado(
         self, venta_id: int, estado: str, motivo: str | None = None
     ) -> None: ...
+
+    @abstractmethod
+    async def registrar_devolucion_detalle(self, detalle_id: int, cantidad: int) -> None:
+        """Acumula cantidad_devuelta en la línea de la venta."""
+
+    @abstractmethod
+    async def crear_anulacion(self, anulacion: Anulacion) -> Anulacion: ...
+
+    @abstractmethod
+    async def anulaciones_de_venta(self, venta_id: int) -> list[Anulacion]: ...
+
+    @abstractmethod
+    async def anulaciones_de_turno(self, turno_id: int) -> list[Anulacion]:
+        """Reversos HECHOS durante el turno (el rastro del panel del ADMIN)."""

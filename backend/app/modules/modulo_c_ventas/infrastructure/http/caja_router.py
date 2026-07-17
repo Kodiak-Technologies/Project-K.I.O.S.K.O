@@ -13,9 +13,12 @@ from app.modules.modulo_a_seguridad.infrastructure.dependencies import (
 from app.modules.modulo_c_ventas import module_container as contenedor
 from app.modules.modulo_c_ventas.infrastructure.http.schemas import (
     AbrirCajaRequest,
+    AnulacionResponse,
     CerrarCajaRequest,
+    MovimientosTurnoResponse,
     ResumenCajaResponse,
     TurnoCajaResponse,
+    VentaResponse,
 )
 from app.shared.database.session import get_db
 
@@ -91,3 +94,18 @@ async def historial(
     # cerró el turno anterior; la administradora supervisa a todos por igual.
     turnos = await contenedor.consultar_caja_usecase(db).historial(min(limite, 100))
     return [TurnoCajaResponse.desde_entidad(t, a) for t, a in turnos]
+
+
+@router.get("/turnos/{turno_id}/movimientos", response_model=MovimientosTurnoResponse)
+async def movimientos(
+    turno_id: int,
+    usuario: Usuario = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """El RASTRO del turno (HU-C08): ventas, anulaciones y devoluciones con
+    quién/cuándo/motivo. Es el modal del panel de caja de la administradora."""
+    ventas, reversos = await contenedor.consultar_caja_usecase(db).movimientos(turno_id)
+    return MovimientosTurnoResponse(
+        ventas=[VentaResponse.desde_entidad(v) for v in ventas],
+        reversos=[AnulacionResponse.desde_entidad(r) for r in reversos],
+    )

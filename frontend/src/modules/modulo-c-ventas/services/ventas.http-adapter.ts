@@ -11,6 +11,10 @@ export const ventasHttpAdapter: VentasPort = {
     const { data } = await httpClient.post(`/ventas/${id}/anular`, { motivo });
     return data;
   },
+  async devolver(id, items, motivo) {
+    const { data } = await httpClient.post(`/ventas/${id}/devolver`, { items, motivo });
+    return data;
+  },
   async listar(desde, hasta) {
     const { data } = await httpClient.get("/ventas", { params: { desde, hasta } });
     return data;

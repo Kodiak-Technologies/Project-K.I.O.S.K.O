@@ -4,13 +4,30 @@ from datetime import date, datetime, time, timezone
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.modulo_c_ventas.domain.entities import DetalleVenta, PagoVenta, Venta
+from app.modules.modulo_c_ventas.domain.entities import Anulacion, DetalleVenta, PagoVenta, Venta
 from app.modules.modulo_c_ventas.domain.ports.venta_repository_port import VentaRepositoryPort
 from app.modules.modulo_c_ventas.infrastructure.adapters.database.models import (
+    AnulacionModel,
     DetalleVentaModel,
     PagoVentaModel,
     VentaModel,
 )
+
+
+def _anulacion_a_entidad(fila: AnulacionModel) -> Anulacion:
+    return Anulacion(
+        id=fila.id,
+        venta_id=fila.venta_id,
+        turno_id=fila.turno_id,
+        tipo=fila.tipo,
+        usuario_id=fila.usuario_id,
+        realizado_por=fila.realizado_por,
+        motivo=fila.motivo,
+        monto=fila.monto,
+        efectivo_devuelto=fila.efectivo_devuelto,
+        items=fila.items or [],
+        created_at=fila.created_at,
+    )
 
 
 def _a_entidad(fila: VentaModel) -> Venta:
@@ -123,3 +140,48 @@ class SqlAlchemyVentaRepository(VentaRepositoryPort):
         await self._db.execute(
             update(VentaModel).where(VentaModel.id == venta_id).values(**valores)
         )
+
+    async def registrar_devolucion_detalle(self, detalle_id: int, cantidad: int) -> None:
+        await self._db.execute(
+            update(DetalleVentaModel)
+            .where(DetalleVentaModel.id == detalle_id)
+            .values(cantidad_devuelta=DetalleVentaModel.cantidad_devuelta + cantidad)
+        )
+
+    async def crear_anulacion(self, anulacion: Anulacion) -> Anulacion:
+        fila = AnulacionModel(
+            venta_id=anulacion.venta_id,
+            turno_id=anulacion.turno_id,
+            tipo=anulacion.tipo,
+            usuario_id=anulacion.usuario_id,
+            realizado_por=anulacion.realizado_por,
+            motivo=anulacion.motivo,
+            monto=anulacion.monto,
+            efectivo_devuelto=anulacion.efectivo_devuelto,
+            items=anulacion.items,
+        )
+        self._db.add(fila)
+        await self._db.flush()
+        anulacion.id = fila.id
+        anulacion.created_at = fila.created_at
+        return anulacion
+
+    async def anulaciones_de_venta(self, venta_id: int) -> list[Anulacion]:
+        filas = (
+            await self._db.execute(
+                select(AnulacionModel)
+                .where(AnulacionModel.venta_id == venta_id)
+                .order_by(AnulacionModel.id)
+            )
+        ).scalars()
+        return [_anulacion_a_entidad(f) for f in filas]
+
+    async def anulaciones_de_turno(self, turno_id: int) -> list[Anulacion]:
+        filas = (
+            await self._db.execute(
+                select(AnulacionModel)
+                .where(AnulacionModel.turno_id == turno_id)
+                .order_by(AnulacionModel.id.desc())
+            )
+        ).scalars()
+        return [_anulacion_a_entidad(f) for f in filas]

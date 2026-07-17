@@ -12,6 +12,8 @@ from app.modules.modulo_a_seguridad.infrastructure.dependencies import (
 )
 from app.modules.modulo_c_ventas import module_container as contenedor
 from app.modules.modulo_c_ventas.infrastructure.http.schemas import (
+    AnularVentaRequest,
+    DevolverVentaRequest,
     RegistrarVentaRequest,
     VentaResponse,
 )
@@ -50,3 +52,49 @@ async def listar(
 ):
     ventas = await contenedor.consultar_ventas_usecase(db).listar(desde, hasta, turno_id)
     return [VentaResponse.desde_entidad(v) for v in ventas]
+
+
+@router.post("/{venta_id}/anular", response_model=VentaResponse)
+async def anular(
+    venta_id: int,
+    datos: AnularVentaRequest,
+    request: Request,
+    usuario: Usuario = Depends(require_permission("ventas.anular")),
+    db: AsyncSession = Depends(get_db),
+):
+    # La venta no se borra: reverso total que repone stock y ajusta la caja
+    # del turno actual, con rastro para la administradora (RF-22).
+    ip, user_agent = contexto_request(request)
+    venta = await contenedor.anular_venta_usecase(db).anular(
+        venta_id=venta_id,
+        usuario_id=usuario.id,
+        nombre_usuario=usuario.nombre,
+        rol=usuario.rol_nombre,
+        motivo=datos.motivo,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    return VentaResponse.desde_entidad(venta)
+
+
+@router.post("/{venta_id}/devolver", response_model=VentaResponse)
+async def devolver(
+    venta_id: int,
+    datos: DevolverVentaRequest,
+    request: Request,
+    usuario: Usuario = Depends(require_permission("ventas.devolver")),
+    db: AsyncSession = Depends(get_db),
+):
+    # Devolución parcial (cambio de producto): repone solo lo devuelto.
+    ip, user_agent = contexto_request(request)
+    venta = await contenedor.anular_venta_usecase(db).devolver(
+        venta_id=venta_id,
+        usuario_id=usuario.id,
+        nombre_usuario=usuario.nombre,
+        rol=usuario.rol_nombre,
+        items=[(i.detalle_id, i.cantidad) for i in datos.items],
+        motivo=datos.motivo,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    return VentaResponse.desde_entidad(venta)

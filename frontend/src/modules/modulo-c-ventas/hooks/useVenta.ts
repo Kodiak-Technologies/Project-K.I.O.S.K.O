@@ -39,5 +39,13 @@ export function useVenta() {
     [recargar]
   );
 
-  return { ventas, cargando, error, noDisponible, recargar, registrar, anular };
+  const devolver = useCallback(
+    async (id: number, items: { detalle_id: number; cantidad: number }[], motivo: string) => {
+      await ventasHttpAdapter.devolver(id, items, motivo);
+      await recargar();
+    },
+    [recargar]
+  );
+
+  return { ventas, cargando, error, noDisponible, recargar, registrar, anular, devolver };
 }

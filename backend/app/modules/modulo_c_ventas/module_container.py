@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.modulo_a_seguridad import module_container as contenedor_a
 from app.modules.modulo_c_ventas.application.abrir_caja_usecase import AbrirCajaUseCase
+from app.modules.modulo_c_ventas.application.anular_venta_usecase import AnularVentaUseCase
 from app.modules.modulo_c_ventas.application.cerrar_caja_usecase import CerrarCajaUseCase
 from app.modules.modulo_c_ventas.application.consultar_caja_usecase import ConsultarCajaUseCase
 from app.modules.modulo_c_ventas.application.consultar_ventas_usecase import ConsultarVentasUseCase
@@ -33,7 +34,7 @@ def cerrar_caja_usecase(db: AsyncSession) -> CerrarCajaUseCase:
 
 
 def consultar_caja_usecase(db: AsyncSession) -> ConsultarCajaUseCase:
-    return ConsultarCajaUseCase(SqlAlchemyCajaRepository(db))
+    return ConsultarCajaUseCase(SqlAlchemyCajaRepository(db), SqlAlchemyVentaRepository(db))
 
 
 def registrar_venta_usecase(db: AsyncSession) -> RegistrarVentaUseCase:
@@ -53,4 +54,13 @@ def consultar_ventas_usecase(db: AsyncSession) -> ConsultarVentasUseCase:
 def gestionar_metodos_pago_usecase(db: AsyncSession) -> GestionarMetodosPagoUseCase:
     return GestionarMetodosPagoUseCase(
         SqlAlchemyMetodoPagoRepository(db), contenedor_a.auditoria_usecase(db)
+    )
+
+
+def anular_venta_usecase(db: AsyncSession) -> AnularVentaUseCase:
+    return AnularVentaUseCase(
+        SqlAlchemyVentaRepository(db),
+        SqlAlchemyCajaRepository(db),
+        SqlAlchemyStockAdapter(db),
+        contenedor_a.auditoria_usecase(db),
     )

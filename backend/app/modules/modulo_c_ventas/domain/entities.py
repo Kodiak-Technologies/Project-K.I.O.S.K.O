@@ -171,3 +171,25 @@ class Venta:
     def total_efectivo(self) -> Decimal:
         """Cuánto de esta venta entró como dinero FÍSICO a la caja (para el arqueo)."""
         return sum((p.monto for p in self.pagos if p.es_efectivo), Decimal("0"))
+
+
+@dataclass
+class Anulacion:
+    """El RASTRO de un reverso (RF-22): anulación total o devolución parcial.
+
+    La venta original NUNCA se borra; cada reverso repone stock, registra cuánto
+    dinero salió físicamente de la caja (efectivo_devuelto, en el turno en que
+    ocurre) y queda visible para la administradora en su panel de caja.
+    """
+
+    id: int | None
+    venta_id: int
+    turno_id: int  # turno en el que se hizo el reverso (ajusta ESA caja)
+    tipo: str  # ANULACION | DEVOLUCION
+    usuario_id: int
+    realizado_por: str  # snapshot del nombre
+    motivo: str
+    monto: Decimal  # valor de lo revertido
+    efectivo_devuelto: Decimal  # cuánto salió del cajón (<= monto)
+    items: list[dict]  # [{producto_id, nombre, cantidad}]
+    created_at: datetime | None = None

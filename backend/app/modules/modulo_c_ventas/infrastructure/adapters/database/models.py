@@ -135,6 +135,35 @@ class DetalleVentaModel(Base):
     venta: Mapped[VentaModel] = relationship(back_populates="detalles")
 
 
+class AnulacionModel(Base):
+    __tablename__ = "anulaciones"
+    __table_args__ = (
+        Index("ix_anulaciones_venta_id", "venta_id"),
+        Index("ix_anulaciones_turno_id", "turno_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    venta_id: Mapped[int] = mapped_column(
+        ForeignKey("ventas.id", ondelete="RESTRICT"), nullable=False
+    )
+    # Turno en el que se HIZO el reverso: el efectivo sale de esa caja (RF-17).
+    turno_id: Mapped[int] = mapped_column(
+        ForeignKey("turnos_caja.id", ondelete="RESTRICT"), nullable=False
+    )
+    tipo: Mapped[str] = mapped_column(String(15), nullable=False)  # ANULACION | DEVOLUCION
+    usuario_id: Mapped[int] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False
+    )
+    realizado_por: Mapped[str] = mapped_column(String(100), nullable=False)
+    motivo: Mapped[str] = mapped_column(Text, nullable=False)
+    monto: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    efectivo_devuelto: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
+    items: Mapped[list | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class MetodoPagoModel(Base):
     __tablename__ = "metodos_pago"
 

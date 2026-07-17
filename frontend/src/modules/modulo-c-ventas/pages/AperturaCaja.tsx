@@ -4,7 +4,7 @@
 // con cuánto abrió y cerró el anterior; la administradora supervisa lo mismo.
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { History, Wallet } from "lucide-react";
+import { Eye, History, Wallet } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -18,7 +18,9 @@ import {
   Table,
   type Columna,
 } from "../../../shared/components/ui";
+import { useAuthContext } from "../../../shared/lib/auth-context";
 import { mensajeDeError } from "../../../shared/lib/http-client";
+import { ModalRastroTurno } from "../components/ModalRastroTurno";
 import { useCaja } from "../hooks/useCaja";
 import type { TurnoCaja } from "../types";
 
@@ -27,10 +29,14 @@ function fechaCorta(iso: string | null): string {
 }
 
 export default function AperturaCaja() {
+  const { usuario } = useAuthContext();
   const { turno, turnos, cargando, error, noDisponible, abrir } = useCaja();
   const [montoInicial, setMontoInicial] = useState("");
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
+  // HU-C08: modal con el rastro del turno (ventas, anulaciones, devoluciones)
+  const [turnoRastro, setTurnoRastro] = useState<TurnoCaja | null>(null);
+  const esAdmin = usuario?.rol === "ADMIN";
 
   async function manejarAbrir(evento: FormEvent) {
     evento.preventDefault();
@@ -120,6 +126,25 @@ export default function AperturaCaja() {
       render: (t) =>
         t.estado === "ABIERTO" ? <Badge tono="exito">Abierto</Badge> : <Badge tono="neutro">Cerrado</Badge>,
     },
+    // HU-C08: la administradora abre el rastro completo del turno en un modal
+    ...(esAdmin
+      ? [
+          {
+            titulo: "Movimientos",
+            render: (t: TurnoCaja) => (
+              <Button
+                variante="fantasma"
+                compacto
+                aria-label={`Ver movimientos del turno ${t.id}`}
+                onClick={() => setTurnoRastro(t)}
+                icono={<Eye className="h-4 w-4" aria-hidden />}
+              >
+                Ver
+              </Button>
+            ),
+          } satisfies Columna<TurnoCaja>,
+        ]
+      : []),
   ];
 
   return (
@@ -203,6 +228,9 @@ export default function AperturaCaja() {
           />
         </Card>
       </div>
+
+      {/* Rastro del turno para la administradora (HU-C08) */}
+      <ModalRastroTurno turno={turnoRastro} alCerrar={() => setTurnoRastro(null)} />
     </div>
   );
 }

@@ -23,4 +23,8 @@ export const cajaHttpAdapter: CajaPort = {
     const { data } = await httpClient.get("/caja/turnos", { params: { limite } });
     return data;
   },
+  async movimientos(turnoId) {
+    const { data } = await httpClient.get(`/caja/turnos/${turnoId}/movimientos`);
+    return data;
+  },
 };

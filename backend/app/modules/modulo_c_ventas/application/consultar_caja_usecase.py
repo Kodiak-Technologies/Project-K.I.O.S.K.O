@@ -3,14 +3,22 @@
 # turno, el cajero entrante ve con cuánto abrió y cerró el anterior; el admin
 # supervisa lo mismo de todos sus cajeros.
 from app.modules.modulo_c_ventas.application.cerrar_caja_usecase import calcular_resumen
-from app.modules.modulo_c_ventas.domain.entities import ArqueoCaja, ResumenCaja, TurnoCaja
+from app.modules.modulo_c_ventas.domain.entities import (
+    Anulacion,
+    ArqueoCaja,
+    ResumenCaja,
+    TurnoCaja,
+    Venta,
+)
 from app.modules.modulo_c_ventas.domain.ports.caja_repository_port import CajaRepositoryPort
-from app.shared.kernel.exceptions import ConflictoError
+from app.modules.modulo_c_ventas.domain.ports.venta_repository_port import VentaRepositoryPort
+from app.shared.kernel.exceptions import ConflictoError, NoEncontradoError
 
 
 class ConsultarCajaUseCase:
-    def __init__(self, caja_repo: CajaRepositoryPort):
+    def __init__(self, caja_repo: CajaRepositoryPort, venta_repo: VentaRepositoryPort):
         self._caja = caja_repo
+        self._ventas = venta_repo
 
     async def turno_actual(self) -> TurnoCaja | None:
         return await self._caja.turno_abierto()
@@ -26,3 +34,12 @@ class ConsultarCajaUseCase:
         turnos = await self._caja.listar(limite)
         arqueos = await self._caja.arqueos_por_turno([t.id for t in turnos])
         return [(t, arqueos.get(t.id)) for t in turnos]
+
+    async def movimientos(self, turno_id: int) -> tuple[list[Venta], list[Anulacion]]:
+        """El RASTRO de un turno para el panel de la administradora (HU-C08):
+        todas las ventas del turno y los reversos hechos durante él."""
+        if await self._caja.buscar_por_id(turno_id) is None:
+            raise NoEncontradoError("Turno no encontrado.")
+        ventas = await self._ventas.listar(turno_id=turno_id)
+        reversos = await self._ventas.anulaciones_de_turno(turno_id)
+        return ventas, reversos

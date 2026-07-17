@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.modules.modulo_c_ventas.domain.entities import (
+    Anulacion,
     ArqueoCaja,
     MetodoPago,
     ResumenCaja,
@@ -96,6 +97,43 @@ class ResumenCajaResponse(BaseModel):
         )
 
 
+# ---------- Anulaciones y devoluciones (el rastro, RF-22) ----------
+class AnularVentaRequest(BaseModel):
+    motivo: str = Field(min_length=1, max_length=500)
+
+
+class ItemDevolucionRequest(BaseModel):
+    detalle_id: int
+    cantidad: int = Field(gt=0)
+
+
+class DevolverVentaRequest(BaseModel):
+    items: list[ItemDevolucionRequest] = Field(min_length=1)
+    motivo: str = Field(min_length=1, max_length=500)
+
+
+class AnulacionResponse(BaseModel):
+    id: int
+    venta_id: int
+    turno_id: int
+    tipo: str  # ANULACION | DEVOLUCION
+    realizado_por: str
+    motivo: str
+    monto: float
+    efectivo_devuelto: float
+    items: list[dict]
+    created_at: datetime | None
+
+    @classmethod
+    def desde_entidad(cls, a: Anulacion) -> "AnulacionResponse":
+        return cls(
+            id=a.id, venta_id=a.venta_id, turno_id=a.turno_id, tipo=a.tipo,
+            realizado_por=a.realizado_por, motivo=a.motivo,
+            monto=float(a.monto), efectivo_devuelto=float(a.efectivo_devuelto),
+            items=a.items, created_at=a.created_at,
+        )
+
+
 # ---------- Métodos de pago ----------
 class MetodoPagoResponse(BaseModel):
     id: int
@@ -153,6 +191,8 @@ class RegistrarVentaRequest(BaseModel):
 
 
 class ItemVentaResponse(BaseModel):
+    # id de la línea: lo usa el frontend para pedir devoluciones parciales.
+    id: int | None = None
     producto_id: int
     nombre: str
     precio_unitario: float
@@ -187,6 +227,7 @@ class VentaResponse(BaseModel):
             id=v.id,
             items=[
                 ItemVentaResponse(
+                    id=d.id,
                     producto_id=d.producto_id,
                     nombre=d.nombre,
                     precio_unitario=float(d.precio_unitario),
@@ -214,3 +255,13 @@ class VentaResponse(BaseModel):
             turno_id=v.turno_id,
             created_at=v.created_at,
         )
+
+
+# ---------- Movimientos del turno (rastro del panel de caja, HU-C08) ----------
+class MovimientosTurnoResponse(BaseModel):
+    """El rastro completo de un turno (modal del panel de caja del ADMIN)."""
+
+    ventas: list[VentaResponse]
+    reversos: list[AnulacionResponse]
+    # Abonos de fiado cobrados durante el turno (HU-C09).
+    abonos: list[dict] = []

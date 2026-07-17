@@ -134,3 +134,26 @@ CREATE TABLE IF NOT EXISTS arqueos (
     totales_por_metodo  JSONB,                       -- desglose informativo por método
     created_at          TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
+
+-- ----------------------------------------------------------------------------
+-- 5. ANULACIONES (HU-C08, RF-22): el RASTRO de anulaciones y devoluciones.
+--    La venta original nunca se borra; cada reverso repone stock, registra el
+--    efectivo que salió de la caja del turno en que OCURRE, y guarda quién,
+--    cuándo y por qué (visible para la administradora en su panel de caja).
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS anulaciones (
+    id                 BIGSERIAL PRIMARY KEY,
+    venta_id           BIGINT        NOT NULL REFERENCES ventas(id) ON DELETE RESTRICT,
+    turno_id           BIGINT        NOT NULL REFERENCES turnos_caja(id) ON DELETE RESTRICT,
+    tipo               VARCHAR(15)   NOT NULL,       -- ANULACION | DEVOLUCION
+    usuario_id         BIGINT        NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    realizado_por      VARCHAR(100)  NOT NULL,
+    motivo             TEXT          NOT NULL,
+    monto              NUMERIC(10,2) NOT NULL,       -- valor de lo revertido
+    efectivo_devuelto  NUMERIC(10,2) NOT NULL DEFAULT 0,  -- salió físicamente del cajón
+    items              JSONB,                        -- [{producto_id, nombre, cantidad}]
+    created_at         TIMESTAMPTZ   NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_anulaciones_venta_id ON anulaciones (venta_id);
+CREATE INDEX IF NOT EXISTS ix_anulaciones_turno_id ON anulaciones (turno_id);

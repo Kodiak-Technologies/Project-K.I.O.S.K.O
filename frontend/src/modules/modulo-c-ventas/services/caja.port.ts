@@ -1,5 +1,5 @@
 // Puerto: interfaz de apertura/cierre de caja.
-import type { ResumenCaja, TurnoCaja } from "../types";
+import type { MovimientosTurno, ResumenCaja, TurnoCaja } from "../types";
 
 export interface CajaPort {
   turnoActual(): Promise<TurnoCaja | null>;
@@ -10,4 +10,6 @@ export interface CajaPort {
   cerrar(monto_final: number, comentario?: string): Promise<TurnoCaja>;
   /** Historial de turnos (visible para todos: cajeros y admin). */
   turnos(limite?: number): Promise<TurnoCaja[]>;
+  /** El rastro de un turno: ventas, anulaciones/devoluciones y abonos. */
+  movimientos(turnoId: number): Promise<MovimientosTurno>;
 }

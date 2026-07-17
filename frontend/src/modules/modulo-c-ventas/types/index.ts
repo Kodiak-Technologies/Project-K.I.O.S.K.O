@@ -46,6 +46,30 @@ export interface ItemVenta {
   nombre: string;
   precio_unitario: number;
   cantidad: number;
+  /** id de la línea en el backend (necesario para devoluciones parciales). */
+  id?: number;
+  cantidad_devuelta?: number;
+}
+
+/** El rastro de un reverso: anulación total o devolución parcial (RF-22). */
+export interface Anulacion {
+  id: number;
+  venta_id: number;
+  turno_id: number;
+  tipo: "ANULACION" | "DEVOLUCION";
+  realizado_por: string;
+  motivo: string;
+  monto: number;
+  efectivo_devuelto: number;
+  items: { producto_id: number; nombre: string; cantidad: number }[];
+  created_at: string | null;
+}
+
+/** Rastro completo de un turno (modal del panel de caja del admin). */
+export interface MovimientosTurno {
+  ventas: Venta[];
+  reversos: Anulacion[];
+  abonos: Record<string, unknown>[];
 }
 
 /** Código de método de pago: los del catálogo (el ADMIN puede agregar más) o MIXTO. */
