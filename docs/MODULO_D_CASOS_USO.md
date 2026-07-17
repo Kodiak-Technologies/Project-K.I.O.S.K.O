@@ -258,6 +258,37 @@
 
 ---
 
+## CU-D11: Autorizar Google Drive (OAuth)
+
+| Campo | Valor |
+|-------|-------|
+| **Actor** | Admin |
+| **HU** | HU-D02, HU-D04 |
+| **Precondiciones** | El usuario tiene rol ADMIN |
+| **Postcondiciones** | Google Drive está autorizado y los tokens se guardan en `oauth_tokens` |
+
+### Flujo principal
+1. El Admin ejecuta `GET /drive/auth-url` para obtener la URL de autorización
+2. El frontend redirige al usuario a la URL de Google
+3. El usuario autoriza la app en Google
+4. Google redirige a `GET /drive/callback?code=CODE`
+5. El backend intercambia el code por `access_token` + `refresh_token`
+6. Los tokens se guardan en la tabla `oauth_tokens`
+7. A partir de este momento, `POST /boletas/{id}/subir-drive` funciona
+
+### Flujos alternativos
+- **3a.** Si el usuario rechaza la autorización → se retorna error
+- **5a.** Si el code es inválido → se retorna error 400
+- **5b.** Si ya existe un token → se actualiza (re-autorización)
+
+### Criterios de aceptación
+- Solo usuarios con rol ADMIN pueden autorizar
+- El `access_token` se renueva automáticamente cuando expira
+- El `refresh_token` persiste indefinitely (a menos que el usuario lo revoque en Google)
+- Se puede verificar el estado con `GET /drive/status`
+
+---
+
 ## Resumen de casos de uso
 
 | CU | Nombre | Actor | HU | Puntos |
@@ -272,3 +303,4 @@
 | CU-D08 | Consultar Notificaciones | Admin/Cajero | HU-D09 | — |
 | CU-D09 | Generar Respaldo | Admin/Cron | HU-D12 | — |
 | CU-D10 | Purgar Notificaciones | Cron | RNF-14 | — |
+| CU-D11 | Autorizar Google Drive | Admin | HU-D02, HU-D04 | — |

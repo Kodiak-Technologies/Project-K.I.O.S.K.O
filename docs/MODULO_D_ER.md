@@ -63,9 +63,21 @@ erDiagram
         TIMESTAMPTZ expira_en "DEFAULT now() + 30 días"
     }
 
+    oauth_tokens {
+        BIGINT id PK
+        VARCHAR(50) proveedor "google_drive"
+        TEXT access_token "token temporal (expira en 1 hora)"
+        TEXT refresh_token "token para renovar (nunca expira)"
+        TIMESTAMPTZ token_expiry "cuándo expira el access_token"
+        BIGINT usuario_id FK "nullable → usuarios.id (Module A)"
+        TIMESTAMPTZ fecha_creacion "DEFAULT NOW()"
+        TIMESTAMPTZ fecha_actualizacion "DEFAULT NOW()"
+    }
+
     %% Relaciones externas (fuera de Module D)
     ventas ||--o| boletas_clientes : "tiene una boleta"
     usuarios ||--o| notificaciones : "puede recibir"
+    usuarios ||--o| oauth_tokens : "autoriza Drive"
 
     %% Relaciones internas de Module D
     boletas_clientes ||--o| archivos_drive : "se sube a Drive"
@@ -83,6 +95,7 @@ erDiagram
 | `notificaciones` | `id` (BIGINT) | `usuario_id` → `usuarios.id` (Module A) | Notificaciones del sistema |
 | `config_notificaciones` | `id` (INT, siempre 1) | — | Configuración de canales |
 | `respaldos` | `id` (BIGINT) | — | Registro de copias de seguridad |
+| `oauth_tokens` | `id` (BIGINT) | `usuario_id` → `usuarios.id` (Module A) | Tokens OAuth para Google Drive |
 
 ---
 
@@ -94,13 +107,15 @@ erDiagram
 | `boletas_clientes` → `archivos_drive` | 1:0..1 | Una boleta se sube a Drive (o pendiente) |
 | `boletas_clientes` → `notificaciones` | 1:0..N | Una boleta puede generar notificaciones |
 | `usuarios` → `notificaciones` | 1:0..N | Un usuario puede recibir muchas notificaciones |
+| `usuarios` → `oauth_tokens` | 1:0..1 | Un usuario autoriza Google Drive (un solo token por proveedor) |
 
 ---
 
 ## Notas
 
-- Las 5 tablas son del **módulo D**. Las tablas referenciadas (`ventas`, `usuarios`) pertenecen a otros módulos.
+- Las 6 tablas son del **módulo D**. Las tablas referenciadas (`ventas`, `usuarios`) pertenecen a otros módulos.
 - `config_notificaciones` es **fila única** (id=1), similar a `configuracion_negocio` de Module A.
 - `boletas_clientes` tiene `venta_id UNIQUE` porque una venta solo genera una boleta.
 - `notificaciones` no tiene borrado lógico; se purgan después de 30 días (RNF-14).
 - `respaldos` expiran después de 30 días; los scripts de limpieza los eliminan.
+- `oauth_tokens` almacena tokens OAuth para Google Drive. Un solo registro por proveedor (google_drive). El `refresh_token` nunca expira; el `access_token` se renueva automáticamente.

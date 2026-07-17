@@ -14,6 +14,7 @@ from app.modules.modulo_d_documentos.domain.entities import (
     Boleta,
     ConfigNotificaciones,
     Notificacion,
+    OAuthToken,
     Respaldo,
     ResumenReporte,
     TopProducto,
@@ -180,6 +181,55 @@ class TestResumenReporte:
         resumen = ResumenReporte(desde="2026-01-01", hasta="2026-12-31", total_vendido=0.0, numero_ventas=0)
         resumen.calcular_ticket_promedio()
         assert resumen.ticket_promedio == 0.0
+
+
+class TestOAuthToken:
+    def test_fecha_creacion_automatica(self):
+        token = OAuthToken(
+            id=None, proveedor="google_drive",
+            access_token="acc123", refresh_token="ref456",
+        )
+        assert token.fecha_creacion is not None
+        assert token.fecha_actualizacion is not None
+
+    def test_expirado_sin_expiry(self):
+        token = OAuthToken(
+            id=None, proveedor="google_drive",
+            access_token="acc123", refresh_token="ref456",
+        )
+        assert token.esta_expirado is True
+
+    def test_expirado_con_expiry_pasado(self):
+        from datetime import timedelta
+        token = OAuthToken(
+            id=None, proveedor="google_drive",
+            access_token="acc123", refresh_token="ref456",
+            token_expiry=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+        assert token.esta_expirado is True
+
+    def test_no_expirado_con_expiry_futuro(self):
+        from datetime import timedelta
+        token = OAuthToken(
+            id=None, proveedor="google_drive",
+            access_token="acc123", refresh_token="ref456",
+            token_expiry=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+        assert token.esta_expirado is False
+
+    def test_proveedor(self):
+        token = OAuthToken(
+            id=None, proveedor="google_drive",
+            access_token="acc123", refresh_token="ref456",
+        )
+        assert token.proveedor == "google_drive"
+
+    def test_usuario_id_optional(self):
+        token = OAuthToken(
+            id=None, proveedor="google_drive",
+            access_token="acc123", refresh_token="ref456",
+        )
+        assert token.usuario_id is None
 
 
 class TestBoletaPngGenerator:

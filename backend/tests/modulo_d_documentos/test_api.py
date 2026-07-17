@@ -109,3 +109,35 @@ def test_crear_boleta_sin_auth():
             assert respuesta.status_code == 401
 
     correr(escenario())
+
+
+def test_drive_auth_url_sin_auth():
+    async def escenario():
+        async with cliente_api() as api:
+            respuesta = await api.get("/drive/auth-url")
+            assert respuesta.status_code == 200
+            data = respuesta.json()
+            assert "auth_url" in data
+            assert "accounts.google.com" in data["auth_url"]
+
+    correr(escenario())
+
+
+def test_drive_status_sin_auth():
+    async def escenario():
+        async with cliente_api() as api:
+            respuesta = await api.get("/drive/status")
+            assert respuesta.status_code == 200
+            data = respuesta.json()
+            assert "autorizado" in data
+
+    correr(escenario())
+
+
+def test_drive_callback_sin_code():
+    async def escenario():
+        async with cliente_api() as api:
+            respuesta = await api.get("/drive/callback")
+            assert respuesta.status_code == 422
+
+    correr(escenario())
