@@ -41,6 +41,9 @@ def _a_entidad(fila: VentaModel) -> Venta:
         cliente_id=fila.cliente_id,
         estado=fila.estado,
         motivo_anulacion=fila.motivo_anulacion,
+        client_uuid=fila.client_uuid,
+        registrada_offline=fila.registrada_offline,
+        vendida_en=fila.vendida_en,
         created_at=fila.created_at,
         detalles=[
             DetalleVenta(
@@ -80,6 +83,9 @@ class SqlAlchemyVentaRepository(VentaRepositoryPort):
             total=venta.total,
             metodo_pago=venta.metodo_pago,
             estado=venta.estado,
+            client_uuid=venta.client_uuid,
+            registrada_offline=venta.registrada_offline,
+            vendida_en=venta.vendida_en,
         )
         self._db.add(fila)
         await self._db.flush()
@@ -110,6 +116,14 @@ class SqlAlchemyVentaRepository(VentaRepositoryPort):
     async def buscar_por_id(self, venta_id: int) -> Venta | None:
         fila = (
             await self._db.execute(select(VentaModel).where(VentaModel.id == venta_id))
+        ).scalar_one_or_none()
+        return _a_entidad(fila) if fila else None
+
+    async def buscar_por_uuid(self, client_uuid: str) -> Venta | None:
+        fila = (
+            await self._db.execute(
+                select(VentaModel).where(VentaModel.client_uuid == client_uuid)
+            )
         ).scalar_one_or_none()
         return _a_entidad(fila) if fila else None
 

@@ -186,6 +186,10 @@ class RegistrarVentaRequest(BaseModel):
     metodo_pago: str | None = None
     # Obligatorio cuando el pago es FIADO (RF-28).
     cliente_id: int | None = None
+    # Modo offline (RF-26): uuid del POS (idempotente) y momento real de la venta.
+    client_uuid: str | None = Field(default=None, max_length=36)
+    registrada_offline: bool = False
+    vendida_en: datetime | None = None
 
     def pagos_normalizados(self) -> list[dict]:
         if self.pagos:
@@ -225,6 +229,8 @@ class VentaResponse(BaseModel):
     anulada: bool
     estado: str
     turno_id: int
+    registrada_offline: bool = False
+    vendida_en: datetime | None = None
     created_at: datetime | None
 
     @classmethod
@@ -260,6 +266,8 @@ class VentaResponse(BaseModel):
             anulada=v.anulada,
             estado=v.estado,
             turno_id=v.turno_id,
+            registrada_offline=v.registrada_offline,
+            vendida_en=v.vendida_en,
             created_at=v.created_at,
         )
 

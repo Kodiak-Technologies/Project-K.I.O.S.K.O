@@ -77,7 +77,11 @@ function htmlTicket(venta: Venta, negocio: DatosNegocio, ancho: AnchoPapel): str
     <div class="centro">
       ${negocio.logoUrl ? `<img class="logo" src="${negocio.logoUrl}" alt=""/>` : ""}
       <h1>${escapar(negocio.nombre)}</h1>
-      <div>Ticket de venta N° ${String(venta.id).padStart(6, "0")}</div>
+      <div>${
+        venta.id === 0
+          ? "Ticket de venta (pendiente de sincronizar)"
+          : `Ticket de venta N° ${String(venta.id).padStart(6, "0")}`
+      }</div>
       <div>${fecha.toLocaleString("es-PE")}</div>
       <div>Atendido por: ${escapar(venta.vendedor)}</div>
     </div>

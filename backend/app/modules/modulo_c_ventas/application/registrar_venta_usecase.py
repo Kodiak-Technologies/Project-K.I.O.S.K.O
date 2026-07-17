@@ -50,9 +50,19 @@ class RegistrarVentaUseCase:
         items: list[tuple[int, int]],  # (producto_id, cantidad)
         pagos: list[dict],  # [{metodo, monto|None, monto_recibido|None}]
         cliente_id: int | None = None,  # obligatorio si el pago es FIADO
+        client_uuid: str | None = None,  # idempotencia de la sincronización offline
+        registrada_offline: bool = False,
+        vendida_en=None,  # momento real de la venta (modo offline)
         ip: str = "",
         user_agent: str = "",
     ) -> Venta:
+        # RF-26: si esta venta ya se sincronizó antes (reintento del POS offline),
+        # se devuelve la existente en vez de duplicarla.
+        if client_uuid:
+            existente = await self._ventas.buscar_por_uuid(client_uuid)
+            if existente is not None:
+                return existente
+
         # HU-C06: sin turno abierto no se puede vender.
         turno = await self._caja.turno_abierto()
         if turno is None:
@@ -81,11 +91,14 @@ class RegistrarVentaUseCase:
                 turno_id=turno.id,
                 usuario_id=usuario_id,
                 vendedor=nombre_usuario,
-                cliente_id=cliente_id if es_fiado else cliente_id,
+                cliente_id=cliente_id,
                 total=total,
                 metodo_pago=resumen_metodo,
                 detalles=detalles,
                 pagos=pagos_venta,
+                client_uuid=client_uuid,
+                registrada_offline=registrada_offline,
+                vendida_en=vendida_en,
             )
         )
 

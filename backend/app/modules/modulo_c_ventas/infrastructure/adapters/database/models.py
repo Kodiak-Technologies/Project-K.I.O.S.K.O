@@ -103,6 +103,12 @@ class VentaModel(Base):
     metodo_pago: Mapped[str] = mapped_column(String(20), nullable=False)  # resumen (MIXTO si >1)
     estado: Mapped[str] = mapped_column(String(20), default="COMPLETADA", nullable=False)
     motivo_anulacion: Mapped[str | None] = mapped_column(Text)
+    # Modo offline (HU-C10, RF-26): UUID generado por el POS para que reintentar
+    # la sincronización NUNCA duplique la venta (idempotencia).
+    client_uuid: Mapped[str | None] = mapped_column(String(36), unique=True)
+    registrada_offline: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Momento REAL de la venta (en offline es anterior a created_at, que es la sincronización).
+    vendida_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

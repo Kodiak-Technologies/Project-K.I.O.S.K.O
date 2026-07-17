@@ -212,3 +212,14 @@ ALTER TABLE ventas ADD COLUMN IF NOT EXISTS
 INSERT INTO metodos_pago (codigo, nombre, es_efectivo, activo)
 VALUES ('FIADO', 'Fiado (a crédito)', FALSE, TRUE)
 ON CONFLICT (codigo) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- 7. MODO OFFLINE (HU-C10, RF-26): el POS guarda las ventas localmente sin
+--    internet y las sincroniza al volver. client_uuid (único) hace la
+--    sincronización IDEMPOTENTE: reintentar nunca duplica una venta.
+-- ----------------------------------------------------------------------------
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS client_uuid VARCHAR(36);
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS registrada_offline BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS vendida_en TIMESTAMPTZ;  -- momento real de la venta
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_ventas_client_uuid ON ventas (client_uuid);

@@ -158,6 +158,10 @@ class Venta:
     detalles: list[DetalleVenta] = field(default_factory=list)
     pagos: list[PagoVenta] = field(default_factory=list)
     motivo_anulacion: str | None = None
+    # Modo offline (RF-26): uuid del POS para sincronizar sin duplicar.
+    client_uuid: str | None = None
+    registrada_offline: bool = False
+    vendida_en: datetime | None = None  # momento real de la venta
     created_at: datetime | None = None
 
     @property

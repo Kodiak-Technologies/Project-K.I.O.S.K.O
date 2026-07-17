@@ -28,10 +28,12 @@ export function ModalVentaRegistrada({ venta, alCerrar }: Props) {
     imprimirTicket(venta, { nombre: tema.nombreNegocio, logoUrl: tema.logoUrl }, ancho);
   }
 
+  const esOffline = venta.id === 0; // venta local pendiente de sincronizar (HU-C10)
+
   return (
     <Modal
       abierto={venta !== null}
-      titulo={`Venta #${venta.id} registrada`}
+      titulo={esOffline ? "Venta guardada (sin conexión)" : `Venta #${venta.id} registrada`}
       alCerrar={alCerrar}
       pie={
         <>
@@ -53,6 +55,13 @@ export function ModalVentaRegistrada({ venta, alCerrar }: Props) {
             Cobrado S/ {venta.total.toFixed(2)} ({venta.metodo_pago})
           </span>
         </div>
+
+        {esOffline && (
+          <p className="rounded-lg bg-alerta-suave px-3 py-2 text-xs text-yellow-800">
+            Sin internet: la venta quedó guardada en este equipo y se enviará sola al volver
+            la conexión. No se pierde nada.
+          </p>
+        )}
 
         {venta.vuelto > 0 && (
           <div className="rounded-xl bg-zinc-900 px-4 py-3 text-center text-white">

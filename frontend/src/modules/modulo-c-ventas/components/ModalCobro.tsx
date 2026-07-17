@@ -16,15 +16,28 @@ interface Props {
   total: number;
   procesando: boolean;
   error: string | null;
+  /** false en modo offline: el fiado necesita validar cliente/límite en el servidor. */
+  permitirFiado?: boolean;
   alCerrar: () => void;
   alConfirmar: (pagos: NuevoPago[], clienteId?: number) => void;
 }
 
-export function ModalCobro({ abierto, total, procesando, error, alCerrar, alConfirmar }: Props) {
+export function ModalCobro({
+  abierto,
+  total,
+  procesando,
+  error,
+  permitirFiado = true,
+  alCerrar,
+  alConfirmar,
+}: Props) {
   const { metodos } = useMetodosPago();
   // El fiado no se mezcla: si el cliente paga una parte, se registra como abono.
   const normales = useMemo(() => metodos.filter((m) => m.codigo !== "FIADO"), [metodos]);
-  const hayFiado = useMemo(() => metodos.some((m) => m.codigo === "FIADO"), [metodos]);
+  const hayFiado = useMemo(
+    () => permitirFiado && metodos.some((m) => m.codigo === "FIADO"),
+    [metodos, permitirFiado]
+  );
 
   const [mixto, setMixto] = useState(false);
   const [metodoSimple, setMetodoSimple] = useState("EFECTIVO");

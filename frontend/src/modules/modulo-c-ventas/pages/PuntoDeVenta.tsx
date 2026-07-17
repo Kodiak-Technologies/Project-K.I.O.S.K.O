@@ -5,8 +5,22 @@
 // Escáner (HU-C01): el lector de barras/QR emula un teclado y termina con Enter.
 // El buscador mantiene el foco (se recupera solo si se pierde), y al recibir
 // Enter con un código exacto agrega el producto al carrito al instante.
+//
+// Modo offline (HU-C10, RF-26): si se cae el internet el POS sigue vendiendo con
+// el catálogo cacheado; las ventas quedan en el navegador y se sincronizan solas
+// al volver la conexión (aviso visible del estado en la cabecera).
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, ScanBarcode, Search, ShoppingCart, Trash2 } from "lucide-react";
+import {
+  CloudUpload,
+  Minus,
+  Plus,
+  ScanBarcode,
+  Search,
+  ShoppingCart,
+  Trash2,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import {
   Alert,
   Badge,
@@ -18,19 +32,80 @@ import {
   PageHeader,
   PageSpinner,
 } from "../../../shared/components/ui";
+import { useAuthContext } from "../../../shared/lib/auth-context";
 import { mensajeDeError } from "../../../shared/lib/http-client";
 import { useProductos } from "../../modulo-b-inventario/hooks/useProductos";
 import type { Producto } from "../../modulo-b-inventario/types";
 import { ModalCobro } from "../components/ModalCobro";
 import { ModalVentaRegistrada } from "../components/ModalVentaRegistrada";
 import { useCaja } from "../hooks/useCaja";
+import { useConexion } from "../hooks/useConexion";
 import { useVenta } from "../hooks/useVenta";
+import { cacheOffline, colaOffline } from "../services/ventas-offline";
 import type { ItemVenta, NuevoPago, Venta } from "../types";
 
+/** Vuelto local para ventas offline: solo EFECTIVO reparte vuelto. */
+function vueltoLocal(pagos: NuevoPago[], total: number): number {
+  return pagos.reduce((suma, p) => {
+    if (p.metodo !== "EFECTIVO" || p.monto_recibido === undefined) return suma;
+    const monto = p.monto ?? total;
+    return suma + Math.max(0, p.monto_recibido - monto);
+  }, 0);
+}
+
 export default function PuntoDeVenta() {
+  const { usuario } = useAuthContext();
+  const { online } = useConexion();
   const { productos, cargando, noDisponible, recargar: recargarProductos } = useProductos();
-  const { turno, noDisponible: cajaNoDisponible } = useCaja();
+  const { turno: turnoRemoto, noDisponible: cajaNoDisponible } = useCaja();
   const { registrar } = useVenta();
+
+  // Catálogo efectivo: el del backend cuando hay conexión (y se cachea), el del
+  // caché local cuando no la hay — así el POS nunca se queda sin productos.
+  const [catalogo, setCatalogo] = useState<Producto[]>([]);
+  useEffect(() => {
+    if (productos.length > 0) {
+      setCatalogo(productos);
+      cacheOffline.guardarProductos(productos);
+    } else if (!online) {
+      setCatalogo(cacheOffline.productos());
+    }
+  }, [productos, online]);
+
+  // Turno efectivo: igual que el catálogo (cacheado para operar sin backend).
+  useEffect(() => {
+    if (turnoRemoto !== null) cacheOffline.guardarTurno(turnoRemoto);
+  }, [turnoRemoto]);
+  const turno = turnoRemoto ?? (!online ? cacheOffline.turno() : null);
+
+  // Cola de ventas pendientes de sincronizar.
+  const [pendientes, setPendientes] = useState(() => colaOffline.listar().length);
+  const [avisoSync, setAvisoSync] = useState<string | null>(null);
+  const sincronizando = useRef(false);
+  useEffect(() => {
+    if (!online || colaOffline.listar().length === 0 || sincronizando.current) return;
+    sincronizando.current = true;
+    void colaOffline
+      .sincronizar()
+      .then(({ sincronizadas, conError }) => {
+        setPendientes(colaOffline.listar().length);
+        if (sincronizadas.length > 0) {
+          setAvisoSync(
+            `Volvió la conexión: ${sincronizadas.length} venta(s) offline sincronizada(s) correctamente.`
+          );
+          void recargarProductos();
+        }
+        if (conError.length > 0) {
+          setAvisoSync(
+            `Atención: ${conError.length} venta(s) offline fueron rechazadas por el servidor ` +
+              `(${conError[0].error ?? ""}). Revísalas con la administradora.`
+          );
+        }
+      })
+      .finally(() => {
+        sincronizando.current = false;
+      });
+  }, [online, recargarProductos]);
 
   const [busqueda, setBusqueda] = useState("");
   const [carrito, setCarrito] = useState<ItemVenta[]>([]);
@@ -62,10 +137,10 @@ export default function PuntoDeVenta() {
 
   const visibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    const activos = productos.filter((p) => p.activo && p.stock > 0);
+    const activos = catalogo.filter((p) => p.activo && p.stock > 0);
     if (!q) return activos;
     return activos.filter((p) => p.nombre.toLowerCase().includes(q) || p.codigo.includes(q));
-  }, [productos, busqueda]);
+  }, [catalogo, busqueda]);
 
   const total = carrito.reduce((suma, i) => suma + i.precio_unitario * i.cantidad, 0);
 
@@ -91,7 +166,7 @@ export default function PuntoDeVenta() {
   function manejarEnterBusqueda() {
     const texto = busqueda.trim();
     if (!texto) return;
-    const porCodigo = productos.find((p) => p.codigo === texto);
+    const porCodigo = catalogo.find((p) => p.codigo === texto);
     if (porCodigo) {
       if (!porCodigo.activo || porCodigo.stock <= 0) {
         setAvisoEscaneo(`'${porCodigo.nombre}' no tiene stock disponible.`);
@@ -124,7 +199,7 @@ export default function PuntoDeVenta() {
   }
 
   function stockDe(productoId: number): number {
-    return productos.find((p) => p.id === productoId)?.stock ?? 0;
+    return catalogo.find((p) => p.id === productoId)?.stock ?? 0;
   }
 
   function agregar(p: Producto) {
@@ -164,12 +239,52 @@ export default function PuntoDeVenta() {
     setCarrito((actual) => actual.filter((i) => i.producto_id !== productoId || i.cantidad > 0));
   }
 
+  function armarItemsVenta(): { producto_id: number; cantidad: number }[] {
+    return carrito.map((i) => ({ producto_id: i.producto_id, cantidad: i.cantidad }));
+  }
+
+  // Venta sin conexión: se guarda local con uuid y se descuenta el stock del
+  // caché para no sobrevender. Se sincroniza sola al volver el internet.
+  function cobrarOffline(pagos: NuevoPago[]) {
+    const totalVenta = total;
+    const resumenMetodo = pagos.length === 1 ? pagos[0].metodo : "MIXTO";
+    const vuelto = vueltoLocal(pagos, totalVenta);
+    const pendiente = colaOffline.guardar(
+      { items: armarItemsVenta(), pagos },
+      { items: carrito, total: totalVenta, metodo_pago: resumenMetodo, vuelto }
+    );
+    setCatalogo(cacheOffline.descontarStock(pendiente.venta.items));
+    setPendientes(colaOffline.listar().length);
+    setCarrito([]);
+    setModalCobro(false);
+    setMensaje(null);
+    // Pseudo-venta (id 0) para el modal de vuelto y el ticket opcional.
+    setVentaRegistrada({
+      id: 0,
+      items: carrito,
+      total: totalVenta,
+      metodo_pago: resumenMetodo,
+      pagos: [],
+      vuelto,
+      vendedor: usuario?.nombre ?? "",
+      cliente_id: null,
+      anulada: false,
+      estado: "COMPLETADA",
+      turno_id: turno?.id ?? 0,
+      created_at: pendiente.vendida_en,
+    });
+  }
+
   async function manejarCobrar(pagos: NuevoPago[], clienteId?: number) {
+    if (!online) {
+      cobrarOffline(pagos);
+      return;
+    }
     setProcesando(true);
     setErrorAccion(null);
     try {
       const venta = await registrar({
-        items: carrito.map((i) => ({ producto_id: i.producto_id, cantidad: i.cantidad })),
+        items: armarItemsVenta(),
         pagos,
         cliente_id: clienteId,
       });
@@ -188,7 +303,9 @@ export default function PuntoDeVenta() {
     }
   }
 
-  if (noDisponible || cajaNoDisponible) {
+  // Sin conexión se sigue vendiendo con el caché; la pantalla "no conectado"
+  // solo aparece si estando EN LÍNEA el backend aún no expone los endpoints.
+  if ((noDisponible || cajaNoDisponible) && online) {
     return (
       <div>
         <PageHeader titulo="Punto de venta" />
@@ -205,14 +322,36 @@ export default function PuntoDeVenta() {
       <PageHeader
         titulo="Punto de venta"
         acciones={
-          turno?.estado === "ABIERTO" ? (
-            <Badge tono="exito">Caja abierta</Badge>
-          ) : (
-            <Badge tono="alerta">Caja cerrada: abre un turno para vender</Badge>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            {/* HU-C10: aviso visible del estado de conexión */}
+            {online ? (
+              <Badge tono="exito">
+                <Wifi className="h-3.5 w-3.5" aria-hidden /> En línea
+              </Badge>
+            ) : (
+              <Badge tono="peligro">
+                <WifiOff className="h-3.5 w-3.5" aria-hidden /> Sin conexión — modo local
+              </Badge>
+            )}
+            {pendientes > 0 && (
+              <Badge tono="alerta">
+                <CloudUpload className="h-3.5 w-3.5" aria-hidden /> {pendientes} por sincronizar
+              </Badge>
+            )}
+            {turno?.estado === "ABIERTO" ? (
+              <Badge tono="exito">Caja abierta</Badge>
+            ) : (
+              <Badge tono="alerta">Caja cerrada: abre un turno para vender</Badge>
+            )}
+          </div>
         }
       />
 
+      {avisoSync && (
+        <div className="mb-4">
+          <Alert tono={avisoSync.startsWith("Atención") ? "alerta" : "exito"}>{avisoSync}</Alert>
+        </div>
+      )}
       {mensaje && (
         <div className="mb-4">
           <Alert tono="exito">{mensaje}</Alert>
@@ -392,12 +531,14 @@ export default function PuntoDeVenta() {
         </Card>
       </div>
 
-      {/* Confirmación de cobro (HU-C04): método de pago, pago mixto y vuelto */}
+      {/* Confirmación de cobro (HU-C04): método de pago, pago mixto y vuelto.
+          Sin conexión no se ofrece FIADO (necesita validar cliente en servidor). */}
       <ModalCobro
         abierto={modalCobro}
         total={total}
         procesando={procesando}
         error={errorAccion}
+        permitirFiado={online}
         alCerrar={() => {
           setModalCobro(false);
           setErrorAccion(null);

@@ -102,9 +102,15 @@ export interface Venta {
   pagos: PagoVenta[];
   vuelto: number;
   vendedor: string;
+  /** Cliente asociado (siempre presente en ventas al fiado). */
+  cliente_id: number | null;
   anulada: boolean;
   estado: "COMPLETADA" | "ANULADA" | "DEVUELTA_PARCIAL";
   turno_id: number;
+  /** true si nació sin conexión y fue sincronizada (HU-C10). */
+  registrada_offline?: boolean;
+  /** Momento real de la venta (en offline es anterior a la sincronización). */
+  vendida_en?: string | null;
   created_at: string | null;
 }
 
@@ -121,6 +127,24 @@ export interface NuevaVenta {
   pagos: NuevoPago[];
   /** Obligatorio cuando el pago es FIADO. */
   cliente_id?: number;
+  /** Modo offline (HU-C10): uuid idempotente y momento real de la venta. */
+  client_uuid?: string;
+  registrada_offline?: boolean;
+  vendida_en?: string;
+}
+
+/** Venta hecha sin internet, esperando sincronizar (HU-C10). */
+export interface VentaPendiente {
+  uuid: string;
+  venta: NuevaVenta;
+  /** Copia para mostrar y reimprimir el ticket sin backend. */
+  items: ItemVenta[];
+  total: number;
+  metodo_pago: string;
+  vuelto: number;
+  vendida_en: string;
+  /** Mensaje si el backend la rechazó al sincronizar (ej. sin stock). */
+  error?: string;
 }
 
 /** Cliente del barrio al que se le puede fiar (RF-28). */

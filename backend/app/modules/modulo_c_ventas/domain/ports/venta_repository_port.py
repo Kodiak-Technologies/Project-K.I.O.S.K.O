@@ -13,6 +13,10 @@ class VentaRepositoryPort(ABC):
     async def buscar_por_id(self, venta_id: int) -> Venta | None: ...
 
     @abstractmethod
+    async def buscar_por_uuid(self, client_uuid: str) -> Venta | None:
+        """Para la sincronización offline: reintentar no duplica (RF-26)."""
+
+    @abstractmethod
     async def listar(
         self,
         desde: date | None = None,
