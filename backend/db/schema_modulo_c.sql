@@ -157,3 +157,58 @@ CREATE TABLE IF NOT EXISTS anulaciones (
 
 CREATE INDEX IF NOT EXISTS ix_anulaciones_venta_id ON anulaciones (venta_id);
 CREATE INDEX IF NOT EXISTS ix_anulaciones_turno_id ON anulaciones (turno_id);
+
+-- ----------------------------------------------------------------------------
+-- 6. CLIENTES, FIADOS y ABONOS (HU-C09, RF-28): cuentas por cobrar.
+--    El fiado descuenta stock pero NO suma dinero a la caja; el abono sí entra
+--    (si es efectivo, al arqueo del turno en el que se cobró).
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS clientes (
+    id              BIGSERIAL PRIMARY KEY,
+    nombre          VARCHAR(120)  NOT NULL,
+    alias           VARCHAR(60),
+    telefono        VARCHAR(20),
+    limite_credito  NUMERIC(10,2) NOT NULL DEFAULT 0,   -- 0 = sin límite; lo fija el ADMIN
+    activo          BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_clientes_nombre ON clientes (nombre);
+
+CREATE TABLE IF NOT EXISTS fiados (
+    id               BIGSERIAL PRIMARY KEY,
+    venta_id         BIGINT        NOT NULL UNIQUE REFERENCES ventas(id) ON DELETE RESTRICT,
+    cliente_id       BIGINT        NOT NULL REFERENCES clientes(id) ON DELETE RESTRICT,
+    monto_total      NUMERIC(10,2) NOT NULL,
+    saldo_pendiente  NUMERIC(10,2) NOT NULL,
+    estado           VARCHAR(12)   NOT NULL DEFAULT 'PENDIENTE',  -- PENDIENTE | PAGADO | ANULADO
+    created_at       TIMESTAMPTZ   NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_fiados_cliente_id ON fiados (cliente_id);
+
+CREATE TABLE IF NOT EXISTS abonos (
+    id              BIGSERIAL PRIMARY KEY,
+    fiado_id        BIGINT        NOT NULL REFERENCES fiados(id) ON DELETE RESTRICT,
+    turno_id        BIGINT        NOT NULL REFERENCES turnos_caja(id) ON DELETE RESTRICT,
+    usuario_id      BIGINT        NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    registrado_por  VARCHAR(100)  NOT NULL,
+    metodo_pago_id  INTEGER       REFERENCES metodos_pago(id) ON DELETE RESTRICT,
+    codigo_metodo   VARCHAR(20)   NOT NULL,
+    es_efectivo     BOOLEAN       NOT NULL DEFAULT FALSE,
+    monto           NUMERIC(10,2) NOT NULL,
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    CONSTRAINT ck_abonos_monto_positivo CHECK (monto > 0)
+);
+
+CREATE INDEX IF NOT EXISTS ix_abonos_fiado_id ON abonos (fiado_id);
+CREATE INDEX IF NOT EXISTS ix_abonos_turno_id ON abonos (turno_id);
+
+-- La venta fiada queda asociada a su cliente.
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS
+    cliente_id BIGINT REFERENCES clientes(id) ON DELETE RESTRICT;
+
+-- El FIADO es un método de pago diferenciado (RF-28).
+INSERT INTO metodos_pago (codigo, nombre, es_efectivo, activo)
+VALUES ('FIADO', 'Fiado (a crédito)', FALSE, TRUE)
+ON CONFLICT (codigo) DO NOTHING;

@@ -36,6 +36,7 @@ async def registrar(
         rol=usuario.rol_nombre,
         items=[(i.producto_id, i.cantidad) for i in datos.items],
         pagos=datos.pagos_normalizados(),
+        cliente_id=datos.cliente_id,
         ip=ip,
         user_agent=user_agent,
     )

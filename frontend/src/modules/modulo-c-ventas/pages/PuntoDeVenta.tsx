@@ -164,13 +164,14 @@ export default function PuntoDeVenta() {
     setCarrito((actual) => actual.filter((i) => i.producto_id !== productoId || i.cantidad > 0));
   }
 
-  async function manejarCobrar(pagos: NuevoPago[]) {
+  async function manejarCobrar(pagos: NuevoPago[], clienteId?: number) {
     setProcesando(true);
     setErrorAccion(null);
     try {
       const venta = await registrar({
         items: carrito.map((i) => ({ producto_id: i.producto_id, cantidad: i.cantidad })),
         pagos,
+        cliente_id: clienteId,
       });
       const conVuelto = venta.vuelto > 0 ? ` · Vuelto: S/ ${venta.vuelto.toFixed(2)}` : "";
       setMensaje(
@@ -401,7 +402,7 @@ export default function PuntoDeVenta() {
           setModalCobro(false);
           setErrorAccion(null);
         }}
-        alConfirmar={(pagos) => void manejarCobrar(pagos)}
+        alConfirmar={(pagos, clienteId) => void manejarCobrar(pagos, clienteId)}
       />
 
       {/* Post-venta (HU-C05): vuelto en grande + ticket térmico opcional */}
