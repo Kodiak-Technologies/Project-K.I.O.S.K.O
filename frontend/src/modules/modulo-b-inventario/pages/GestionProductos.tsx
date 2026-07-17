@@ -29,7 +29,14 @@ const esquemaProducto = z.object({
   stock_minimo: z.number().int().min(0, "El stock mínimo no puede ser negativo"),
 });
 
-const FORMULARIO_VACIO = { codigo: "", nombre: "", categoria_id: null as number | null, precio: 0, stock_minimo: 0 };
+const FORMULARIO_VACIO = {
+  codigo: "",
+  nombre: "",
+  categoria_id: null as number | null,
+  precio: 0,
+  stock_minimo: 0,
+  stock_inicial: 0,
+};
 
 export default function GestionProductos() {
   const { productos, cargando, error, noDisponible, crear, actualizar } = useProductos();
@@ -58,6 +65,7 @@ export default function GestionProductos() {
       categoria_id: p.categoria_id,
       precio: p.precio,
       stock_minimo: p.stock_minimo,
+      stock_inicial: 0,
     });
     setErrorAccion(null);
     setModalAbierto(true);
@@ -74,7 +82,8 @@ export default function GestionProductos() {
     setErrorAccion(null);
     try {
       if (editando) {
-        await actualizar(editando.id, formulario);
+        const { stock_inicial: _sinStock, ...cambios } = formulario;
+        await actualizar(editando.id, cambios);
         setMensaje(`Producto '${formulario.nombre}' actualizado.`);
       } else {
         await crear(formulario);
@@ -189,10 +198,13 @@ export default function GestionProductos() {
       >
         <form onSubmit={(e) => void manejarGuardar(e)} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
+            {/* autoFocus: el lector de barras/QR emula un teclado — con el cursor
+                acá, escanear el producto llena el código solo. */}
             <Input
-              label="Código"
+              label="Código (escanéalo o escríbelo)"
               requerido
-              placeholder="ej. 7750100000000"
+              autoFocus={!editando}
+              placeholder="ej. 7750100000000 o PAP-001"
               value={formulario.codigo}
               onChange={(e) => setFormulario({ ...formulario, codigo: e.target.value })}
             />
@@ -219,6 +231,15 @@ export default function GestionProductos() {
               value={formulario.stock_minimo}
               onChange={(e) => setFormulario({ ...formulario, stock_minimo: Number(e.target.value) })}
             />
+            {!editando && (
+              <Input
+                label="Cantidad inicial en almacén"
+                type="number"
+                min={0}
+                value={formulario.stock_inicial}
+                onChange={(e) => setFormulario({ ...formulario, stock_inicial: Number(e.target.value) })}
+              />
+            )}
           </div>
           <Select
             label="Categoría"
