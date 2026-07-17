@@ -119,8 +119,8 @@ class Respaldo:
         return self.estado == EstadoRespaldo.COMPLETADO.value
 
     @property
-    def expirado(self, ahora: datetime | None = None) -> bool:
-        ahora = ahora or datetime.now(timezone.utc)
+    def expirado(self) -> bool:
+        ahora = datetime.now(timezone.utc)
         return self.expira_en is not None and self.expira_en < ahora
 
 

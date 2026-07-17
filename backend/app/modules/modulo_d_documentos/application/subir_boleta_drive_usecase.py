@@ -14,10 +14,14 @@ class SubirBoletaDriveUseCase:
         boleta_repo: BoletaRepositoryPort,
         drive_storage: DriveStoragePort,
         archivo_drive_repo: ArchivoDriveRepositoryPort,
+        png_generator,
+        configuracion_provider=None,
     ) -> None:
         self._boleta_repo = boleta_repo
         self._drive_storage = drive_storage
         self._archivo_drive_repo = archivo_drive_repo
+        self._png_generator = png_generator
+        self._configuracion_provider = configuracion_provider
 
     async def ejecutar(self, boleta_id: int) -> ArchivoDrive:
         boleta = await self._boleta_repo.buscar_por_id(boleta_id)
@@ -38,7 +42,19 @@ class SubirBoletaDriveUseCase:
         archivo = await self._archivo_drive_repo.crear(archivo)
 
         try:
-            archivo_bytes = b"simulated-png-data"
+            nombre_negocio = "Mi Tienda"
+            if self._configuracion_provider:
+                config = await self._configuracion_provider.obtener()
+                nombre_negocio = config.get("nombre_negocio", "Mi Tienda")
+
+            archivo_bytes = await self._png_generator.generar(
+                numero=boleta.numero,
+                total=boleta.total,
+                fecha=boleta.emitida_en.strftime("%Y-%m-%d %H:%M") if boleta.emitida_en else "",
+                productos=[],
+                nombre_negocio=nombre_negocio,
+            )
+
             drive_file_id = await self._drive_storage.subir(
                 archivo_bytes, nombre_archivo, carpeta
             )
@@ -51,7 +67,7 @@ class SubirBoletaDriveUseCase:
 
             url = await self._drive_storage.obtener_url(drive_file_id)
             boleta.url_pdf = url
-            await self._boleta_repo.crear(boleta)
+            await self._boleta_repo.actualizar(boleta)
 
         except Exception as e:
             archivo.estado = EstadoArchivoDrive.FALLIDO.value

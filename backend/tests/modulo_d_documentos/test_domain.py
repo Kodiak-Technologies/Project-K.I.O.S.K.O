@@ -149,6 +149,26 @@ class TestRespaldo:
         respaldo = Respaldo(id=None, archivo_nombre="backup.dump")
         assert respaldo.expira_en is not None
 
+    def test_esta_completado(self):
+        respaldo = Respaldo(id=None, archivo_nombre="backup.dump", estado="COMPLETADO")
+        assert respaldo.esta_completado is True
+
+    def test_no_esta_completado(self):
+        respaldo = Respaldo(id=None, archivo_nombre="backup.dump")
+        assert respaldo.esta_completado is False
+
+    def test_expirado(self):
+        from datetime import timedelta
+        respaldo = Respaldo(id=None, archivo_nombre="backup.dump")
+        respaldo.expira_en = datetime.now(timezone.utc) - timedelta(days=1)
+        assert respaldo.expirado is True
+
+    def test_no_expirado(self):
+        from datetime import timedelta
+        respaldo = Respaldo(id=None, archivo_nombre="backup.dump")
+        respaldo.expira_en = datetime.now(timezone.utc) + timedelta(days=1)
+        assert respaldo.expirado is False
+
 
 class TestResumenReporte:
     def test_calcular_ticket_promedio(self):
@@ -160,3 +180,33 @@ class TestResumenReporte:
         resumen = ResumenReporte(desde="2026-01-01", hasta="2026-12-31", total_vendido=0.0, numero_ventas=0)
         resumen.calcular_ticket_promedio()
         assert resumen.ticket_promedio == 0.0
+
+
+class TestBoletaPngGenerator:
+    @pytest.mark.asyncio
+    async def test_genera_bytes_validos(self):
+        from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.boleta_png_generator import BoletaPngGenerator
+        gen = BoletaPngGenerator()
+        resultado = await gen.generar(
+            numero="B001-000001", total=150.0, fecha="2026-07-15",
+            productos=[{"nombre": "Arroz", "cantidad": 2, "precio_unitario": 25.0, "subtotal": 50.0}],
+            nombre_negocio="Mi Tienda",
+        )
+        assert isinstance(resultado, bytes)
+        assert len(resultado) > 0
+
+    @pytest.mark.asyncio
+    async def test_genera_png_con_productos(self):
+        from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.boleta_png_generator import BoletaPngGenerator
+        gen = BoletaPngGenerator()
+        productos = [
+            {"nombre": "Arroz", "cantidad": 2, "precio_unitario": 25.0, "subtotal": 50.0},
+            {"nombre": "Aceite", "cantidad": 1, "precio_unitario": 100.0, "subtotal": 100.0},
+            {"nombre": "Leche", "cantidad": 3, "precio_unitario": 5.0, "subtotal": 15.0},
+        ]
+        resultado = await gen.generar(
+            numero="B001-000002", total=165.0, fecha="2026-07-15",
+            productos=productos, nombre_negocio="Mi Tienda",
+        )
+        assert isinstance(resultado, bytes)
+        assert len(resultado) > 0

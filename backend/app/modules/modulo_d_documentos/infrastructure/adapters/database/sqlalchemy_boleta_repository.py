@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,9 +42,11 @@ class SqlAlchemyBoletaRepository:
         consulta = select(BoletaModel).order_by(BoletaModel.emitida_en.desc())
 
         if desde:
-            consulta = consulta.where(BoletaModel.emitida_en >= desde)
+            fecha_desde = datetime.fromisoformat(desde)
+            consulta = consulta.where(BoletaModel.emitida_en >= fecha_desde)
         if hasta:
-            consulta = consulta.where(BoletaModel.emitida_en <= hasta)
+            fecha_hasta = datetime.fromisoformat(hasta)
+            consulta = consulta.where(BoletaModel.emitida_en <= fecha_hasta)
         if q:
             consulta = consulta.where(BoletaModel.numero.ilike(f"%{q}%"))
 
@@ -57,6 +61,18 @@ class SqlAlchemyBoletaRepository:
             url_pdf=boleta.url_pdf,
         )
         self._db.add(fila)
+        await self._db.flush()
+        await self._db.refresh(fila)
+        return _a_entidad(fila)
+
+    async def actualizar(self, boleta: Boleta) -> Boleta:
+        resultado = await self._db.execute(
+            select(BoletaModel).where(BoletaModel.id == boleta.id)
+        )
+        fila = resultado.scalar_one_or_none()
+        if fila is None:
+            raise ValueError(f"Boleta #{boleta.id} no encontrada para actualizar")
+        fila.url_pdf = boleta.url_pdf
         await self._db.flush()
         await self._db.refresh(fila)
         return _a_entidad(fila)

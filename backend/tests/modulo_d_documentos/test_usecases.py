@@ -60,6 +60,13 @@ class MockBoletaRepository:
         self.boletas.append(boleta)
         return boleta
 
+    async def actualizar(self, boleta: Boleta) -> Boleta:
+        for i, b in enumerate(self.boletas):
+            if b.id == boleta.id:
+                self.boletas[i] = boleta
+                return boleta
+        return boleta
+
     async def generar_siguiente_numero(self) -> str:
         return f"B001-{(self._contador + 1):06d}"
 
@@ -85,6 +92,19 @@ class MockDriveStorage:
 
     async def obtener_url(self, file_id) -> str:
         return "https://drive.google.com/file/123"
+
+
+class MockDriveStorageFalla:
+    async def subir(self, archivo_bytes, nombre, carpeta) -> str:
+        raise RuntimeError("Google Drive no está configurado")
+
+    async def obtener_url(self, file_id) -> str:
+        return ""
+
+
+class MockPngGenerator:
+    async def generar(self, numero, total, fecha, productos, nombre_negocio="Mi Tienda") -> bytes:
+        return b"\x89PNG_fake_image_data"
 
 
 class MockNotificacionRepository:
@@ -161,10 +181,46 @@ class TestSubirBoletaDriveUseCase:
     async def test_subir_boleta_exitoso(self):
         boleta_repo = MockBoletaRepository()
         await boleta_repo.crear(Boleta(id=None, venta_id=1, numero="B001-000001", total=50.0))
-        use_case = SubirBoletaDriveUseCase(boleta_repo, MockDriveStorage(), MockArchivoDriveRepository())
+        use_case = SubirBoletaDriveUseCase(
+            boleta_repo, MockDriveStorage(), MockArchivoDriveRepository(),
+            MockPngGenerator(), MockConfiguracionProvider(),
+        )
         archivo = await use_case.ejecutar(boleta_id=1)
         assert archivo.estado == "SUBIDO"
         assert archivo.drive_file_id == "drive_file_id_123"
+
+    @pytest.mark.asyncio
+    async def test_subir_boleta_boleta_no_existe(self):
+        use_case = SubirBoletaDriveUseCase(
+            MockBoletaRepository(), MockDriveStorage(), MockArchivoDriveRepository(),
+            MockPngGenerator(), MockConfiguracionProvider(),
+        )
+        with pytest.raises(NoEncontradoError):
+            await use_case.ejecutar(boleta_id=999)
+
+    @pytest.mark.asyncio
+    async def test_subir_boleta_drive_fallo(self):
+        boleta_repo = MockBoletaRepository()
+        await boleta_repo.crear(Boleta(id=None, venta_id=1, numero="B001-000001", total=50.0))
+        use_case = SubirBoletaDriveUseCase(
+            boleta_repo, MockDriveStorageFalla(), MockArchivoDriveRepository(),
+            MockPngGenerator(), MockConfiguracionProvider(),
+        )
+        archivo = await use_case.ejecutar(boleta_id=1)
+        assert archivo.estado == "FALLIDO"
+        assert archivo.error_mensaje is not None
+
+    @pytest.mark.asyncio
+    async def test_subir_boleta_url_actualizada(self):
+        boleta_repo = MockBoletaRepository()
+        await boleta_repo.crear(Boleta(id=None, venta_id=1, numero="B001-000001", total=50.0))
+        use_case = SubirBoletaDriveUseCase(
+            boleta_repo, MockDriveStorage(), MockArchivoDriveRepository(),
+            MockPngGenerator(), MockConfiguracionProvider(),
+        )
+        await use_case.ejecutar(boleta_id=1)
+        boleta = await boleta_repo.buscar_por_id(1)
+        assert boleta.url_pdf == "https://drive.google.com/file/123"
 
 
 class TestGenerarReporteVentasUseCase:

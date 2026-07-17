@@ -95,3 +95,31 @@ class RespaldoResponse(BaseModel):
             generado_en=r.generado_en,
             expira_en=r.expira_en,
         )
+
+
+class ArchivoDriveResponse(BaseModel):
+    id: int
+    boleta_id: int
+    archivo_nombre: str
+    carpeta: str
+    estado: str
+    intentos: int
+    drive_file_id: str | None
+    error_mensaje: str | None
+    creado_en: datetime | None
+    actualizado_en: datetime | None
+
+    @classmethod
+    def desde_entidad(cls, a) -> "ArchivoDriveResponse":
+        return cls(
+            id=a.id,
+            boleta_id=a.boleta_id,
+            archivo_nombre=a.archivo_nombre,
+            carpeta=a.carpeta,
+            estado=a.estado,
+            intentos=a.intentos,
+            drive_file_id=a.drive_file_id,
+            error_mensaje=a.error_mensaje,
+            creado_en=a.creado_en,
+            actualizado_en=a.actualizado_en,
+        )

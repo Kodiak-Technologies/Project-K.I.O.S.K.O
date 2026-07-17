@@ -16,11 +16,22 @@ class GoogleDriveAdapter(DriveStoragePort):
         self.folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
         self._service = None
 
-        if creds_json and os.path.exists(creds_json):
+        if not creds_json:
+            return
+
+        if creds_json.strip().startswith("{"):
+            creds_info = json.loads(creds_json)
+            creds = service_account.Credentials.from_service_account_info(
+                creds_info, scopes=self.SCOPES
+            )
+        elif os.path.exists(creds_json):
             creds = service_account.Credentials.from_service_account_file(
                 creds_json, scopes=self.SCOPES
             )
-            self._service = build("drive", "v3", credentials=creds)
+        else:
+            return
+
+        self._service = build("drive", "v3", credentials=creds)
 
     async def subir(self, archivo_bytes: bytes, nombre: str, carpeta: str) -> str:
         if self._service is None:

@@ -25,11 +25,15 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.telegram_n
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.excel_generator import (
     ExcelGenerator,
 )
+from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.boleta_png_generator import (
+    BoletaPngGenerator,
+)
 from app.shared.database.session import get_db
 
 _drive_storage = GoogleDriveAdapter()
 _notificacion_sender = TelegramNotificationAdapter()
 _reporte_generator = ExcelGenerator()
+_png_generator = BoletaPngGenerator()
 
 
 async def get_boleta_repository(db: AsyncSession = Depends(get_db)):
@@ -62,6 +66,10 @@ def get_notificacion_sender():
 
 def get_reporte_generator():
     return _reporte_generator
+
+
+def get_png_generator():
+    return _png_generator
 
 
 class MockVentaDataProvider:

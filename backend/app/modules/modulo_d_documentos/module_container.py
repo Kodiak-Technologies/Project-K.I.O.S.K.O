@@ -26,10 +26,12 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.telegram_n
     TelegramNotificationAdapter,
 )
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.excel_generator import ExcelGenerator
+from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.boleta_png_generator import BoletaPngGenerator
 
 _drive_storage = GoogleDriveAdapter()
 _notificacion_sender = TelegramNotificationAdapter()
 _reporte_generator = ExcelGenerator()
+_png_generator = BoletaPngGenerator()
 
 
 class MockVentaDataProvider:
@@ -65,6 +67,8 @@ def subir_boleta_drive_usecase(db: AsyncSession) -> SubirBoletaDriveUseCase:
         SqlAlchemyBoletaRepository(db),
         _drive_storage,
         SqlAlchemyArchivoDriveRepository(db),
+        _png_generator,
+        _configuracion_provider,
     )
 
 

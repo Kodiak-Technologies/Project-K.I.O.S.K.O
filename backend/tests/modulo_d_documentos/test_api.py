@@ -73,3 +73,39 @@ def test_health():
             assert respuesta.json()["status"] == "ok"
 
     correr(escenario())
+
+
+def test_subir_boleta_drive_sin_auth():
+    async def escenario():
+        async with cliente_api() as api:
+            respuesta = await api.post("/boletas/999/subir-drive")
+            assert respuesta.status_code == 401
+
+    correr(escenario())
+
+
+def test_crear_respaldo_sin_auth():
+    async def escenario():
+        async with cliente_api() as api:
+            respuesta = await api.post("/respaldos")
+            assert respuesta.status_code == 401
+
+    correr(escenario())
+
+
+def test_descargar_respaldo_sin_auth():
+    async def escenario():
+        async with cliente_api() as api:
+            respuesta = await api.get("/respaldos/999/descargar")
+            assert respuesta.status_code == 401
+
+    correr(escenario())
+
+
+def test_crear_boleta_sin_auth():
+    async def escenario():
+        async with cliente_api() as api:
+            respuesta = await api.post("/boletas?venta_id=1")
+            assert respuesta.status_code == 401
+
+    correr(escenario())
