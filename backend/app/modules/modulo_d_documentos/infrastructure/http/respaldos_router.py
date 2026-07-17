@@ -4,14 +4,13 @@ from sqlalchemy import select
 
 from app.modules.modulo_a_seguridad.infrastructure.dependencies import require_role
 from app.modules.modulo_a_seguridad.domain.entities import Usuario
-from app.modules.modulo_d_documentos.infrastructure.dependencies import get_respaldo_repository, get_db
+from app.modules.modulo_d_documentos.infrastructure.dependencies import get_respaldo_repository
 from app.modules.modulo_d_documentos.infrastructure.http.schemas import RespaldoResponse
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.models import RespaldoModel
+from app.shared.database.session import SessionLocal
 
-import asyncio
 import os
-import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 BACKUPS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "scripts", "backups")
 
