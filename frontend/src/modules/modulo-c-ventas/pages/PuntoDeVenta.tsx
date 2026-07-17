@@ -87,6 +87,10 @@ export default function PuntoDeVenta() {
     setBusqueda("");
   }
 
+  function stockDe(productoId: number): number {
+    return productos.find((p) => p.id === productoId)?.stock ?? 0;
+  }
+
   function agregar(p: Producto) {
     setCarrito((actual) => {
       const existente = actual.find((i) => i.producto_id === p.id);
@@ -102,9 +106,26 @@ export default function PuntoDeVenta() {
   function cambiarCantidad(productoId: number, delta: number) {
     setCarrito((actual) =>
       actual
-        .map((i) => (i.producto_id === productoId ? { ...i, cantidad: i.cantidad + delta } : i))
+        .map((i) =>
+          i.producto_id === productoId
+            ? { ...i, cantidad: Math.min(Math.max(i.cantidad + delta, 0), stockDe(productoId)) }
+            : i
+        )
         .filter((i) => i.cantidad > 0)
     );
+  }
+
+  // HU-C02: escribir la cantidad directamente (ej. 5 botellas) sin escanear 5 veces.
+  // Mientras se edita puede quedar en 0 (campo vacío); al salir del campo se normaliza.
+  function fijarCantidad(productoId: number, cantidad: number) {
+    const limpia = Number.isNaN(cantidad) ? 0 : Math.min(Math.max(cantidad, 0), stockDe(productoId));
+    setCarrito((actual) =>
+      actual.map((i) => (i.producto_id === productoId ? { ...i, cantidad: limpia } : i))
+    );
+  }
+
+  function normalizarCantidad(productoId: number) {
+    setCarrito((actual) => actual.filter((i) => i.producto_id !== productoId || i.cantidad > 0));
   }
 
   async function manejarCobrar() {
@@ -236,7 +257,18 @@ export default function PuntoDeVenta() {
                         onClick={() => cambiarCantidad(item.producto_id, -1)}
                         icono={<Minus className="h-4 w-4" aria-hidden />}
                       />
-                      <span className="w-8 text-center text-sm font-medium tabular-nums">{item.cantidad}</span>
+                      {/* HU-C02: la cantidad se escribe directo (ej. 5 botellas) */}
+                      <input
+                        type="number"
+                        min={0}
+                        max={stockDe(item.producto_id)}
+                        inputMode="numeric"
+                        aria-label={`Cantidad de ${item.nombre}`}
+                        className="w-14 rounded-lg border border-zinc-300 px-1 py-1 text-center text-sm font-medium tabular-nums focus:border-zinc-500"
+                        value={item.cantidad === 0 ? "" : item.cantidad}
+                        onChange={(e) => fijarCantidad(item.producto_id, e.target.valueAsNumber)}
+                        onBlur={() => normalizarCantidad(item.producto_id)}
+                      />
                       <Button
                         variante="secundario"
                         compacto
@@ -268,7 +300,7 @@ export default function PuntoDeVenta() {
                   </Button>
                   <Button
                     className="flex-1"
-                    disabled={turno?.estado !== "ABIERTO"}
+                    disabled={turno?.estado !== "ABIERTO" || carrito.some((i) => i.cantidad <= 0)}
                     onClick={() => setModalCobro(true)}
                   >
                     Cobrar
