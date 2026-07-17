@@ -42,6 +42,9 @@ export default function PuntoDeVenta() {
   const [avisoEscaneo, setAvisoEscaneo] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
+  // HU-C03: desplegable de autocompletado del buscador
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
+  const [indiceSugerencia, setIndiceSugerencia] = useState(0);
   const inputBusqueda = useRef<HTMLInputElement>(null);
 
   // El escáner "tipea" donde esté el cursor: si el foco quedó en el body (tras un
@@ -67,24 +70,58 @@ export default function PuntoDeVenta() {
 
   const total = carrito.reduce((suma, i) => suma + i.precio_unitario * i.cantidad, 0);
 
-  // Enter en el buscador = fin de un escaneo (o búsqueda manual): si el texto
-  // coincide exacto con un código, el producto entra al carrito al instante.
-  function manejarEnterBusqueda() {
-    const codigo = busqueda.trim();
-    if (!codigo) return;
-    const producto = productos.find((p) => p.codigo === codigo);
-    if (!producto) {
-      setAvisoEscaneo(`No hay ningún producto con el código "${codigo}".`);
-      return;
-    }
-    if (!producto.activo || producto.stock <= 0) {
-      setAvisoEscaneo(`'${producto.nombre}' no tiene stock disponible.`);
-      setBusqueda("");
-      return;
-    }
-    agregar(producto);
+  // HU-C03: mientras se escribe, el sistema sugiere en un desplegable los
+  // productos que coinciden por nombre o código (máx. 8, navegable con flechas).
+  const sugerencias = useMemo(
+    () => (busqueda.trim() ? visibles.slice(0, 8) : []),
+    [busqueda, visibles]
+  );
+
+  function agregarYLimpiar(p: Producto) {
+    agregar(p);
     setAvisoEscaneo(null);
     setBusqueda("");
+    setMostrarSugerencias(false);
+    setIndiceSugerencia(0);
+    inputBusqueda.current?.focus();
+  }
+
+  // Enter en el buscador = fin de un escaneo (o búsqueda manual): si el texto
+  // coincide exacto con un código, ese producto entra al carrito al instante;
+  // si no, entra la sugerencia seleccionada del desplegable.
+  function manejarEnterBusqueda() {
+    const texto = busqueda.trim();
+    if (!texto) return;
+    const porCodigo = productos.find((p) => p.codigo === texto);
+    if (porCodigo) {
+      if (!porCodigo.activo || porCodigo.stock <= 0) {
+        setAvisoEscaneo(`'${porCodigo.nombre}' no tiene stock disponible.`);
+        setBusqueda("");
+        return;
+      }
+      agregarYLimpiar(porCodigo);
+      return;
+    }
+    if (sugerencias.length > 0) {
+      agregarYLimpiar(sugerencias[Math.min(indiceSugerencia, sugerencias.length - 1)]);
+      return;
+    }
+    setAvisoEscaneo(`No hay ningún producto que coincida con "${texto}".`);
+  }
+
+  function manejarTeclasBusqueda(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      manejarEnterBusqueda();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setIndiceSugerencia((i) => Math.min(i + 1, sugerencias.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setIndiceSugerencia((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Escape") {
+      setMostrarSugerencias(false);
+    }
   }
 
   function stockDe(productoId: number): number {
@@ -193,14 +230,51 @@ export default function PuntoDeVenta() {
               onChange={(e) => {
                 setBusqueda(e.target.value);
                 setAvisoEscaneo(null);
+                setMostrarSugerencias(true);
+                setIndiceSugerencia(0);
               }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  manejarEnterBusqueda();
-                }
-              }}
+              onKeyDown={manejarTeclasBusqueda}
+              onFocus={() => setMostrarSugerencias(true)}
+              onBlur={() => setTimeout(() => setMostrarSugerencias(false), 150)}
+              role="combobox"
+              aria-expanded={mostrarSugerencias && sugerencias.length > 0}
+              aria-autocomplete="list"
             />
+            {/* HU-C03: desplegable de autocompletado (nombre o código) */}
+            {mostrarSugerencias && sugerencias.length > 0 && (
+              <ul
+                role="listbox"
+                className="absolute z-30 mt-1 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg"
+              >
+                {sugerencias.map((p, indice) => (
+                  <li key={p.id} role="option" aria-selected={indice === indiceSugerencia}>
+                    <button
+                      type="button"
+                      // onMouseDown para ganarle al onBlur del input
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        agregarYLimpiar(p);
+                      }}
+                      onMouseEnter={() => setIndiceSugerencia(indice)}
+                      className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm ${
+                        indice === indiceSugerencia ? "bg-zinc-100" : ""
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-zinc-800">{p.nombre}</span>
+                        <span className="font-mono text-xs text-zinc-400">{p.codigo}</span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className="block font-semibold tabular-nums text-zinc-900">
+                          S/ {p.precio.toFixed(2)}
+                        </span>
+                        <span className="text-xs text-zinc-400">stock: {p.stock}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           {avisoEscaneo && (
             <div className="mb-3">
