@@ -19,6 +19,7 @@ from app.modules.modulo_b_inventario.infrastructure.http.categorias_router impor
 from app.modules.modulo_b_inventario.infrastructure.http.productos_router import (
     router as productos_router,
 )
+from app.modules.modulo_c_ventas.infrastructure.http.caja_router import router as caja_router
 from app.shared.http.error_handlers import registrar_error_handlers
 from app.shared.http.middlewares import registrar_middlewares
 
@@ -38,7 +39,10 @@ app.include_router(configuracion_router)
 app.include_router(productos_router)
 app.include_router(categorias_router)
 
-# --- Módulo C (Clever) y D (Fabrizio): montar sus routers aquí ---
+# --- Módulo C: Ventas, Caja y Punto de Venta (Clever) ---
+app.include_router(caja_router)
+
+# --- Módulo D (Fabrizio): montar sus routers aquí ---
 
 
 @app.get("/health", tags=["Infra"])

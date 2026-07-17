@@ -8,6 +8,8 @@ export interface TurnoCaja {
   abierto_en: string;
   cerrado_en: string | null;
   estado: "ABIERTO" | "CERRADO";
+  /** Quién cerró el turno (puede ser otro cajero en un cambio de turno). */
+  cerrado_por: string | null;
 }
 
 export interface ItemVenta {

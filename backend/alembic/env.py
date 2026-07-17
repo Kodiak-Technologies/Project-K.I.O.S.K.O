@@ -15,6 +15,7 @@ from app.shared.database.base_model import Base
 # Modelos de cada módulo (importar = registrar sus tablas en Base.metadata):
 from app.modules.modulo_a_seguridad.infrastructure.adapters.database import models as _modelos_a  # noqa: F401
 from app.modules.modulo_b_inventario.infrastructure.adapters.database import models as _modelos_b  # noqa: F401
+from app.modules.modulo_c_ventas.infrastructure.adapters.database import models as _modelos_c  # noqa: F401
 # TODO módulo D: importar aquí su models.py cuando exista.
 
 config = context.config
