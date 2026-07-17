@@ -92,6 +92,30 @@ export default function AperturaCaja() {
     },
     { titulo: "Cerrada por", soloEscritorio: true, render: (t) => t.cerrado_por ?? "—" },
     {
+      // HU-C07: el descuadre (y su comentario) a la vista de la administradora
+      titulo: "Diferencia",
+      render: (t) => {
+        if (!t.arqueo) return <span className="text-zinc-400">—</span>;
+        if (t.arqueo.diferencia === 0) return <Badge tono="exito">Cuadró</Badge>;
+        return (
+          <span title={t.arqueo.comentario ?? undefined} className="inline-flex items-center gap-1">
+            <Badge tono="alerta">
+              {t.arqueo.diferencia > 0 ? "+" : ""}S/ {t.arqueo.diferencia.toFixed(2)}
+            </Badge>
+          </span>
+        );
+      },
+    },
+    {
+      titulo: "Comentario",
+      soloEscritorio: true,
+      render: (t) => (
+        <span className="block max-w-[16rem] truncate text-zinc-500" title={t.arqueo?.comentario ?? undefined}>
+          {t.arqueo?.comentario ?? "—"}
+        </span>
+      ),
+    },
+    {
       titulo: "Estado",
       render: (t) =>
         t.estado === "ABIERTO" ? <Badge tono="exito">Abierto</Badge> : <Badge tono="neutro">Cerrado</Badge>,

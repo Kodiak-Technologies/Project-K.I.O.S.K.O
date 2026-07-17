@@ -1,9 +1,11 @@
-# Caso de uso: consultar el estado de la caja (turno actual e historial de turnos).
+# Caso de uso: consultar el estado de la caja (turno actual, resumen e historial).
 # El historial es visible para TODOS los usuarios autenticados: en un cambio de
 # turno, el cajero entrante ve con cuánto abrió y cerró el anterior; el admin
 # supervisa lo mismo de todos sus cajeros.
-from app.modules.modulo_c_ventas.domain.entities import TurnoCaja
+from app.modules.modulo_c_ventas.application.cerrar_caja_usecase import calcular_resumen
+from app.modules.modulo_c_ventas.domain.entities import ArqueoCaja, ResumenCaja, TurnoCaja
 from app.modules.modulo_c_ventas.domain.ports.caja_repository_port import CajaRepositoryPort
+from app.shared.kernel.exceptions import ConflictoError
 
 
 class ConsultarCajaUseCase:
@@ -13,5 +15,14 @@ class ConsultarCajaUseCase:
     async def turno_actual(self) -> TurnoCaja | None:
         return await self._caja.turno_abierto()
 
-    async def historial(self, limite: int = 30) -> list[TurnoCaja]:
-        return await self._caja.listar(limite)
+    async def resumen(self) -> ResumenCaja:
+        """La sugerencia de cierre del turno abierto (RF-17)."""
+        turno = await self._caja.turno_abierto()
+        if turno is None:
+            raise ConflictoError("No hay un turno de caja abierto.")
+        return await calcular_resumen(self._caja, turno)
+
+    async def historial(self, limite: int = 30) -> list[tuple[TurnoCaja, ArqueoCaja | None]]:
+        turnos = await self._caja.listar(limite)
+        arqueos = await self._caja.arqueos_por_turno([t.id for t in turnos])
+        return [(t, arqueos.get(t.id)) for t in turnos]

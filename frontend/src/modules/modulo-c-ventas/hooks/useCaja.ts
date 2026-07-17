@@ -42,9 +42,10 @@ export function useCaja() {
   );
 
   const cerrar = useCallback(
-    async (montoFinal: number) => {
-      setTurno(await cajaHttpAdapter.cerrar(montoFinal));
+    async (montoFinal: number, comentario?: string) => {
+      const cerrado = await cajaHttpAdapter.cerrar(montoFinal, comentario);
       await recargar();
+      return cerrado;
     },
     [recargar]
   );

@@ -4,12 +4,44 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.modules.modulo_c_ventas.domain.entities import MetodoPago, TurnoCaja, Venta
+from app.modules.modulo_c_ventas.domain.entities import (
+    ArqueoCaja,
+    MetodoPago,
+    ResumenCaja,
+    TurnoCaja,
+    Venta,
+)
 
 
 # ---------- Caja ----------
 class AbrirCajaRequest(BaseModel):
     monto_inicial: float = Field(ge=0)
+
+
+class CerrarCajaRequest(BaseModel):
+    monto_final: float = Field(ge=0)
+    # Obligatorio solo si el monto difiere de la sugerencia (validado en el caso de uso).
+    comentario: str | None = Field(default=None, max_length=500)
+
+
+class ArqueoResponse(BaseModel):
+    efectivo_esperado: float
+    efectivo_contado: float
+    diferencia: float
+    comentario: str | None
+    total_vendido: float
+    totales_por_metodo: dict[str, float]
+
+    @classmethod
+    def desde_entidad(cls, a: ArqueoCaja) -> "ArqueoResponse":
+        return cls(
+            efectivo_esperado=float(a.efectivo_esperado),
+            efectivo_contado=float(a.efectivo_contado),
+            diferencia=float(a.diferencia),
+            comentario=a.comentario,
+            total_vendido=float(a.total_vendido),
+            totales_por_metodo=a.totales_por_metodo or {},
+        )
 
 
 class TurnoCajaResponse(BaseModel):
@@ -21,9 +53,11 @@ class TurnoCajaResponse(BaseModel):
     cerrado_en: datetime | None
     estado: str
     cerrado_por: str | None = None
+    # Presente solo en turnos cerrados: el detalle del arqueo (RF-17).
+    arqueo: ArqueoResponse | None = None
 
     @classmethod
-    def desde_entidad(cls, t: TurnoCaja) -> "TurnoCajaResponse":
+    def desde_entidad(cls, t: TurnoCaja, arqueo: ArqueoCaja | None = None) -> "TurnoCajaResponse":
         return cls(
             id=t.id,
             abierto_por=t.abierto_por,
@@ -33,6 +67,32 @@ class TurnoCajaResponse(BaseModel):
             cerrado_en=t.cerrado_en,
             estado=t.estado,
             cerrado_por=t.cerrado_por,
+            arqueo=ArqueoResponse.desde_entidad(arqueo) if arqueo else None,
+        )
+
+
+class ResumenCajaResponse(BaseModel):
+    turno: TurnoCajaResponse
+    efectivo_esperado: float
+    desglose: dict[str, float]  # monto_inicial, ventas_efectivo, abonos_efectivo, devoluciones_efectivo
+    totales_por_metodo: dict[str, float]
+    total_vendido: float
+    numero_ventas: int
+
+    @classmethod
+    def desde_entidad(cls, r: ResumenCaja) -> "ResumenCajaResponse":
+        return cls(
+            turno=TurnoCajaResponse.desde_entidad(r.turno),
+            efectivo_esperado=float(r.efectivo_esperado),
+            desglose={
+                "monto_inicial": float(r.monto_inicial),
+                "ventas_efectivo": float(r.ventas_efectivo),
+                "abonos_efectivo": float(r.abonos_efectivo),
+                "devoluciones_efectivo": float(r.devoluciones_efectivo),
+            },
+            totales_por_metodo=r.totales_por_metodo,
+            total_vendido=float(r.total_vendido),
+            numero_ventas=r.numero_ventas,
         )
 
 

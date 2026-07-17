@@ -1,5 +1,17 @@
 // Tipos/DTOs del módulo de ventas (contrato esperado del backend de Clever).
 
+/** Detalle del arqueo de un turno cerrado (RF-17). */
+export interface Arqueo {
+  efectivo_esperado: number;
+  efectivo_contado: number;
+  /** contado - esperado (negativo = faltante). */
+  diferencia: number;
+  /** Obligatorio cuando hubo descuadre: el admin lo revisa. */
+  comentario: string | null;
+  total_vendido: number;
+  totales_por_metodo: Record<string, number>;
+}
+
 export interface TurnoCaja {
   id: number;
   abierto_por: string;
@@ -10,6 +22,23 @@ export interface TurnoCaja {
   estado: "ABIERTO" | "CERRADO";
   /** Quién cerró el turno (puede ser otro cajero en un cambio de turno). */
   cerrado_por: string | null;
+  /** Solo en turnos cerrados. */
+  arqueo: Arqueo | null;
+}
+
+/** Sugerencia de cierre del turno abierto (GET /caja/resumen). */
+export interface ResumenCaja {
+  turno: TurnoCaja;
+  efectivo_esperado: number;
+  desglose: {
+    monto_inicial: number;
+    ventas_efectivo: number;
+    abonos_efectivo: number;
+    devoluciones_efectivo: number;
+  };
+  totales_por_metodo: Record<string, number>;
+  total_vendido: number;
+  numero_ventas: number;
 }
 
 export interface ItemVenta {

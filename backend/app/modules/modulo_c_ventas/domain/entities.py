@@ -35,6 +35,47 @@ class TurnoCaja:
 
 
 @dataclass
+class ArqueoCaja:
+    """El arqueo del cierre (RF-17): el sistema SUGIERE el efectivo esperado
+    (inicial + ventas en efectivo ± movimientos) y el cajero registra lo contado.
+    Si hay diferencia, el comentario es obligatorio y el ADMIN lo ve en su panel.
+    """
+
+    id: int | None
+    turno_id: int
+    usuario_id: int
+    cerrado_por: str
+    efectivo_esperado: Decimal
+    efectivo_contado: Decimal
+    diferencia: Decimal  # contado - esperado (negativo = faltante)
+    comentario: str | None = None
+    total_vendido: Decimal = Decimal("0")
+    # Desglose informativo de lo vendido por método: el dinero digital (Yape,
+    # tarjeta...) existe pero NO está físicamente en el cajón.
+    totales_por_metodo: dict[str, float] | None = None
+    created_at: datetime | None = None
+
+    @property
+    def cuadrado(self) -> bool:
+        return self.diferencia == Decimal("0")
+
+
+@dataclass
+class ResumenCaja:
+    """Foto del turno abierto para la pantalla de cierre (no se persiste)."""
+
+    turno: "TurnoCaja"
+    efectivo_esperado: Decimal
+    monto_inicial: Decimal
+    ventas_efectivo: Decimal
+    abonos_efectivo: Decimal  # fiados cobrados en efectivo (HU-C09)
+    devoluciones_efectivo: Decimal  # dinero devuelto de la caja (HU-C08)
+    totales_por_metodo: dict[str, float]
+    total_vendido: Decimal
+    numero_ventas: int
+
+
+@dataclass
 class ProductoVendible:
     """Lo mínimo que Ventas necesita saber de un producto del inventario (Módulo B).
 

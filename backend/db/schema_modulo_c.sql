@@ -114,3 +114,23 @@ CREATE TABLE IF NOT EXISTS pagos_venta (
 );
 
 CREATE INDEX IF NOT EXISTS ix_pagos_venta_venta_id ON pagos_venta (venta_id);
+
+-- ----------------------------------------------------------------------------
+-- 4. ARQUEOS (HU-C07, RF-17): cierre de caja con sugerencia automática.
+--    efectivo_esperado = inicial + ventas en efectivo + abonos - devoluciones.
+--    Si contado != esperado, el comentario es obligatorio y el descuadre queda
+--    en bitácora para que la administradora lo revise. El cierre no se elimina.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS arqueos (
+    id                  BIGSERIAL PRIMARY KEY,
+    turno_id            BIGINT        NOT NULL UNIQUE REFERENCES turnos_caja(id) ON DELETE RESTRICT,
+    usuario_id          BIGINT        NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    cerrado_por         VARCHAR(100)  NOT NULL,
+    efectivo_esperado   NUMERIC(10,2) NOT NULL,
+    efectivo_contado    NUMERIC(10,2) NOT NULL,
+    diferencia          NUMERIC(10,2) NOT NULL,      -- contado - esperado
+    comentario          TEXT,                        -- obligatorio si hay descuadre
+    total_vendido       NUMERIC(10,2) NOT NULL DEFAULT 0,
+    totales_por_metodo  JSONB,                       -- desglose informativo por método
+    created_at          TIMESTAMPTZ   NOT NULL DEFAULT now()
+);
