@@ -21,6 +21,9 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_respaldo_repository import (
     SqlAlchemyRespaldoRepository,
 )
+from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_oauth_token_repository import (
+    SqlAlchemyOAuthTokenRepository,
+)
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_drive_adapter import GoogleDriveAdapter
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.telegram_notification_adapter import (
     TelegramNotificationAdapter,
@@ -28,7 +31,6 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.telegram_n
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.excel_generator import ExcelGenerator
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.boleta_png_generator import BoletaPngGenerator
 
-_drive_storage = GoogleDriveAdapter()
 _notificacion_sender = TelegramNotificationAdapter()
 _reporte_generator = ExcelGenerator()
 _png_generator = BoletaPngGenerator()
@@ -63,9 +65,11 @@ def generar_boleta_usecase(db: AsyncSession) -> GenerarBoletaUseCase:
 
 
 def subir_boleta_drive_usecase(db: AsyncSession) -> SubirBoletaDriveUseCase:
+    token_repo = SqlAlchemyOAuthTokenRepository(db)
+    drive_adapter = GoogleDriveAdapter(token_repository=token_repo)
     return SubirBoletaDriveUseCase(
         SqlAlchemyBoletaRepository(db),
-        _drive_storage,
+        drive_adapter,
         SqlAlchemyArchivoDriveRepository(db),
         _png_generator,
         _configuracion_provider,

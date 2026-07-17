@@ -125,6 +125,33 @@ class Respaldo:
 
 
 @dataclass
+class OAuthToken:
+    """Token OAuth para acceder a Google Drive."""
+
+    id: int | None
+    proveedor: str
+    access_token: str
+    refresh_token: str
+    token_expiry: datetime | None = None
+    usuario_id: int | None = None
+    fecha_creacion: datetime | None = None
+    fecha_actualizacion: datetime | None = None
+
+    def __post_init__(self) -> None:
+        ahora = datetime.now(timezone.utc)
+        if self.fecha_creacion is None:
+            self.fecha_creacion = ahora
+        if self.fecha_actualizacion is None:
+            self.fecha_actualizacion = ahora
+
+    @property
+    def esta_expirado(self) -> bool:
+        if self.token_expiry is None:
+            return True
+        return self.token_expiry < datetime.now(timezone.utc)
+
+
+@dataclass
 class TopProducto:
     """Producto en el ranking de más vendidos."""
 

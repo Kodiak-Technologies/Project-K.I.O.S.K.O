@@ -17,8 +17,10 @@ class Settings(BaseSettings):
     # Orígenes permitidos para CORS (dominio de Vercel en producción), separados por coma.
     cors_origins: str = "http://localhost:5173"
 
-    # Module D: Google Drive
-    google_drive_credentials_json: str = ""
+    # Module D: Google Drive (OAuth)
+    google_drive_client_id: str = ""
+    google_drive_client_secret: str = ""
+    google_drive_redirect_uri: str = "http://localhost:8000/drive/callback"
     google_drive_folder_id: str = ""
 
     # Module D: Telegram

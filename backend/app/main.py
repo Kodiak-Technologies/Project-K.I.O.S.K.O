@@ -33,11 +33,13 @@ from app.modules.modulo_d_documentos.infrastructure.http.boletas_router import r
 from app.modules.modulo_d_documentos.infrastructure.http.reportes_router import router as reportes_router
 from app.modules.modulo_d_documentos.infrastructure.http.notificaciones_router import router as notificaciones_router
 from app.modules.modulo_d_documentos.infrastructure.http.respaldos_router import router as respaldos_router
+from app.modules.modulo_d_documentos.infrastructure.http.drive_router import router as drive_router
 
 app.include_router(boletas_router)
 app.include_router(reportes_router)
 app.include_router(notificaciones_router)
 app.include_router(respaldos_router)
+app.include_router(drive_router)
 
 # --- Módulo B (Brayan) y C (Clever): montar sus routers aquí ---
 

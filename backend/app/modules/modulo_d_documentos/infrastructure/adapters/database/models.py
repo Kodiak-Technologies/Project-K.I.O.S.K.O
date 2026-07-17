@@ -105,3 +105,23 @@ class RespaldoModel(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class OAuthTokenModel(Base):
+    __tablename__ = "oauth_tokens"
+    __table_args__ = (
+        Index("ix_oauth_tokens_proveedor", "proveedor"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    proveedor: Mapped[str] = mapped_column(String(50), nullable=False)
+    access_token: Mapped[str] = mapped_column(Text, nullable=False)
+    refresh_token: Mapped[str] = mapped_column(Text, nullable=False)
+    token_expiry: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    usuario_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_actualizacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

@@ -16,6 +16,9 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_respaldo_repository import (
     SqlAlchemyRespaldoRepository,
 )
+from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_oauth_token_repository import (
+    SqlAlchemyOAuthTokenRepository,
+)
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_drive_adapter import (
     GoogleDriveAdapter,
 )
@@ -30,7 +33,6 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators
 )
 from app.shared.database.session import get_db
 
-_drive_storage = GoogleDriveAdapter()
 _notificacion_sender = TelegramNotificationAdapter()
 _reporte_generator = ExcelGenerator()
 _png_generator = BoletaPngGenerator()
@@ -56,8 +58,14 @@ async def get_respaldo_repository(db: AsyncSession = Depends(get_db)):
     return SqlAlchemyRespaldoRepository(db)
 
 
-def get_drive_storage():
-    return _drive_storage
+async def get_oauth_token_repository(db: AsyncSession = Depends(get_db)):
+    return SqlAlchemyOAuthTokenRepository(db)
+
+
+async def get_drive_storage(
+    token_repository: SqlAlchemyOAuthTokenRepository = Depends(get_oauth_token_repository),
+):
+    return GoogleDriveAdapter(token_repository=token_repository)
 
 
 def get_notificacion_sender():
