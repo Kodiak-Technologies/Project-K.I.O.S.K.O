@@ -74,13 +74,35 @@ def get_png_generator():
 
 class MockVentaDataProvider:
     async def obtener_venta(self, venta_id: int) -> dict | None:
-        return None
+        mock_ventas = {
+            1: {"id": 1, "total": 150.00, "metodo_pago": "EFECTIVO", "fecha": "2026-07-15T10:30:00Z"},
+            2: {"id": 2, "total": 85.50, "metodo_pago": "TARJETA", "fecha": "2026-07-14T15:45:00Z"},
+            3: {"id": 3, "total": 320.00, "metodo_pago": "EFECTIVO", "fecha": "2026-07-13T09:00:00Z"},
+        }
+        return mock_ventas.get(venta_id)
 
     async def listar_ventas(self, desde: str | None = None, hasta: str | None = None) -> list[dict]:
-        return []
+        return [
+            {"id": 1, "total": 150.00, "fecha": "2026-07-15"},
+            {"id": 2, "total": 85.50, "fecha": "2026-07-14"},
+            {"id": 3, "total": 320.00, "fecha": "2026-07-13"},
+        ]
 
     async def obtener_detalle_venta(self, venta_id: int) -> list[dict]:
-        return []
+        mock_detalles = {
+            1: [
+                {"nombre": "Arroz 1kg", "cantidad": 2, "precio_unitario": 25.00, "subtotal": 50.00},
+                {"nombre": "Aceite 1L", "cantidad": 1, "precio_unitario": 100.00, "subtotal": 100.00},
+            ],
+            2: [
+                {"nombre": "Leche 1L", "cantidad": 3, "precio_unitario": 5.50, "subtotal": 16.50},
+                {"nombre": "Pan tajado", "cantidad": 2, "precio_unitario": 8.50, "subtotal": 17.00},
+            ],
+            3: [
+                {"nombre": "Pollo entero", "cantidad": 1, "precio_unitario": 320.00, "subtotal": 320.00},
+            ],
+        }
+        return mock_detalles.get(venta_id, [])
 
 
 class MockConfiguracionProvider:

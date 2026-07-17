@@ -53,6 +53,7 @@ class SqlAlchemyArchivoDriveRepository:
         fila.intentos = archivo.intentos
         fila.error_mensaje = archivo.error_mensaje
         await self._db.flush()
+        await self._db.refresh(fila)
         return _a_entidad(fila)
 
     async def listar_pendientes(self) -> list[ArchivoDrive]:

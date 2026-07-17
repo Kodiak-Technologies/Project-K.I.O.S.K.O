@@ -1,16 +1,15 @@
-import os
-
 import httpx
 
 from app.modules.modulo_d_documentos.domain.ports.notificacion_sender_port import NotificacionSenderPort
+from app.shared.config.settings import settings
 
 
 class TelegramNotificationAdapter(NotificacionSenderPort):
     API_URL = "https://api.telegram.org/bot{token}/sendMessage"
 
     def __init__(self) -> None:
-        self.token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-        self.chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+        self.token = settings.telegram_bot_token
+        self.chat_id = settings.telegram_chat_id
 
     async def enviar(self, canal: str, titulo: str, mensaje: str) -> bool:
         if canal != "TELEGRAM":

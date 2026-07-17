@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     # Orígenes permitidos para CORS (dominio de Vercel en producción), separados por coma.
     cors_origins: str = "http://localhost:5173"
 
+    # Module D: Google Drive
+    google_drive_credentials_json: str = ""
+    google_drive_folder_id: str = ""
+
+    # Module D: Telegram
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

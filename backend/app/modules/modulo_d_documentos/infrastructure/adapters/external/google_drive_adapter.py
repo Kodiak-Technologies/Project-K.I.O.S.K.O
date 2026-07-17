@@ -1,37 +1,51 @@
 import json
 import os
+from pathlib import Path
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
 
 from app.modules.modulo_d_documentos.domain.ports.drive_storage_port import DriveStoragePort
+from app.shared.config.settings import settings
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent.parent.parent
 
 
 class GoogleDriveAdapter(DriveStoragePort):
     SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
     def __init__(self) -> None:
-        creds_json = os.getenv("GOOGLE_DRIVE_CREDENTIALS_JSON", "")
-        self.folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
+        creds_json = settings.google_drive_credentials_json
+        self.folder_id = settings.google_drive_folder_id
         self._service = None
 
         if not creds_json:
+            print("[GoogleDriveAdapter] GOOGLE_DRIVE_CREDENTIALS_JSON no configurado")
             return
 
-        if creds_json.strip().startswith("{"):
-            creds_info = json.loads(creds_json)
-            creds = service_account.Credentials.from_service_account_info(
-                creds_info, scopes=self.SCOPES
-            )
-        elif os.path.exists(creds_json):
-            creds = service_account.Credentials.from_service_account_file(
-                creds_json, scopes=self.SCOPES
-            )
-        else:
-            return
+        if not os.path.isabs(creds_json):
+            creds_json = str(BACKEND_DIR / creds_json)
 
-        self._service = build("drive", "v3", credentials=creds)
+        try:
+            if creds_json.strip().startswith("{"):
+                creds_info = json.loads(creds_json)
+                creds = service_account.Credentials.from_service_account_info(
+                    creds_info, scopes=self.SCOPES
+                )
+            elif os.path.exists(creds_json):
+                creds = service_account.Credentials.from_service_account_file(
+                    creds_json, scopes=self.SCOPES
+                )
+            else:
+                print(f"[GoogleDriveAdapter] Archivo de credenciales no encontrado: {creds_json}")
+                return
+
+            self._service = build("drive", "v3", credentials=creds)
+            print("[GoogleDriveAdapter] Servicio de Google Drive inicializado correctamente")
+        except Exception as e:
+            print(f"[GoogleDriveAdapter] Error al inicializar: {e}")
+            self._service = None
 
     async def subir(self, archivo_bytes: bytes, nombre: str, carpeta: str) -> str:
         if self._service is None:
