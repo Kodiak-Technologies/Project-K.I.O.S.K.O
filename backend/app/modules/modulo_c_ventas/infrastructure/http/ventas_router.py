@@ -33,7 +33,7 @@ async def registrar(
         nombre_usuario=usuario.nombre,
         rol=usuario.rol_nombre,
         items=[(i.producto_id, i.cantidad) for i in datos.items],
-        metodo_pago=datos.metodo_pago,
+        pagos=datos.pagos_normalizados(),
         ip=ip,
         user_agent=user_agent,
     )

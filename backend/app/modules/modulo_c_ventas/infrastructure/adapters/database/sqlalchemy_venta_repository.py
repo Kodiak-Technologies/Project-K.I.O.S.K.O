@@ -4,10 +4,11 @@ from datetime import date, datetime, time, timezone
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.modulo_c_ventas.domain.entities import DetalleVenta, Venta
+from app.modules.modulo_c_ventas.domain.entities import DetalleVenta, PagoVenta, Venta
 from app.modules.modulo_c_ventas.domain.ports.venta_repository_port import VentaRepositoryPort
 from app.modules.modulo_c_ventas.infrastructure.adapters.database.models import (
     DetalleVentaModel,
+    PagoVentaModel,
     VentaModel,
 )
 
@@ -33,6 +34,17 @@ def _a_entidad(fila: VentaModel) -> Venta:
                 cantidad_devuelta=d.cantidad_devuelta,
             )
             for d in fila.detalles
+        ],
+        pagos=[
+            PagoVenta(
+                id=p.id,
+                codigo_metodo=p.codigo_metodo,
+                monto=p.monto,
+                es_efectivo=p.es_efectivo,
+                monto_recibido=p.monto_recibido,
+                metodo_pago_id=p.metodo_pago_id,
+            )
+            for p in fila.pagos
         ],
     )
 
@@ -60,6 +72,17 @@ class SqlAlchemyVentaRepository(VentaRepositoryPort):
                     nombre=detalle.nombre,
                     precio_unitario=detalle.precio_unitario,
                     cantidad=detalle.cantidad,
+                )
+            )
+        for pago in venta.pagos:
+            self._db.add(
+                PagoVentaModel(
+                    venta_id=fila.id,
+                    metodo_pago_id=pago.metodo_pago_id,
+                    codigo_metodo=pago.codigo_metodo,
+                    es_efectivo=pago.es_efectivo,
+                    monto=pago.monto,
+                    monto_recibido=pago.monto_recibido,
                 )
             )
         await self._db.flush()

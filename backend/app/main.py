@@ -20,6 +20,9 @@ from app.modules.modulo_b_inventario.infrastructure.http.productos_router import
     router as productos_router,
 )
 from app.modules.modulo_c_ventas.infrastructure.http.caja_router import router as caja_router
+from app.modules.modulo_c_ventas.infrastructure.http.metodos_pago_router import (
+    router as metodos_pago_router,
+)
 from app.modules.modulo_c_ventas.infrastructure.http.ventas_router import router as ventas_router
 from app.shared.http.error_handlers import registrar_error_handlers
 from app.shared.http.middlewares import registrar_middlewares
@@ -43,6 +46,7 @@ app.include_router(categorias_router)
 # --- Módulo C: Ventas, Caja y Punto de Venta (Clever) ---
 app.include_router(caja_router)
 app.include_router(ventas_router)
+app.include_router(metodos_pago_router)
 
 # --- Módulo D (Fabrizio): montar sus routers aquí ---
 

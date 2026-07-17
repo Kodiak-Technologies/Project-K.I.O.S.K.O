@@ -14,20 +14,17 @@ import {
   Card,
   EmptyState,
   Input,
-  Modal,
   ModuloPendiente,
   PageHeader,
   PageSpinner,
-  Select,
 } from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
 import { useProductos } from "../../modulo-b-inventario/hooks/useProductos";
 import type { Producto } from "../../modulo-b-inventario/types";
+import { ModalCobro } from "../components/ModalCobro";
 import { useCaja } from "../hooks/useCaja";
 import { useVenta } from "../hooks/useVenta";
-import type { ItemVenta, MetodoPago } from "../types";
-
-const METODOS_PAGO: MetodoPago[] = ["EFECTIVO", "YAPE", "PLIN", "TARJETA"];
+import type { ItemVenta, NuevoPago } from "../types";
 
 export default function PuntoDeVenta() {
   const { productos, cargando, noDisponible, recargar: recargarProductos } = useProductos();
@@ -37,7 +34,6 @@ export default function PuntoDeVenta() {
   const [busqueda, setBusqueda] = useState("");
   const [carrito, setCarrito] = useState<ItemVenta[]>([]);
   const [modalCobro, setModalCobro] = useState(false);
-  const [metodoPago, setMetodoPago] = useState<MetodoPago>("EFECTIVO");
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [avisoEscaneo, setAvisoEscaneo] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
@@ -165,15 +161,18 @@ export default function PuntoDeVenta() {
     setCarrito((actual) => actual.filter((i) => i.producto_id !== productoId || i.cantidad > 0));
   }
 
-  async function manejarCobrar() {
+  async function manejarCobrar(pagos: NuevoPago[]) {
     setProcesando(true);
     setErrorAccion(null);
     try {
       const venta = await registrar({
         items: carrito.map((i) => ({ producto_id: i.producto_id, cantidad: i.cantidad })),
-        metodo_pago: metodoPago,
+        pagos,
       });
-      setMensaje(`Venta #${venta.id} registrada: S/ ${venta.total.toFixed(2)} (${venta.metodo_pago}).`);
+      const conVuelto = venta.vuelto > 0 ? ` · Vuelto: S/ ${venta.vuelto.toFixed(2)}` : "";
+      setMensaje(
+        `Venta #${venta.id} registrada: S/ ${venta.total.toFixed(2)} (${venta.metodo_pago})${conVuelto}.`
+      );
       setCarrito([]);
       setModalCobro(false);
       void recargarProductos(); // refleja el stock ya descontado
@@ -389,35 +388,18 @@ export default function PuntoDeVenta() {
         </Card>
       </div>
 
-      {/* Confirmación de cobro */}
-      <Modal
+      {/* Confirmación de cobro (HU-C04): método de pago, pago mixto y vuelto */}
+      <ModalCobro
         abierto={modalCobro}
-        titulo={`Cobrar S/ ${total.toFixed(2)}`}
-        alCerrar={() => setModalCobro(false)}
-        pie={
-          <>
-            <Button variante="secundario" onClick={() => setModalCobro(false)}>
-              Cancelar
-            </Button>
-            <Button cargando={procesando} onClick={() => void manejarCobrar()}>
-              Confirmar venta
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <Select
-            label="Método de pago"
-            value={metodoPago}
-            onChange={(e) => setMetodoPago(e.target.value as MetodoPago)}
-          >
-            {METODOS_PAGO.map((m) => (
-              <option key={m}>{m}</option>
-            ))}
-          </Select>
-          {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
-        </div>
-      </Modal>
+        total={total}
+        procesando={procesando}
+        error={errorAccion}
+        alCerrar={() => {
+          setModalCobro(false);
+          setErrorAccion(null);
+        }}
+        alConfirmar={(pagos) => void manejarCobrar(pagos)}
+      />
     </div>
   );
 }

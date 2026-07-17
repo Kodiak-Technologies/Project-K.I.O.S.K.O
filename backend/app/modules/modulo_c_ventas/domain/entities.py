@@ -51,6 +51,43 @@ class ProductoVendible:
 
 
 @dataclass
+class MetodoPago:
+    """Método de pago del catálogo (el ADMIN puede agregar o desactivar, RF-20).
+
+    es_efectivo distingue el dinero FÍSICO que entra a la caja del dinero digital
+    (Yape, tarjeta...) que existe pero no está en el cajón: el arqueo solo cuadra
+    contra el efectivo (RF-17).
+    """
+
+    id: int | None
+    codigo: str  # EFECTIVO | YAPE | PLIN | TARJETA | TRANSFERENCIA | FIADO | ...
+    nombre: str
+    es_efectivo: bool = False
+    activo: bool = True
+
+
+@dataclass
+class PagoVenta:
+    """Una parte del pago de la venta. Una venta simple tiene un solo pago;
+    una mixta (mitad efectivo, mitad Yape) tiene varios (RF-20)."""
+
+    id: int | None
+    codigo_metodo: str
+    monto: Decimal
+    es_efectivo: bool = False
+    # Con cuánto pagó el cliente (solo efectivo): permite calcular el vuelto.
+    monto_recibido: Decimal | None = None
+    metodo_pago_id: int | None = None
+
+    @property
+    def vuelto(self) -> Decimal:
+        if self.monto_recibido is None:
+            return Decimal("0")
+        exceso = self.monto_recibido - self.monto
+        return exceso if exceso > 0 else Decimal("0")
+
+
+@dataclass
 class DetalleVenta:
     """Una línea del carrito. Nombre y precio son SNAPSHOT del momento de la venta:
     si mañana cambia el precio, los reportes históricos no se alteran (RF-18)."""
@@ -77,9 +114,19 @@ class Venta:
     metodo_pago: str  # resumen: EFECTIVO | YAPE | ... | MIXTO | FIADO
     estado: str = VENTA_COMPLETADA
     detalles: list[DetalleVenta] = field(default_factory=list)
+    pagos: list[PagoVenta] = field(default_factory=list)
     motivo_anulacion: str | None = None
     created_at: datetime | None = None
 
     @property
     def anulada(self) -> bool:
         return self.estado == VENTA_ANULADA
+
+    @property
+    def vuelto(self) -> Decimal:
+        return sum((p.vuelto for p in self.pagos), Decimal("0"))
+
+    @property
+    def total_efectivo(self) -> Decimal:
+        """Cuánto de esta venta entró como dinero FÍSICO a la caja (para el arqueo)."""
+        return sum((p.monto for p in self.pagos if p.es_efectivo), Decimal("0"))

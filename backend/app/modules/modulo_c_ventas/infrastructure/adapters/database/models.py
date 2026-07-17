@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -80,6 +81,9 @@ class VentaModel(Base):
     detalles: Mapped[list["DetalleVentaModel"]] = relationship(
         back_populates="venta", lazy="selectin", order_by="DetalleVentaModel.id"
     )
+    pagos: Mapped[list["PagoVentaModel"]] = relationship(
+        back_populates="venta", lazy="selectin", order_by="PagoVentaModel.id"
+    )
 
 
 class DetalleVentaModel(Base):
@@ -104,3 +108,37 @@ class DetalleVentaModel(Base):
     cantidad_devuelta: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     venta: Mapped[VentaModel] = relationship(back_populates="detalles")
+
+
+class MetodoPagoModel(Base):
+    __tablename__ = "metodos_pago"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    nombre: Mapped[str] = mapped_column(String(50), nullable=False)
+    # True = dinero físico que entra al cajón (cuenta para el arqueo, RF-17).
+    es_efectivo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class PagoVentaModel(Base):
+    __tablename__ = "pagos_venta"
+    __table_args__ = (
+        CheckConstraint("monto > 0", name="ck_pagos_monto_positivo"),
+        Index("ix_pagos_venta_venta_id", "venta_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    venta_id: Mapped[int] = mapped_column(
+        ForeignKey("ventas.id", ondelete="RESTRICT"), nullable=False
+    )
+    metodo_pago_id: Mapped[int] = mapped_column(
+        ForeignKey("metodos_pago.id", ondelete="RESTRICT"), nullable=False
+    )
+    # Snapshot: si el ADMIN renombra/desactiva un método, el historial no cambia.
+    codigo_metodo: Mapped[str] = mapped_column(String(20), nullable=False)
+    es_efectivo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    monto: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    monto_recibido: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+
+    venta: Mapped[VentaModel] = relationship(back_populates="pagos")

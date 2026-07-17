@@ -80,3 +80,37 @@ CREATE TABLE IF NOT EXISTS detalles_venta (
 );
 
 CREATE INDEX IF NOT EXISTS ix_detalles_venta_venta_id ON detalles_venta (venta_id);
+
+-- ----------------------------------------------------------------------------
+-- 3. METODOS_PAGO y PAGOS_VENTA (HU-C04): catálogo gestionable por el ADMIN y
+--    pagos por venta (una venta mixta tiene varios pagos). es_efectivo separa
+--    el dinero FÍSICO del digital: el arqueo (RF-17) solo cuadra efectivo.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS metodos_pago (
+    id           SERIAL PRIMARY KEY,
+    codigo       VARCHAR(20) NOT NULL UNIQUE,   -- EFECTIVO | YAPE | PLIN | ...
+    nombre       VARCHAR(50) NOT NULL,
+    es_efectivo  BOOLEAN     NOT NULL DEFAULT FALSE,
+    activo       BOOLEAN     NOT NULL DEFAULT TRUE
+);
+
+INSERT INTO metodos_pago (codigo, nombre, es_efectivo, activo) VALUES
+    ('EFECTIVO',      'Efectivo',      TRUE,  TRUE),
+    ('YAPE',          'Yape',          FALSE, TRUE),
+    ('PLIN',          'Plin',          FALSE, TRUE),
+    ('TARJETA',       'Tarjeta',       FALSE, TRUE),
+    ('TRANSFERENCIA', 'Transferencia', FALSE, TRUE)
+ON CONFLICT (codigo) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS pagos_venta (
+    id              BIGSERIAL PRIMARY KEY,
+    venta_id        BIGINT        NOT NULL REFERENCES ventas(id) ON DELETE RESTRICT,
+    metodo_pago_id  INTEGER       NOT NULL REFERENCES metodos_pago(id) ON DELETE RESTRICT,
+    codigo_metodo   VARCHAR(20)   NOT NULL,     -- snapshot para el historial
+    es_efectivo     BOOLEAN       NOT NULL DEFAULT FALSE,
+    monto           NUMERIC(10,2) NOT NULL,
+    monto_recibido  NUMERIC(10,2),              -- solo efectivo: para el vuelto
+    CONSTRAINT ck_pagos_monto_positivo CHECK (monto > 0)
+);
+
+CREATE INDEX IF NOT EXISTS ix_pagos_venta_venta_id ON pagos_venta (venta_id);
