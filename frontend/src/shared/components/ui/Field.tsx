@@ -1,4 +1,5 @@
 // Campos de formulario con label y error integrados. Altura táctil (44px).
+import { forwardRef } from "react";
 import type { InputHTMLAttributes, SelectHTMLAttributes, ReactNode } from "react";
 
 const BASE =
@@ -24,15 +25,19 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   requerido?: boolean;
 }
 
-export function Input({ label, error, requerido, className = "", ...rest }: InputProps) {
+// forwardRef: el POS necesita devolver el foco al buscador para el escáner.
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+  { label, error, requerido, className = "", ...rest },
+  ref
+) {
   return (
     <label className="block">
       {label && <Etiqueta texto={label} requerido={requerido} />}
-      <input className={`${BASE} ${error ? "border-peligro" : ""} ${className}`} {...rest} />
+      <input ref={ref} className={`${BASE} ${error ? "border-peligro" : ""} ${className}`} {...rest} />
       {error && <MensajeError>{error}</MensajeError>}
     </label>
   );
-}
+});
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;

@@ -47,3 +47,36 @@ CREATE TABLE IF NOT EXISTS turnos_caja (
 -- Una sola caja física: no puede haber dos turnos ABIERTOs a la vez.
 CREATE UNIQUE INDEX IF NOT EXISTS ux_turnos_caja_abierto
     ON turnos_caja (estado) WHERE estado = 'ABIERTO';
+
+-- ----------------------------------------------------------------------------
+-- 2. VENTAS y DETALLES_VENTA (HU-C01): registro de la venta del POS.
+--    nombre/precio_unitario son SNAPSHOT: cambiar un precio hoy no altera
+--    los reportes históricos (RF-18).
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ventas (
+    id                BIGSERIAL PRIMARY KEY,
+    turno_id          BIGINT        NOT NULL REFERENCES turnos_caja(id) ON DELETE RESTRICT,
+    usuario_id        BIGINT        NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    vendedor          VARCHAR(100)  NOT NULL,            -- snapshot del nombre
+    total             NUMERIC(10,2) NOT NULL,
+    metodo_pago       VARCHAR(20)   NOT NULL,            -- resumen (MIXTO si hay varios)
+    estado            VARCHAR(20)   NOT NULL DEFAULT 'COMPLETADA',  -- COMPLETADA | ANULADA | DEVUELTA_PARCIAL
+    motivo_anulacion  TEXT,
+    created_at        TIMESTAMPTZ   NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_ventas_created_at ON ventas (created_at);
+CREATE INDEX IF NOT EXISTS ix_ventas_turno_id   ON ventas (turno_id);
+
+CREATE TABLE IF NOT EXISTS detalles_venta (
+    id                 BIGSERIAL PRIMARY KEY,
+    venta_id           BIGINT        NOT NULL REFERENCES ventas(id) ON DELETE RESTRICT,
+    producto_id        BIGINT        NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
+    nombre             VARCHAR(150)  NOT NULL,            -- snapshot
+    precio_unitario    NUMERIC(10,2) NOT NULL,            -- snapshot
+    cantidad           INTEGER       NOT NULL,
+    cantidad_devuelta  INTEGER       NOT NULL DEFAULT 0,
+    CONSTRAINT ck_detalles_cantidad_positiva CHECK (cantidad > 0)
+);
+
+CREATE INDEX IF NOT EXISTS ix_detalles_venta_venta_id ON detalles_venta (venta_id);

@@ -1,8 +1,12 @@
 // Página del punto de venta (POS): registrar una venta. Pensada para uso
 // táctil: productos como botones grandes a la izquierda, carrito a la derecha.
 // El catálogo viene del módulo B (puerto de productos).
-import { useMemo, useState } from "react";
-import { Minus, Plus, Search, ShoppingCart, Trash2 } from "lucide-react";
+//
+// Escáner (HU-C01): el lector de barras/QR emula un teclado y termina con Enter.
+// El buscador mantiene el foco (se recupera solo si se pierde), y al recibir
+// Enter con un código exacto agrega el producto al carrito al instante.
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Minus, Plus, ScanBarcode, Search, ShoppingCart, Trash2 } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -26,7 +30,7 @@ import type { ItemVenta, MetodoPago } from "../types";
 const METODOS_PAGO: MetodoPago[] = ["EFECTIVO", "YAPE", "PLIN", "TARJETA"];
 
 export default function PuntoDeVenta() {
-  const { productos, cargando, noDisponible } = useProductos();
+  const { productos, cargando, noDisponible, recargar: recargarProductos } = useProductos();
   const { turno, noDisponible: cajaNoDisponible } = useCaja();
   const { registrar } = useVenta();
 
@@ -35,8 +39,24 @@ export default function PuntoDeVenta() {
   const [modalCobro, setModalCobro] = useState(false);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("EFECTIVO");
   const [mensaje, setMensaje] = useState<string | null>(null);
+  const [avisoEscaneo, setAvisoEscaneo] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
+  const inputBusqueda = useRef<HTMLInputElement>(null);
+
+  // El escáner "tipea" donde esté el cursor: si el foco quedó en el body (tras un
+  // clic en cualquier parte), lo devolvemos al buscador para no perder el escaneo.
+  useEffect(() => {
+    function recuperarFoco(e: KeyboardEvent) {
+      const objetivo = e.target as HTMLElement;
+      const enCampo = ["INPUT", "TEXTAREA", "SELECT"].includes(objetivo.tagName);
+      if (!enCampo && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        inputBusqueda.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", recuperarFoco);
+    return () => window.removeEventListener("keydown", recuperarFoco);
+  }, []);
 
   const visibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -46,6 +66,26 @@ export default function PuntoDeVenta() {
   }, [productos, busqueda]);
 
   const total = carrito.reduce((suma, i) => suma + i.precio_unitario * i.cantidad, 0);
+
+  // Enter en el buscador = fin de un escaneo (o búsqueda manual): si el texto
+  // coincide exacto con un código, el producto entra al carrito al instante.
+  function manejarEnterBusqueda() {
+    const codigo = busqueda.trim();
+    if (!codigo) return;
+    const producto = productos.find((p) => p.codigo === codigo);
+    if (!producto) {
+      setAvisoEscaneo(`No hay ningún producto con el código "${codigo}".`);
+      return;
+    }
+    if (!producto.activo || producto.stock <= 0) {
+      setAvisoEscaneo(`'${producto.nombre}' no tiene stock disponible.`);
+      setBusqueda("");
+      return;
+    }
+    agregar(producto);
+    setAvisoEscaneo(null);
+    setBusqueda("");
+  }
 
   function agregar(p: Producto) {
     setCarrito((actual) => {
@@ -78,6 +118,8 @@ export default function PuntoDeVenta() {
       setMensaje(`Venta #${venta.id} registrada: S/ ${venta.total.toFixed(2)} (${venta.metodo_pago}).`);
       setCarrito([]);
       setModalCobro(false);
+      void recargarProductos(); // refleja el stock ya descontado
+      inputBusqueda.current?.focus();
     } catch (e) {
       setErrorAccion(mensajeDeError(e));
     } finally {
@@ -120,14 +162,30 @@ export default function PuntoDeVenta() {
         {/* Productos: botones grandes para tocar */}
         <div>
           <div className="relative mb-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden />
+            <ScanBarcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden />
             <Input
+              ref={inputBusqueda}
               className="pl-9"
-              placeholder="Buscar o escanear código…"
+              autoFocus
+              placeholder="Escanea un código o busca por nombre…"
               value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
+              onChange={(e) => {
+                setBusqueda(e.target.value);
+                setAvisoEscaneo(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  manejarEnterBusqueda();
+                }
+              }}
             />
           </div>
+          {avisoEscaneo && (
+            <div className="mb-3">
+              <Alert tono="alerta">{avisoEscaneo}</Alert>
+            </div>
+          )}
           {visibles.length === 0 ? (
             <Card sinPadding>
               <EmptyState
