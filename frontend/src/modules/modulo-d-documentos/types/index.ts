@@ -28,3 +28,14 @@ export interface Notificacion {
   leida: boolean;
   created_at: string | null;
 }
+
+export type EstadoRespaldo = "PENDIENTE" | "COMPLETADO" | "FALLIDO";
+
+export interface Respaldo {
+  id: number;
+  archivo_nombre: string;
+  tamano_bytes: number;
+  estado: EstadoRespaldo;
+  generado_en: string | null;
+  expira_en: string | null;
+}
