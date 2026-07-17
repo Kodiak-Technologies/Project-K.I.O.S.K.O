@@ -128,28 +128,31 @@ class GoogleDriveAdapter(DriveStoragePort):
         return file.get("webViewLink", "")
 
     async def _asegurar_carpeta(self, service, carpeta: str) -> str:
-        nombre_carpeta = carpeta.split("/")[-1]
-        query = (
-            f"name='{nombre_carpeta}' and "
-            f"'{self.folder_id}' in parents and "
-            f"mimeType='application/vnd.google-apps.folder' and "
-            f"trashed=false"
-        )
+        partes = carpeta.split("/")
+        parent_id = self.folder_id
 
-        results = service.files().list(q=query, fields="files(id)").execute()
-        items = results.get("files", [])
+        for parte in partes:
+            query = (
+                f"name='{parte}' and "
+                f"'{parent_id}' in parents and "
+                f"mimeType='application/vnd.google-apps.folder' and "
+                f"trashed=false"
+            )
 
-        if items:
-            return items[0]["id"]
+            results = service.files().list(q=query, fields="files(id)").execute()
+            items = results.get("files", [])
 
-        file_metadata = {
-            "name": nombre_carpeta,
-            "mimeType": "application/vnd.google-apps.folder",
-            "parents": [self.folder_id],
-        }
+            if items:
+                parent_id = items[0]["id"]
+            else:
+                file_metadata = {
+                    "name": parte,
+                    "mimeType": "application/vnd.google-apps.folder",
+                    "parents": [parent_id],
+                }
+                file = service.files().create(
+                    body=file_metadata, fields="id"
+                ).execute()
+                parent_id = file["id"]
 
-        file = service.files().create(
-            body=file_metadata, fields="id"
-        ).execute()
-
-        return file["id"]
+        return parent_id
