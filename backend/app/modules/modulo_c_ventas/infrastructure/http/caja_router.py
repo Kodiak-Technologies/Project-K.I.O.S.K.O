@@ -14,6 +14,7 @@ from app.modules.modulo_c_ventas import module_container as contenedor
 from app.modules.modulo_c_ventas.infrastructure.http.schemas import (
     AbrirCajaRequest,
     AnulacionResponse,
+    EditarTurnoRequest,
     CerrarCajaRequest,
     MovimientosTurnoResponse,
     ResumenCajaResponse,
@@ -23,6 +24,22 @@ from app.modules.modulo_c_ventas.infrastructure.http.schemas import (
 from app.shared.database.session import get_db
 
 router = APIRouter(prefix="/caja", tags=["Caja"])
+
+
+@router.patch("/turnos/{turno_id}", response_model=TurnoCajaResponse)
+async def editar_turno(
+    turno_id: int,
+    datos: EditarTurnoRequest,
+    admin: Usuario = Depends(require_permission("caja.abrir_turno")),
+    db: AsyncSession = Depends(get_db),
+):
+    actualizaciones = datos.model_dump(exclude_unset=True)
+    turno = await contenedor.editar_turno_usecase(db).ejecutar(
+        admin=admin,
+        turno_id=turno_id,
+        actualizaciones=actualizaciones,
+    )
+    return TurnoCajaResponse.desde_entidad(turno)
 
 
 @router.get("/turno-actual", response_model=TurnoCajaResponse | None)

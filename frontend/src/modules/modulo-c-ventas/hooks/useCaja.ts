@@ -50,5 +50,14 @@ export function useCaja() {
     [recargar]
   );
 
-  return { turno, turnos, cargando, error, noDisponible, recargar, abrir, cerrar };
+  const editar = useCallback(
+    async (turnoId: number, datos: { asignado_a_id?: number | null; monto_inicial?: number }) => {
+      const editado = await cajaHttpAdapter.editar(turnoId, datos);
+      await recargar();
+      return editado;
+    },
+    [recargar]
+  );
+
+  return { turno, turnos, cargando, error, noDisponible, recargar, abrir, cerrar, editar };
 }

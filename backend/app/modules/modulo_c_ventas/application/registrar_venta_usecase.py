@@ -22,7 +22,7 @@ from app.modules.modulo_c_ventas.domain.value_objects import (
     METODO_FIADO,
     monto_dinero,
 )
-from app.shared.kernel.exceptions import ConflictoError, NoEncontradoError, ValidacionError
+from app.shared.kernel.exceptions import ConflictoError, NoEncontradoError, ProhibidoError, ValidacionError
 
 
 class RegistrarVentaUseCase:
@@ -67,6 +67,9 @@ class RegistrarVentaUseCase:
         turno = await self._caja.turno_abierto()
         if turno is None:
             raise ConflictoError("No hay un turno de caja abierto. Abre la caja para poder vender.")
+
+        if turno.asignado_a_id and turno.asignado_a_id != usuario_id and rol != "ADMIN":
+            raise ProhibidoError("Este turno ha sido asignado a otro cajero.")
 
         if not items:
             raise ValidacionError("La venta no tiene productos.")

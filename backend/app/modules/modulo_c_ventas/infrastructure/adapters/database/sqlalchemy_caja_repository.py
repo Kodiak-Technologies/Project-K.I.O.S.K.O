@@ -26,6 +26,7 @@ def _a_entidad(fila: TurnoCajaModel) -> TurnoCaja:
         monto_final=fila.monto_final,
         usuario_cierre_id=fila.usuario_cierre_id,
         cerrado_por=fila.cerrado_por,
+        asignado_a_id=fila.asignado_a_id,
     )
 
 
@@ -56,7 +57,16 @@ class SqlAlchemyCajaRepository(CajaRepositoryPort):
         )
         self._db.add(fila)
         await self._db.flush()
-        await self._db.refresh(fila)  # trae abierto_en generado por la BD
+        await self._db.refresh(fila)
+        return _a_entidad(fila)
+
+    async def actualizar(self, turno: TurnoCaja) -> TurnoCaja:
+        fila = (
+            await self._db.execute(select(TurnoCajaModel).where(TurnoCajaModel.id == turno.id))
+        ).scalar_one()
+        fila.asignado_a_id = turno.asignado_a_id
+        fila.monto_inicial = turno.monto_inicial
+        await self._db.flush()
         return _a_entidad(fila)
 
     async def listar(self, limite: int = 30) -> list[TurnoCaja]:
@@ -71,7 +81,7 @@ class SqlAlchemyCajaRepository(CajaRepositoryPort):
         self,
         turno_id: int,
         monto_final: Decimal,
-        usuario_cierre_id: int,
+        usuario_cierre_id: int | None,
         cerrado_por: str,
     ) -> TurnoCaja:
         fila = (

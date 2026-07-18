@@ -28,6 +28,11 @@ class CerrarCajaRequest(BaseModel):
     comentario: str | None = Field(default=None, max_length=500)
 
 
+class EditarTurnoRequest(BaseModel):
+    asignado_a_id: int | None = None
+    monto_inicial: float | None = Field(default=None, ge=0)
+
+
 class ArqueoResponse(BaseModel):
     efectivo_esperado: float
     efectivo_contado: float
@@ -57,6 +62,7 @@ class TurnoCajaResponse(BaseModel):
     cerrado_en: datetime | None
     estado: str
     cerrado_por: str | None = None
+    asignado_a_id: int | None = None
     # Presente solo en turnos cerrados: el detalle del arqueo (RF-17).
     arqueo: ArqueoResponse | None = None
 
@@ -71,6 +77,7 @@ class TurnoCajaResponse(BaseModel):
             cerrado_en=t.cerrado_en,
             estado=t.estado,
             cerrado_por=t.cerrado_por,
+            asignado_a_id=t.asignado_a_id,
             arqueo=ArqueoResponse.desde_entidad(arqueo) if arqueo else None,
         )
 

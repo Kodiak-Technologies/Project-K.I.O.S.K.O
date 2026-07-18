@@ -7,7 +7,7 @@ export interface Columna<T> {
   render: (fila: T) => ReactNode;
   /** Ocultar en pantallas angostas (tablet vertical / móvil). */
   soloEscritorio?: boolean;
-  alinear?: "izquierda" | "derecha";
+  alinear?: "izquierda" | "centro" | "derecha";
 }
 
 interface Props<T> {
@@ -25,12 +25,12 @@ export function Table<T>({ columnas, filas, claveDe, vacio }: Props<T>) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
+          <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-[11px] uppercase text-zinc-500">
             {columnas.map((c) => (
               <th
                 key={c.titulo}
-                className={`px-3 py-2.5 font-medium sm:px-4 ${c.soloEscritorio ? "hidden lg:table-cell" : ""} ${
-                  c.alinear === "derecha" ? "text-right" : ""
+                className={`px-2 py-2 font-medium sm:px-3 ${c.soloEscritorio ? "hidden lg:table-cell" : ""} ${
+                  c.alinear === "derecha" ? "text-right" : c.alinear === "centro" ? "text-center" : ""
                 }`}
               >
                 {c.titulo}
@@ -44,8 +44,8 @@ export function Table<T>({ columnas, filas, claveDe, vacio }: Props<T>) {
               {columnas.map((c) => (
                 <td
                   key={c.titulo}
-                  className={`px-3 py-2.5 sm:px-4 ${c.soloEscritorio ? "hidden lg:table-cell" : ""} ${
-                    c.alinear === "derecha" ? "text-right" : ""
+                  className={`px-2 py-2 sm:px-3 ${c.soloEscritorio ? "hidden lg:table-cell" : ""} ${
+                    c.alinear === "derecha" ? "text-right" : c.alinear === "centro" ? "text-center" : ""
                   }`}
                 >
                   {c.render(fila)}

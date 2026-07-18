@@ -29,6 +29,7 @@ class TurnoCaja:
     monto_final: Decimal | None = None  # efectivo REAL contado al cierre
     usuario_cierre_id: int | None = None
     cerrado_por: str | None = None
+    asignado_a_id: int | None = None
 
     def esta_abierto(self) -> bool:
         return self.estado == TURNO_ABIERTO
@@ -43,7 +44,7 @@ class ArqueoCaja:
 
     id: int | None
     turno_id: int
-    usuario_id: int
+    usuario_id: int | None
     cerrado_por: str
     efectivo_esperado: Decimal
     efectivo_contado: Decimal

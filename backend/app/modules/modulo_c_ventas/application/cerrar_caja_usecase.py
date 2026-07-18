@@ -14,7 +14,7 @@ from app.modules.modulo_a_seguridad.application.registrar_auditoria_usecase impo
 from app.modules.modulo_c_ventas.domain.entities import ArqueoCaja, ResumenCaja, TurnoCaja
 from app.modules.modulo_c_ventas.domain.ports.caja_repository_port import CajaRepositoryPort
 from app.modules.modulo_c_ventas.domain.value_objects import monto_dinero
-from app.shared.kernel.exceptions import ConflictoError, ValidacionError
+from app.shared.kernel.exceptions import ConflictoError, ProhibidoError, ValidacionError
 
 
 async def calcular_resumen(caja_repo: CajaRepositoryPort, turno: TurnoCaja) -> ResumenCaja:
@@ -57,6 +57,9 @@ class CerrarCajaUseCase:
         turno = await self._caja.turno_abierto()
         if turno is None:
             raise ConflictoError("No hay un turno de caja abierto que cerrar.")
+
+        if turno.asignado_a_id and turno.asignado_a_id != usuario_id and rol != "ADMIN":
+            raise ProhibidoError("Este turno ha sido asignado a otro cajero.")
 
         contado = monto_dinero(monto_final)
         resumen = await calcular_resumen(self._caja, turno)

@@ -17,6 +17,9 @@ class CajaRepositoryPort(ABC):
     async def abrir(self, turno: TurnoCaja) -> TurnoCaja: ...
 
     @abstractmethod
+    async def actualizar(self, turno: TurnoCaja) -> TurnoCaja: ...
+
+    @abstractmethod
     async def listar(self, limite: int = 30) -> list[TurnoCaja]:
         """Turnos más recientes primero (historial visible para todos los usuarios)."""
 
@@ -25,7 +28,7 @@ class CajaRepositoryPort(ABC):
         self,
         turno_id: int,
         monto_final: Decimal,
-        usuario_cierre_id: int,
+        usuario_cierre_id: int | None,
         cerrado_por: str,
     ) -> TurnoCaja: ...
 

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.modulo_a_seguridad import module_container as contenedor_a
 from app.modules.modulo_c_ventas.application.abrir_caja_usecase import AbrirCajaUseCase
 from app.modules.modulo_c_ventas.application.anular_venta_usecase import AnularVentaUseCase
+from app.modules.modulo_c_ventas.application.editar_turno_usecase import EditarTurnoUseCase
 from app.modules.modulo_c_ventas.application.cerrar_caja_usecase import CerrarCajaUseCase
 from app.modules.modulo_c_ventas.application.consultar_caja_usecase import ConsultarCajaUseCase
 from app.modules.modulo_c_ventas.application.consultar_ventas_usecase import ConsultarVentasUseCase
@@ -39,6 +40,10 @@ def abrir_caja_usecase(db: AsyncSession) -> AbrirCajaUseCase:
 
 def cerrar_caja_usecase(db: AsyncSession) -> CerrarCajaUseCase:
     return CerrarCajaUseCase(SqlAlchemyCajaRepository(db), contenedor_a.auditoria_usecase(db))
+
+
+def editar_turno_usecase(db: AsyncSession) -> EditarTurnoUseCase:
+    return EditarTurnoUseCase(SqlAlchemyCajaRepository(db))
 
 
 def consultar_caja_usecase(db: AsyncSession) -> ConsultarCajaUseCase:

@@ -53,6 +53,9 @@ class TurnoCajaModel(Base):
         ForeignKey("usuarios.id", ondelete="RESTRICT")
     )
     cerrado_por: Mapped[str | None] = mapped_column(String(100))
+    asignado_a_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="RESTRICT")
+    )
 
 
 class ArqueoCajaModel(Base):
@@ -63,8 +66,8 @@ class ArqueoCajaModel(Base):
     turno_id: Mapped[int] = mapped_column(
         ForeignKey("turnos_caja.id", ondelete="RESTRICT"), unique=True, nullable=False
     )
-    usuario_id: Mapped[int] = mapped_column(
-        ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False
+    usuario_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=True
     )
     cerrado_por: Mapped[str] = mapped_column(String(100), nullable=False)
     efectivo_esperado: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)

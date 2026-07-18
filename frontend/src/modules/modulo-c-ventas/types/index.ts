@@ -22,6 +22,8 @@ export interface TurnoCaja {
   estado: "ABIERTO" | "CERRADO";
   /** Quién cerró el turno (puede ser otro cajero en un cambio de turno). */
   cerrado_por: string | null;
+  /** Si fue asignado a un usuario específico por el admin. */
+  asignado_a_id: number | null;
   /** Solo en turnos cerrados. */
   arqueo: Arqueo | null;
 }
