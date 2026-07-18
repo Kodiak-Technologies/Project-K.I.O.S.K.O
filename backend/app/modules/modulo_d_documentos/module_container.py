@@ -28,32 +28,27 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_dri
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.telegram_notification_adapter import (
     TelegramNotificationAdapter,
 )
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.correo_notification_adapter import (
+    CorreoNotificationAdapter,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.composite_notification_sender import (
+    CompositeNotificationSender,
+)
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.excel_generator import ExcelGenerator
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.boleta_png_generator import BoletaPngGenerator
+from app.modules.modulo_d_documentos.infrastructure.dependencies import (
+    _venta_data_provider,
+    _configuracion_provider,
+    _egresos_data_provider,
+    _metodo_pago_provider,
+)
 
-_notificacion_sender = TelegramNotificationAdapter()
+_notificacion_sender = CompositeNotificationSender([
+    TelegramNotificationAdapter(),
+    CorreoNotificationAdapter(),
+])
 _reporte_generator = ExcelGenerator()
 _png_generator = BoletaPngGenerator()
-
-
-class MockVentaDataProvider:
-    async def obtener_venta(self, venta_id: int) -> dict | None:
-        return None
-
-    async def listar_ventas(self, desde: str | None = None, hasta: str | None = None) -> list[dict]:
-        return []
-
-    async def obtener_detalle_venta(self, venta_id: int) -> list[dict]:
-        return []
-
-
-class MockConfiguracionProvider:
-    async def obtener(self) -> dict:
-        return {"nombre_negocio": "Mi Tienda", "logo_url": ""}
-
-
-_venta_data_provider = MockVentaDataProvider()
-_configuracion_provider = MockConfiguracionProvider()
 
 
 def generar_boleta_usecase(db: AsyncSession) -> GenerarBoletaUseCase:

@@ -71,6 +71,7 @@ async def actualizar_config(
 @router.post("", response_model=NotificacionResponse, status_code=201)
 async def crear_notificacion(
     body: CrearNotificacionRequest,
+    usuario: Usuario = Depends(require_role("ADMIN")),
     notificacion_repo=Depends(get_notificacion_repository),
     config_repo=Depends(get_config_notificaciones_repository),
     notificacion_sender=Depends(get_notificacion_sender),

@@ -60,35 +60,28 @@ async def respaldo_automatico_diario() -> None:
                 timeout=120,
             )
 
-            async with SessionLocal() as db_update:
-                r = await db_update.get(type(respaldo).__name__, respaldo.id) if respaldo.id else None
-                if proc.returncode == 0 and os.path.exists(ruta):
-                    tamano = os.path.getsize(ruta)
-                    await db_update.execute(
-                        __import__("sqlalchemy").text(
-                            "UPDATE respaldos SET estado='COMPLETADO', tamano_bytes=:tamano, "
-                            "expira_en=:expira WHERE id=:id"
-                        ),
-                        {"tamano": tamano, "expira": datetime.now(timezone.utc) + timedelta(days=30), "id": respaldo.id},
-                    )
-                    await db_update.commit()
-                    logger.info("Respaldo completado: %s (%d bytes).", nombre, tamano)
-                else:
-                    await db_update.execute(
-                        __import__("sqlalchemy").text("UPDATE respaldos SET estado='FALLIDO' WHERE id=:id"),
-                        {"id": respaldo.id},
-                    )
-                    await db_update.commit()
-                    logger.error("Respaldo fallido: %s. stderr: %s", nombre, proc.stderr)
+            if proc.returncode == 0 and os.path.exists(ruta):
+                tamano = os.path.getsize(ruta)
+                respaldo.tamano_bytes = tamano
+                respaldo.estado = "COMPLETADO"
+                respaldo.expira_en = datetime.now(timezone.utc) + timedelta(days=30)
+                await repo.actualizar(respaldo)
+                await db.commit()
+                logger.info("Respaldo completado: %s (%d bytes).", nombre, tamano)
+            else:
+                respaldo.estado = "FALLIDO"
+                await repo.actualizar(respaldo)
+                await db.commit()
+                logger.error("Respaldo fallido: %s. stderr: %s", nombre, proc.stderr)
 
         except Exception as e:
             logger.error("Error durante el respaldo automático: %s", str(e))
-            async with SessionLocal() as db_err:
-                await db_err.execute(
-                    __import__("sqlalchemy").text("UPDATE respaldos SET estado='FALLIDO' WHERE id=:id"),
-                    {"id": respaldo.id},
-                )
-                await db_err.commit()
+            try:
+                respaldo.estado = "FALLIDO"
+                await repo.actualizar(respaldo)
+                await db.commit()
+            except Exception:
+                logger.error("Error actualizando estado del respaldo a FALLIDO.")
 
 
 async def limpiar_respaldos_expirados() -> None:

@@ -25,6 +25,12 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_dri
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.telegram_notification_adapter import (
     TelegramNotificationAdapter,
 )
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.correo_notification_adapter import (
+    CorreoNotificationAdapter,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.composite_notification_sender import (
+    CompositeNotificationSender,
+)
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.excel_generator import (
     ExcelGenerator,
 )
@@ -33,7 +39,10 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators
 )
 from app.shared.database.session import get_db
 
-_notificacion_sender = TelegramNotificationAdapter()
+_notificacion_sender = CompositeNotificationSender([
+    TelegramNotificationAdapter(),
+    CorreoNotificationAdapter(),
+])
 _reporte_generator = ExcelGenerator()
 _png_generator = BoletaPngGenerator()
 

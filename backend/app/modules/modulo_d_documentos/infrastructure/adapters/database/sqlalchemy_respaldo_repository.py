@@ -40,6 +40,27 @@ class SqlAlchemyRespaldoRepository:
         )
         return [_a_entidad(fila) for fila in resultado.scalars().all()]
 
+    async def buscar_por_id(self, respaldo_id: int) -> Respaldo | None:
+        resultado = await self._db.execute(
+            select(RespaldoModel).where(RespaldoModel.id == respaldo_id)
+        )
+        fila = resultado.scalar_one_or_none()
+        return _a_entidad(fila) if fila else None
+
+    async def actualizar(self, respaldo: Respaldo) -> Respaldo:
+        resultado = await self._db.execute(
+            select(RespaldoModel).where(RespaldoModel.id == respaldo.id)
+        )
+        fila = resultado.scalar_one_or_none()
+        if fila is None:
+            raise ValueError(f"Respaldo #{respaldo.id} no encontrado")
+        fila.estado = respaldo.estado
+        fila.tamano_bytes = respaldo.tamano_bytes
+        fila.expira_en = respaldo.expira_en
+        await self._db.flush()
+        await self._db.refresh(fila)
+        return _a_entidad(fila)
+
     async def eliminar_expirados(self) -> int:
         ahora = datetime.now(timezone.utc)
         resultado = await self._db.execute(

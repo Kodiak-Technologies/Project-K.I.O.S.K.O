@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import select, func
+from sqlalchemy import cast, func, Integer, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.modulo_d_documentos.domain.entities import Boleta
@@ -83,8 +83,15 @@ class SqlAlchemyBoletaRepository:
 
     async def generar_siguiente_numero(self) -> str:
         resultado = await self._db.execute(
-            select(func.count(BoletaModel.id))
+            select(
+                func.max(
+                    cast(
+                        func.substring(BoletaModel.numero, 6),
+                        Integer,
+                    )
+                )
+            )
         )
-        total = resultado.scalar() or 0
-        siguiente = total + 1
+        maximo = resultado.scalar() or 0
+        siguiente = maximo + 1
         return f"B001-{siguiente:06d}"
