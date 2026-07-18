@@ -14,6 +14,7 @@ class GenerarReporteMasVendidosUseCase:
         hasta: str,
         criterio: str = "unidades",
         categoria_id: int | None = None,
+        orden: str = "mayor",
     ) -> list[TopProducto]:
         ventas = await self._venta_data.listar_ventas(desde=desde, hasta=hasta)
 
@@ -40,7 +41,7 @@ class GenerarReporteMasVendidosUseCase:
             [TopProducto(nombre=k, cantidad=v["cantidad"], total=v["total"])
              for k, v in producto_stats.items()],
             key=key_func,
-            reverse=True,
+            reverse=(orden == "mayor"),
         )[:20]
 
         return top_productos

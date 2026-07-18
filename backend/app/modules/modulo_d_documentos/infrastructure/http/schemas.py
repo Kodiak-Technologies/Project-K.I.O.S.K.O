@@ -10,6 +10,7 @@ class BoletaResponse(BaseModel):
     total: float
     emitida_en: datetime | None
     url_pdf: str | None
+    cliente_nombre: str | None
 
     @classmethod
     def desde_entidad(cls, b) -> "BoletaResponse":
@@ -20,6 +21,7 @@ class BoletaResponse(BaseModel):
             total=b.total,
             emitida_en=b.emitida_en,
             url_pdf=b.url_pdf,
+            cliente_nombre=b.cliente_nombre,
         )
 
 
@@ -37,9 +39,11 @@ class ReporteResumenResponse(BaseModel):
     desde: str
     hasta: str
     total_vendido: float
+    total_egresos: float
     numero_ventas: int
     ticket_promedio: float
     top_productos: list[TopProductoResponse]
+    metodos_pago: dict[str, float]
 
     @classmethod
     def desde_entidad(cls, r) -> "ReporteResumenResponse":
@@ -47,9 +51,11 @@ class ReporteResumenResponse(BaseModel):
             desde=r.desde,
             hasta=r.hasta,
             total_vendido=r.total_vendido,
+            total_egresos=r.total_egresos,
             numero_ventas=r.numero_ventas,
             ticket_promedio=r.ticket_promedio,
             top_productos=[TopProductoResponse.desde_entidad(p) for p in r.top_productos],
+            metodos_pago=r.metodos_pago,
         )
 
 
@@ -123,3 +129,38 @@ class ArchivoDriveResponse(BaseModel):
             creado_en=a.creado_en,
             actualizado_en=a.actualizado_en,
         )
+
+
+class ConfigNotificacionesResponse(BaseModel):
+    canal_telegram_activo: bool
+    canal_correo_activo: bool
+    nivel_detalle: str
+    telegram_chat_id: str | None
+    correo_destino: str | None
+
+    @classmethod
+    def desde_entidad(cls, c) -> "ConfigNotificacionesResponse":
+        return cls(
+            canal_telegram_activo=c.canal_telegram_activo,
+            canal_correo_activo=c.canal_correo_activo,
+            nivel_detalle=c.nivel_detalle,
+            telegram_chat_id=c.telegram_chat_id,
+            correo_destino=c.correo_destino,
+        )
+
+
+class ConfigNotificacionesRequest(BaseModel):
+    canal_telegram_activo: bool = True
+    canal_correo_activo: bool = False
+    nivel_detalle: str = "MEDIO"
+    telegram_chat_id: str | None = None
+    correo_destino: str | None = None
+
+
+class CrearNotificacionRequest(BaseModel):
+    tipo: str
+    titulo: str
+    mensaje: str
+    entidad_origen: str | None = None
+    entidad_id: str | None = None
+    usuario_id: int | None = None

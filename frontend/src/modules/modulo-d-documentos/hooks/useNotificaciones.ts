@@ -1,11 +1,12 @@
-// Hook: consultar historial y marcar notificaciones como leídas.
+// Hook: consultar historial y configuración de notificaciones.
 import { useCallback, useEffect, useState } from "react";
 import { mensajeDeError, servicioNoDisponible } from "../../../shared/lib/http-client";
 import { notificacionesHttpAdapter } from "../services/notificaciones.http-adapter";
-import type { Notificacion } from "../types";
+import type { ConfigNotificaciones, Notificacion } from "../types";
 
 export function useNotificaciones() {
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const [config, setConfig] = useState<ConfigNotificaciones | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
@@ -23,9 +24,17 @@ export function useNotificaciones() {
     }
   }, []);
 
+  const recargarConfig = useCallback(async () => {
+    try {
+      setConfig(await notificacionesHttpAdapter.obtenerConfig());
+    } catch {
+    }
+  }, []);
+
   useEffect(() => {
     void recargar();
-  }, [recargar]);
+    void recargarConfig();
+  }, [recargar, recargarConfig]);
 
   const marcarLeida = useCallback(
     async (id: number) => {
@@ -35,5 +44,13 @@ export function useNotificaciones() {
     [recargar]
   );
 
-  return { notificaciones, cargando, error, noDisponible, marcarLeida };
+  const actualizarConfig = useCallback(
+    async (nuevaConfig: Partial<ConfigNotificaciones>) => {
+      const resultado = await notificacionesHttpAdapter.actualizarConfig(nuevaConfig);
+      setConfig(resultado);
+    },
+    []
+  );
+
+  return { notificaciones, config, cargando, error, noDisponible, marcarLeida, actualizarConfig };
 }

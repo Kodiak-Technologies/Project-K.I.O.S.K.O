@@ -1,6 +1,6 @@
 // Página de generación/consulta de reportes de ventas (solo ADMIN).
 import { useState } from "react";
-import { BarChart3 } from "lucide-react";
+import { ArrowDown, ArrowUp, BarChart3 } from "lucide-react";
 import {
   Alert,
   Button,
@@ -14,7 +14,7 @@ import {
   type Columna,
 } from "../../../shared/components/ui";
 import { useReportes } from "../hooks/useReportes";
-import type { ResumenReporte } from "../types";
+import type { ResumenReporte, TopProducto } from "../types";
 
 function Indicador({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   return (
@@ -26,9 +26,10 @@ function Indicador({ etiqueta, valor }: { etiqueta: string; valor: string }) {
 }
 
 export default function Reportes() {
-  const { resumen, cargando, error, noDisponible, generar } = useReportes();
+  const { resumen, masVendidos, cargando, error, noDisponible, generar, generarMasVendidos } = useReportes();
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+  const [orden, setOrden] = useState<"mayor" | "menor">("mayor");
 
   if (noDisponible) {
     return (
@@ -41,7 +42,7 @@ export default function Reportes() {
     );
   }
 
-  const columnasTop: Columna<ResumenReporte["top_productos"][number]>[] = [
+  const columnasTop: Columna<TopProducto>[] = [
     { titulo: "Producto", render: (p) => <span className="font-medium text-zinc-800">{p.nombre}</span> },
     { titulo: "Unidades", alinear: "derecha", render: (p) => <span className="tabular-nums">{p.cantidad}</span> },
     {
@@ -50,6 +51,11 @@ export default function Reportes() {
       render: (p) => <span className="tabular-nums">S/ {p.total.toFixed(2)}</span>,
     },
   ];
+
+  const generarReportes = async () => {
+    await generar(desde, hasta);
+    await generarMasVendidos(desde, hasta, "unidades", orden);
+  };
 
   return (
     <div>
@@ -65,7 +71,7 @@ export default function Reportes() {
           </div>
           <Button
             disabled={!desde || !hasta}
-            onClick={() => void generar(desde, hasta)}
+            onClick={() => void generarReportes()}
             icono={<BarChart3 className="h-4 w-4" aria-hidden />}
           >
             Generar reporte
@@ -88,15 +94,61 @@ export default function Reportes() {
 
       {resumen && !cargando && (
         <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-4">
             <Indicador etiqueta="Total vendido" valor={`S/ ${resumen.total_vendido.toFixed(2)}`} />
+            <Indicador etiqueta="Total egresos" valor={`S/ ${resumen.total_egresos.toFixed(2)}`} />
             <Indicador etiqueta="Ventas" valor={String(resumen.numero_ventas)} />
             <Indicador etiqueta="Ticket promedio" valor={`S/ ${resumen.ticket_promedio.toFixed(2)}`} />
           </div>
-          <Card titulo="Productos más vendidos" sinPadding>
+
+          {Object.keys(resumen.metodos_pago).length > 0 && (
+            <Card titulo="Desglose por método de pago" sinPadding>
+              <div className="grid gap-4 p-4 sm:grid-cols-2 md:grid-cols-4">
+                {Object.entries(resumen.metodos_pago).map(([metodo, monto]) => (
+                  <div key={metodo} className="rounded-lg border border-zinc-200 p-3">
+                    <p className="text-sm text-zinc-500">{metodo}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-zinc-900">
+                      S/ {(monto as number).toFixed(2)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          <Card
+            titulo={orden === "mayor" ? "Productos más vendidos" : "Productos de menor rotación"}
+            sinPadding
+            accion={
+              <div className="flex gap-2">
+                <Button
+                  variante={orden === "mayor" ? "primario" : "secundario"}
+                  compacto
+                  icono={<ArrowUp className="h-4 w-4" aria-hidden />}
+                  onClick={() => {
+                    setOrden("mayor");
+                    void generarMasVendidos(desde, hasta, "unidades", "mayor");
+                  }}
+                >
+                  Más vendidos
+                </Button>
+                <Button
+                  variante={orden === "menor" ? "primario" : "secundario"}
+                  compacto
+                  icono={<ArrowDown className="h-4 w-4" aria-hidden />}
+                  onClick={() => {
+                    setOrden("menor");
+                    void generarMasVendidos(desde, hasta, "unidades", "menor");
+                  }}
+                >
+                  Menor rotación
+                </Button>
+              </div>
+            }
+          >
             <Table
               columnas={columnasTop}
-              filas={resumen.top_productos}
+              filas={orden === "mayor" ? resumen.top_productos : masVendidos}
               claveDe={(p) => p.nombre}
               vacio={
                 <EmptyState icono={BarChart3} titulo="Sin datos" descripcion="No hubo ventas en el período." />

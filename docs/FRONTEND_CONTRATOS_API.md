@@ -93,25 +93,56 @@ Cuerpo: `{ motivo }` → marca `anulada: true`, devuelve stock y registra en bit
 
 ## Módulo D — Documentos (Fabrizio)
 
-### `GET /boletas?desde=&hasta=`
+### `GET /boletas?desde=&hasta=&cliente=`
+
+Lista de boletas filtrable por rango de fechas y nombre de cliente.
 
 ```json
 [{ "id": 5, "venta_id": 12, "numero": "B001-000012", "total": 37.0,
+   "cliente_nombre": "Juan Pérez",
    "emitida_en": "2026-07-12T10:15:05Z",
    "url_pdf": "https://drive.google.com/..." }]
 ```
 
 `url_pdf` puede ser `null` si el PDF aún no se generó (el frontend muestra "No disponible").
+`cliente` es un filtro opcional que busca por nombre parcial del cliente.
+
+### `GET /boletas/{id}/png`
+
+Descarga el PNG de la boleta como `StreamingResponse` con `Content-Type: image/png`.
+
+- Retorna el PNG generado dinámicamente (con datos actualizados de la venta)
+- Nombre del archivo descargado: `BOL-{numero}_{fecha}.png`
 
 ### `GET /reportes/resumen?desde=&hasta=` (ADMIN, permiso `reportes.ver`)
 
+Resumen de ventas incluyendo egresos y desglose por método de pago.
+
 ```json
 { "desde": "2026-07-01", "hasta": "2026-07-12",
-  "total_vendido": 1240.5, "numero_ventas": 87, "ticket_promedio": 14.26,
-  "top_productos": [{ "nombre": "Arroz 5kg", "cantidad": 40, "total": 740.0 }] }
+  "total_vendido": 1240.5, "total_egresos": 350.0, "numero_ventas": 87, "ticket_promedio": 14.26,
+  "top_productos": [{ "nombre": "Arroz 5kg", "cantidad": 40, "total": 740.0 }],
+  "metodos_pago": { "EFECTIVO": 800.0, "YAPE": 240.5, "PLIN": 100.0, "TARJETA": 100.0 } }
 ```
 
+- `total_egresos`: compras de mercadería y otros gastos operativos (RF-12)
+- `metodos_pago`: desglose por método de pago (RF-12)
+
+### `GET /reportes/mas-vendidos?orden=mayor|menor&desde=&hasta=` (ADMIN, permiso `reportes.ver`)
+
+Ranking de productos. `orden` controla el sentido: `mayor` (default) o `menor` rotación (RF-14).
+
+```json
+[{ "nombre": "Arroz 5kg", "cantidad": 40, "total": 740.0 }]
+```
+
+### `GET /reportes/exportar?desde=&hasta=&tipo=resumen|mas_vendidos` (ADMIN, permiso `reportes.ver`)
+
+Exporta el reporte a Excel. `tipo` define qué se exporta.
+
 ### `GET /notificaciones`
+
+Lista de notificaciones del sistema (no leídas primero).
 
 ```json
 [{ "id": 1, "tipo": "STOCK_BAJO", "titulo": "Stock bajo: Arroz 5kg",
@@ -119,7 +150,62 @@ Cuerpo: `{ motivo }` → marca `anulada: true`, devuelve stock y registra en bit
    "created_at": "2026-07-12T09:00:00Z" }]
 ```
 
-`tipo` ∈ `STOCK_BAJO | CIERRE_CAJA | SISTEMA`.
+`tipo` ∈ `STOCK_BAJO | CIERRE_CAJA | SOLICITUD_INGRESO | SISTEMA`.
 
 ### `POST /notificaciones/{id}/leida`
 Marca como leída. Responde 200 sin cuerpo (o con la notificación, da igual: el frontend recarga la lista).
+
+### `GET /notificaciones/config`
+Obtiene la configuración de notificaciones (solo ADMIN).
+
+```json
+{ "canal_telegram_activo": true, "canal_correo_activo": false,
+  "nivel_detalle": "MEDIO", "telegram_chat_id": null, "correo_destino": null }
+```
+
+### `PUT /notificaciones/config`
+Actualiza la configuración de notificaciones (solo ADMIN).
+
+Cuerpo: `{ "canal_telegram_activo": true, "canal_correo_activo": false,
+  "nivel_detalle": "MEDIO", "telegram_chat_id": "123456", "correo_destino": "admin@tienda.com" }`
+
+### `POST /notificaciones`
+Crea una notificación y la envía por los canales activos.
+
+Cuerpo: `{ "tipo": "STOCK_BAJO", "titulo": "Stock bajo: Arroz 5kg",
+  "mensaje": "Quedan 3 unidades.", "entidad_origen": "productos", "entidad_id": "1" }`
+
+`tipo` ∈ `STOCK_BAJO | CIERRE_CAJA | SOLICITUD_INGRESO | SISTEMA`.
+
+### `GET /drive/auth-url`
+Obtiene la URL de autorización de Google Drive (solo ADMIN).
+
+```json
+{ "url": "https://accounts.google.com/o/oauth2/auth?..." }
+```
+
+### `GET /drive/callback?code=CODE`
+Intercambia el code por tokens de Google Drive.
+
+### `GET /drive/status`
+Estado de la autorización de Google Drive.
+
+```json
+{ "autorizado": true, "expirado": false }
+```
+
+### `POST /boletas/{id}/subir-drive`
+Sube la boleta a Google Drive (solo ADMIN). Retorna el archivo registrado.
+
+### `POST /respaldos` (ADMIN)
+Crea un respaldo manual de la base de datos.
+
+### `GET /respaldos/{id}/descargar`
+Descarga el archivo de respaldo (.dump).
+
+### `GET /health`
+Health check del sistema.
+
+```json
+{ "status": "ok" }
+```

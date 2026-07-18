@@ -18,6 +18,7 @@ class Boleta:
     total: float
     emitida_en: datetime | None = None
     url_pdf: str | None = None
+    cliente_nombre: str | None = None
 
     def __post_init__(self) -> None:
         if self.emitida_en is None:
@@ -167,9 +168,11 @@ class ResumenReporte:
     desde: str
     hasta: str
     total_vendido: float = 0.0
+    total_egresos: float = 0.0
     numero_ventas: int = 0
     ticket_promedio: float = 0.0
     top_productos: list[TopProducto] = field(default_factory=list)
+    metodos_pago: dict[str, float] = field(default_factory=dict)
 
     def calcular_ticket_promedio(self) -> None:
         if self.numero_ventas > 0:

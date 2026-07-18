@@ -91,9 +91,9 @@ class MockVentaDataProvider:
 
     async def listar_ventas(self, desde: str | None = None, hasta: str | None = None) -> list[dict]:
         return [
-            {"id": 1, "total": 150.00, "fecha": "2026-07-15"},
-            {"id": 2, "total": 85.50, "fecha": "2026-07-14"},
-            {"id": 3, "total": 320.00, "fecha": "2026-07-13"},
+            {"id": 1, "total": 150.00, "fecha": "2026-07-15", "cliente_nombre": "Cliente 1"},
+            {"id": 2, "total": 85.50, "fecha": "2026-07-14", "cliente_nombre": "Cliente 2"},
+            {"id": 3, "total": 320.00, "fecha": "2026-07-13", "cliente_nombre": "Cliente 1"},
         ]
 
     async def obtener_detalle_venta(self, venta_id: int) -> list[dict]:
@@ -118,8 +118,28 @@ class MockConfiguracionProvider:
         return {"nombre_negocio": "Mi Tienda", "logo_url": ""}
 
 
+class MockEgresosDataProvider:
+    async def obtener_egresos(self, desde: str, hasta: str) -> list[dict]:
+        return [
+            {"concepto": "Compra mercadería", "monto": 1200.00, "fecha": "2026-07-15", "metodo_pago": "EFECTIVO"},
+            {"concepto": "Servicio luz", "monto": 150.00, "fecha": "2026-07-14", "metodo_pago": "TRANSFERENCIA"},
+            {"concepto": "Servicio agua", "monto": 80.00, "fecha": "2026-07-13", "metodo_pago": "EFECTIVO"},
+        ]
+
+    async def total_egresos(self, desde: str, hasta: str) -> float:
+        egresos = await self.obtener_egresos(desde, hasta)
+        return sum(e.get("monto", 0) for e in egresos)
+
+
+class MockMetodoPagoProvider:
+    async def desglose_por_metodo(self, desde: str, hasta: str) -> dict[str, float]:
+        return {"EFECTIVO": 850.00, "YAPE": 320.00, "PLIN": 180.00, "TARJETA": 200.00}
+
+
 _venta_data_provider = MockVentaDataProvider()
 _configuracion_provider = MockConfiguracionProvider()
+_egresos_data_provider = MockEgresosDataProvider()
+_metodo_pago_provider = MockMetodoPagoProvider()
 
 
 def get_venta_data_provider():
@@ -128,3 +148,11 @@ def get_venta_data_provider():
 
 def get_configuracion_provider():
     return _configuracion_provider
+
+
+def get_egresos_data_provider():
+    return _egresos_data_provider
+
+
+def get_metodo_pago_provider():
+    return _metodo_pago_provider

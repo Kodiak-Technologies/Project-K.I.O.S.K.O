@@ -15,6 +15,7 @@ erDiagram
         BIGINT venta_id FK "UNIQUE → ventas.id (Module C)"
         VARCHAR(20) numero "UNIQUE, INDEX — formato B001-NNNNNN"
         NUMERIC total "monto total de la venta"
+        VARCHAR(120) cliente_nombre "nombre del cliente (default: Cliente 1)"
         TIMESTAMPTZ emitida_en "DEFAULT NOW()"
         TEXT url_pdf "nullable — URL en Google Drive"
     }
@@ -116,6 +117,7 @@ erDiagram
 - Las 6 tablas son del **módulo D**. Las tablas referenciadas (`ventas`, `usuarios`) pertenecen a otros módulos.
 - `config_notificaciones` es **fila única** (id=1), similar a `configuracion_negocio` de Module A.
 - `boletas_clientes` tiene `venta_id UNIQUE` porque una venta solo genera una boleta.
+- `boletas_clientes` incluye `cliente_nombre` (VARCHAR 120) para identificar al cliente. Default: "Cliente 1".
 - `notificaciones` no tiene borrado lógico; se purgan después de 30 días (RNF-14).
 - `respaldos` expiran después de 30 días; los scripts de limpieza los eliminan.
 - `oauth_tokens` almacena tokens OAuth para Google Drive. Un solo registro por proveedor (google_drive). El `refresh_token` nunca expira; el `access_token` se renueva automáticamente.

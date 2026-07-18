@@ -7,18 +7,27 @@ export interface Boleta {
   total: number;
   emitida_en: string | null;
   url_pdf: string | null;
+  cliente_nombre: string | null;
 }
 
 export interface ResumenReporte {
   desde: string;
   hasta: string;
   total_vendido: number;
+  total_egresos: number;
   numero_ventas: number;
   ticket_promedio: number;
-  top_productos: { nombre: string; cantidad: number; total: number }[];
+  top_productos: TopProducto[];
+  metodos_pago: Record<string, number>;
 }
 
-export type TipoNotificacion = "STOCK_BAJO" | "CIERRE_CAJA" | "SISTEMA";
+export interface TopProducto {
+  nombre: string;
+  cantidad: number;
+  total: number;
+}
+
+export type TipoNotificacion = "STOCK_BAJO" | "CIERRE_CAJA" | "SOLICITUD_INGRESO" | "SISTEMA";
 
 export interface Notificacion {
   id: number;
@@ -27,6 +36,14 @@ export interface Notificacion {
   mensaje: string;
   leida: boolean;
   created_at: string | null;
+}
+
+export interface ConfigNotificaciones {
+  canal_telegram_activo: boolean;
+  canal_correo_activo: boolean;
+  nivel_detalle: "BAJO" | "MEDIO" | "ALTO";
+  telegram_chat_id: string | null;
+  correo_destino: string | null;
 }
 
 export type EstadoRespaldo = "PENDIENTE" | "COMPLETADO" | "FALLIDO";

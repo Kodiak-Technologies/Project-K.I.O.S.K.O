@@ -14,12 +14,33 @@ import {
   type Columna,
 } from "../../../shared/components/ui";
 import { useBoletas } from "../hooks/useBoletas";
+import { boletasHttpAdapter } from "../services/boletas.http-adapter";
 import type { Boleta } from "../types";
 
 export default function Boletas() {
   const { boletas, cargando, error, noDisponible, recargar } = useBoletas();
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+  const [cliente, setCliente] = useState("");
+  const [descargandoId, setDescargandoId] = useState<number | null>(null);
+
+  const descargarPng = async (b: Boleta) => {
+    setDescargandoId(b.id);
+    try {
+      const blob = await boletasHttpAdapter.descargarPng(b.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `BOL-${b.numero}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+    } finally {
+      setDescargandoId(null);
+    }
+  };
 
   if (noDisponible) {
     return (
@@ -36,6 +57,10 @@ export default function Boletas() {
     { titulo: "Número", render: (b) => <span className="font-mono text-xs text-zinc-700">{b.numero}</span> },
     { titulo: "Venta", soloEscritorio: true, render: (b) => `#${b.venta_id}` },
     {
+      titulo: "Cliente",
+      render: (b) => <span className="text-zinc-600">{b.cliente_nombre ?? "—"}</span>,
+    },
+    {
       titulo: "Emitida",
       render: (b) => (
         <span className="whitespace-nowrap text-zinc-500">
@@ -49,17 +74,18 @@ export default function Boletas() {
       render: (b) => <span className="font-medium tabular-nums">S/ {b.total.toFixed(2)}</span>,
     },
     {
-      titulo: "PDF",
-      render: (b) =>
-        b.url_pdf ? (
-          <a href={b.url_pdf} target="_blank" rel="noreferrer">
-            <Button variante="secundario" compacto icono={<Download className="h-4 w-4" aria-hidden />}>
-              Descargar
-            </Button>
-          </a>
-        ) : (
-          <span className="text-xs text-zinc-400">No disponible</span>
-        ),
+      titulo: "Boleta",
+      render: (b) => (
+        <Button
+          variante="secundario"
+          compacto
+          icono={<Download className="h-4 w-4" aria-hidden />}
+          onClick={() => void descargarPng(b)}
+          disabled={descargandoId === b.id}
+        >
+          {descargandoId === b.id ? "Descargando…" : "PNG"}
+        </Button>
+      ),
     },
   ];
 
@@ -75,7 +101,10 @@ export default function Boletas() {
           <div className="w-44">
             <Input label="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
           </div>
-          <Button variante="secundario" onClick={() => void recargar(desde || undefined, hasta || undefined)}>
+          <div className="w-44">
+            <Input label="Cliente" value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Buscar por cliente" />
+          </div>
+          <Button variante="secundario" onClick={() => void recargar(desde || undefined, hasta || undefined, cliente || undefined)}>
             Filtrar
           </Button>
         </div>

@@ -28,6 +28,7 @@ class BoletaModel(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     url_pdf: Mapped[str | None] = mapped_column(Text)
+    cliente_nombre: Mapped[str | None] = mapped_column(String(120))
 
 
 class ArchivoDriveModel(Base):

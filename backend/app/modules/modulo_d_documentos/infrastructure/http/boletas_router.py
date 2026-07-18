@@ -1,4 +1,7 @@
+import io
+
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from app.modules.modulo_a_seguridad.infrastructure.dependencies import get_current_user, require_role
 from app.modules.modulo_a_seguridad.domain.entities import Usuario
@@ -14,6 +17,7 @@ from app.modules.modulo_d_documentos.infrastructure.dependencies import (
 )
 from app.modules.modulo_d_documentos.infrastructure.http.schemas import BoletaResponse, ArchivoDriveResponse
 from app.shared.database.session import get_db
+from app.shared.kernel.exceptions import NoEncontradoError
 
 router = APIRouter(prefix="/boletas", tags=["Documentos"])
 
@@ -23,10 +27,11 @@ async def listar_boletas(
     desde: str | None = None,
     hasta: str | None = None,
     q: str | None = None,
+    cliente: str | None = None,
     usuario: Usuario = Depends(get_current_user),
     boleta_repo=Depends(get_boleta_repository),
 ):
-    boletas = await boleta_repo.listar(desde=desde, hasta=hasta, q=q)
+    boletas = await boleta_repo.listar(desde=desde, hasta=hasta, q=q, cliente=cliente)
     return [BoletaResponse.desde_entidad(b) for b in boletas]
 
 
@@ -75,3 +80,38 @@ async def subir_boleta_drive(
     )
     archivo = await usecase.ejecutar(boleta_id)
     return ArchivoDriveResponse.desde_entidad(archivo)
+
+
+@router.get("/{boleta_id}/png")
+async def descargar_png(
+    boleta_id: int,
+    usuario: Usuario = Depends(get_current_user),
+    boleta_repo=Depends(get_boleta_repository),
+    png_generator=Depends(get_png_generator),
+    configuracion_provider=Depends(get_configuracion_provider),
+):
+    boleta = await boleta_repo.buscar_por_id(boleta_id)
+    if boleta is None:
+        raise NoEncontradoError(f"Boleta #{boleta_id} no encontrada")
+
+    nombre_negocio = "Mi Tienda"
+    if configuracion_provider:
+        config = await configuracion_provider.obtener()
+        nombre_negocio = config.get("nombre_negocio", "Mi Tienda")
+
+    fecha = boleta.emitida_en.strftime("%Y-%m-%d %H:%M") if boleta.emitida_en else ""
+
+    png_bytes = await png_generator.generar(
+        numero=boleta.numero,
+        total=boleta.total,
+        fecha=fecha,
+        productos=[],
+        nombre_negocio=nombre_negocio,
+    )
+
+    filename = f"BOL-{boleta.numero}.png"
+    return StreamingResponse(
+        io.BytesIO(png_bytes),
+        media_type="image/png",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

@@ -15,6 +15,7 @@ def _a_entidad(fila: BoletaModel) -> Boleta:
         total=float(fila.total),
         emitida_en=fila.emitida_en,
         url_pdf=fila.url_pdf,
+        cliente_nombre=fila.cliente_nombre,
     )
 
 
@@ -37,7 +38,7 @@ class SqlAlchemyBoletaRepository:
         return _a_entidad(fila) if fila else None
 
     async def listar(
-        self, desde: str | None = None, hasta: str | None = None, q: str | None = None
+        self, desde: str | None = None, hasta: str | None = None, q: str | None = None, cliente: str | None = None
     ) -> list[Boleta]:
         consulta = select(BoletaModel).order_by(BoletaModel.emitida_en.desc())
 
@@ -49,6 +50,8 @@ class SqlAlchemyBoletaRepository:
             consulta = consulta.where(BoletaModel.emitida_en <= fecha_hasta)
         if q:
             consulta = consulta.where(BoletaModel.numero.ilike(f"%{q}%"))
+        if cliente:
+            consulta = consulta.where(BoletaModel.cliente_nombre.ilike(f"%{cliente}%"))
 
         resultado = await self._db.execute(consulta)
         return [_a_entidad(fila) for fila in resultado.scalars().all()]
@@ -59,6 +62,7 @@ class SqlAlchemyBoletaRepository:
             numero=boleta.numero,
             total=boleta.total,
             url_pdf=boleta.url_pdf,
+            cliente_nombre=boleta.cliente_nombre,
         )
         self._db.add(fila)
         await self._db.flush()

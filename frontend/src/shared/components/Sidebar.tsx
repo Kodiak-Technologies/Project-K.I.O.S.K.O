@@ -16,6 +16,7 @@ import {
   Store,
   Truck,
   BarChart3,
+  Database,
   Users,
   Wallet,
 } from "lucide-react";
@@ -60,6 +61,7 @@ const GRUPOS: Grupo[] = [
       { a: "/boletas", texto: "Boletas", icono: Receipt },
       { a: "/reportes", texto: "Reportes", icono: BarChart3, soloAdmin: true },
       { a: "/notificaciones", texto: "Notificaciones", icono: Bell },
+      { a: "/respaldos", texto: "Respaldos", icono: Database, soloAdmin: true },
     ],
   },
   {
