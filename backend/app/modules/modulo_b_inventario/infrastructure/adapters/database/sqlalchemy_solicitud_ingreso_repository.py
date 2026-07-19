@@ -68,7 +68,6 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         fila = (
             await self._db.execute(
                 select(SolicitudIngresoModel)
-                .options(selectinload(SolicitudIngresoModel.deleted_at))  # placeholder
                 .where(SolicitudIngresoModel.id == solicitud_id)
             )
         ).scalar_one_or_none()

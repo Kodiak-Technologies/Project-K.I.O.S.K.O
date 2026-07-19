@@ -117,7 +117,7 @@ class CrearProductoUseCase:
         # Fila inicial de historial_precios (precio_anterior=None)
         await self._historial.append(
             HistorialPrecio(
-                id=None,
+                id=0,  # placeholder; el adapter lo asigna con RETURNING id
                 producto_id=creado.id,
                 precio_nuevo=creado.precio,
                 tipo_precio=TipoPrecio("venta"),
@@ -129,7 +129,7 @@ class CrearProductoUseCase:
         if creado.precio_compra_actual and creado.precio_compra_actual > 0:
             await self._historial.append(
                 HistorialPrecio(
-                    id=None,
+                    id=0,  # placeholder; el adapter lo asigna con RETURNING id
                     producto_id=creado.id,
                     precio_nuevo=creado.precio_compra_actual,
                     tipo_precio=TipoPrecio("compra"),

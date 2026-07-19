@@ -543,9 +543,12 @@ class PagoProveedorResponse(BaseModel):
     solicitud_ingreso_id: int | None
     registrado_por_nombre: str
     created_at: datetime | None
+    deuda_actual: float  # Estado actual de la deuda del proveedor tras la operación.
 
     @classmethod
-    def desde_entidad(cls, p: PagoProveedor) -> "PagoProveedorResponse":
+    def desde_entidad(
+        cls, p: PagoProveedor, deuda_actual: float
+    ) -> "PagoProveedorResponse":
         return cls(
             id=p.id,  # type: ignore[arg-type]
             tipo=str(p.tipo),
@@ -555,6 +558,7 @@ class PagoProveedorResponse(BaseModel):
             solicitud_ingreso_id=p.solicitud_ingreso_id,
             registrado_por_nombre=p.registrado_por_nombre,
             created_at=p.created_at,
+            deuda_actual=deuda_actual,
         )
 
 

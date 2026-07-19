@@ -442,9 +442,10 @@ class HistorialPrecio:
 
     El trigger `trg_historial_precios_no_update` en BD rechaza UPDATE/DELETE.
     `precio_anterior` es `None` en el alta inicial del producto.
+    `id` es asignado por la BD en el INSERT; el adapter lo refresca con RETURNING.
     """
 
-    id: int | None
+    id: int
     producto_id: int
     precio_nuevo: Decimal
     tipo_precio: TipoPrecio

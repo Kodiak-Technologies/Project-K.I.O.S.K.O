@@ -149,12 +149,8 @@ async def registrar_compra_credito(
     )
     repo = SqlAlchemyProveedorRepository(db)
     prov = await repo.find_by_id(proveedor_id)
-    resp = PagoProveedorResponse.desde_entidad(pago)
-    if prov is not None:
-        resp.deuda_actual = float(prov.deuda_actual)
-    else:
-        resp.deuda_actual = 0.0
-    return resp
+    deuda_actual = float(prov.deuda_actual) if prov is not None else 0.0
+    return PagoProveedorResponse.desde_entidad(pago, deuda_actual=deuda_actual)
 
 
 @router.post(
@@ -184,12 +180,8 @@ async def registrar_pago(
     )
     repo = SqlAlchemyProveedorRepository(db)
     prov = await repo.find_by_id(proveedor_id)
-    resp = PagoProveedorResponse.desde_entidad(pago)
-    if prov is not None:
-        resp.deuda_actual = float(prov.deuda_actual)
-    else:
-        resp.deuda_actual = 0.0
-    return resp
+    deuda_actual = float(prov.deuda_actual) if prov is not None else 0.0
+    return PagoProveedorResponse.desde_entidad(pago, deuda_actual=deuda_actual)
 
 
 @router.get("/{proveedor_id}/pagos", response_model=PagosPaginadosResponse)
@@ -213,8 +205,12 @@ async def listar_pagos(
         page=page,
         page_size=page_size,
     )
+    deuda_actual = float(deuda) if deuda is not None else 0.0
     return PagosPaginadosResponse(
-        items=[PagoProveedorResponse.desde_entidad(p) for p in items],
-        deuda_actual=float(deuda) if deuda is not None else 0.0,
+        items=[
+            PagoProveedorResponse.desde_entidad(p, deuda_actual=deuda_actual)
+            for p in items
+        ],
+        deuda_actual=deuda_actual,
         total=total, page=page, page_size=page_size, total_pages=total_pages,
     )
