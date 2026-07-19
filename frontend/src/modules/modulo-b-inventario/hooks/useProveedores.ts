@@ -21,6 +21,7 @@ interface EstadoHook {
   error: string | null;
   noDisponible: boolean;
   recargar: (filtros?: FiltrosProveedores) => Promise<void>;
+  obtener: (id: number) => Promise<Proveedor>;
   crear: (datos: NuevoProveedor) => Promise<Proveedor>;
   editar: (id: number, datos: EdicionProveedor) => Promise<Proveedor>;
   registrarCompraCredito: (id: number, datos: NuevoPagoProveedor) => Promise<PagoProveedor>;
@@ -95,6 +96,8 @@ export function useProveedores(filtrosIniciales?: FiltrosProveedores): EstadoHoo
     []
   );
 
+  const obtener = useCallback((id: number) => proveedoresHttpAdapter.obtener(id), []);
+
   return {
     proveedores,
     paginados,
@@ -102,6 +105,7 @@ export function useProveedores(filtrosIniciales?: FiltrosProveedores): EstadoHoo
     error,
     noDisponible,
     recargar,
+    obtener,
     crear,
     editar,
     registrarCompraCredito,

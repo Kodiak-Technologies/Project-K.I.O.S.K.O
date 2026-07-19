@@ -1,5 +1,5 @@
 // Página para aprobar o rechazar ingresos de mercadería pendientes (solo ADMIN).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ClipboardCheck, X } from "lucide-react";
 import {
   Alert,
@@ -7,7 +7,6 @@ import {
   Card,
   EmptyState,
   Input,
-  Modal,
   ModuloPendiente,
   PageHeader,
   PageSpinner,
@@ -15,48 +14,65 @@ import {
   type Columna,
 } from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
+import { ModalConfirmacion } from "../components/ModalConfirmacion";
+import { PaginacionControles } from "../components/PaginacionControles";
 import { useIngresos } from "../hooks/useIngresos";
-import type { IngresoMercaderia } from "../types";
+import { useProductos } from "../hooks/useProductos";
+import type { SolicitudIngreso } from "../types";
 
 export default function AprobacionIngresos() {
-  const { ingresos, cargando, error, noDisponible, aprobar, rechazar } = useIngresos();
+  // Filtro server-side: solo pendientes (la cola de aprobación).
+  const { ingresos, paginados, cargando, error, noDisponible, recargar, aprobar, rechazar } =
+    useIngresos();
+  const { productos } = useProductos({ page_size: 200 });
 
-  const [paraRechazar, setParaRechazar] = useState<IngresoMercaderia | null>(null);
+  const [detalle, setDetalle] = useState<SolicitudIngreso | null>(null);
+  const [paraAprobar, setParaAprobar] = useState<SolicitudIngreso | null>(null);
+  const [paraRechazar, setParaRechazar] = useState<SolicitudIngreso | null>(null);
   const [motivo, setMotivo] = useState("");
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
-  const pendientes = ingresos.filter((i) => i.estado === "PENDIENTE");
+  useEffect(() => {
+    void recargar({ estado: "Pendiente", page, page_size: pageSize });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
 
-  async function manejarAprobar(ingreso: IngresoMercaderia) {
+  function nombreProducto(id: number): string {
+    return productos.find((p) => p.id === id)?.nombre ?? `#${id}`;
+  }
+
+  async function manejarAprobar() {
+    if (!paraAprobar) return;
+    setProcesando(true);
     setErrorAccion(null);
-    setMensaje(null);
     try {
-      await aprobar(ingreso.id);
-      // TODO PR3b: el modal de aprobación debería mostrar el resumen (líneas
-      // con productos/cantidades) antes de aprobar. Acá usamos un nombre
-      // resumido provisional.
-      const resumen = ingreso.lineas.length === 1
-        ? `producto #${ingreso.lineas[0].producto_id}`
-        : `${ingreso.lineas.length} productos`;
-      setMensaje(`Ingreso de '${resumen}' aprobado: el stock ya se actualizó.`);
+      const resp = await aprobar(paraAprobar.id);
+      setMensaje(
+        `Ingreso #${paraAprobar.id} aprobado: +${resp.unidades_agregadas} unidades en ${resp.productos_actualizados} producto(s).`,
+      );
+      setParaAprobar(null);
     } catch (e) {
       setErrorAccion(mensajeDeError(e));
+    } finally {
+      setProcesando(false);
     }
   }
 
   async function manejarRechazar() {
     if (!paraRechazar) return;
+    if (motivo.trim().length < 5) {
+      setErrorAccion("El motivo debe tener al menos 5 caracteres.");
+      return;
+    }
     setProcesando(true);
     setErrorAccion(null);
     try {
-      // PR3a: la API exige `{ motivo_rechazo }` en el body.
-      await rechazar(paraRechazar.id, { motivo_rechazo: motivo });
-      const resumen = paraRechazar.lineas.length === 1
-        ? `producto #${paraRechazar.lineas[0].producto_id}`
-        : `${paraRechazar.lineas.length} productos`;
-      setMensaje(`Ingreso de '${resumen}' rechazado.`);
+      await rechazar(paraRechazar.id, { motivo_rechazo: motivo.trim() });
+      setMensaje(`Ingreso #${paraRechazar.id} rechazado.`);
       setParaRechazar(null);
       setMotivo("");
     } catch (e) {
@@ -76,10 +92,10 @@ export default function AprobacionIngresos() {
       </div>
     );
   }
-  if (cargando) return <PageSpinner texto="Cargando pendientes…" />;
+  if (cargando && ingresos.length === 0) return <PageSpinner texto="Cargando pendientes…" />;
   if (error) return <Alert tono="peligro">{error}</Alert>;
 
-  const columnas: Columna<IngresoMercaderia>[] = [
+  const columnas: Columna<SolicitudIngreso>[] = [
     {
       titulo: "Fecha",
       render: (i) => (
@@ -89,40 +105,59 @@ export default function AprobacionIngresos() {
       ),
     },
     {
-      // TODO PR3b: la shape nueva es `lineas: DetalleSolicitud[]`. Acá
-      // mostramos un resumen mientras se rehace la pantalla.
-      titulo: "Producto",
+      titulo: "Foto boleta",
+      render: (i) =>
+        i.foto_boleta_url ? (
+          <a href={i.foto_boleta_url} target="_blank" rel="noopener noreferrer" className="block">
+            <img
+              src={i.foto_boleta_url}
+              alt="Boleta"
+              className="h-10 w-10 rounded border border-zinc-200 object-cover hover:opacity-80"
+            />
+          </a>
+        ) : (
+          <span className="text-xs text-zinc-400">Sin foto</span>
+        ),
+    },
+    {
+      titulo: "Productos",
       render: (i) => (
-        <span className="font-medium text-zinc-800">
-          {i.lineas.length === 1 ? `Producto #${i.lineas[0].producto_id}` : `${i.lineas.length} productos`}
-        </span>
+        <div>
+          <span className="font-medium text-zinc-800">
+            {i.cantidad_productos ?? i.lineas.length} unidades
+          </span>
+          <p className="text-xs text-zinc-500">{i.lineas.length} línea(s)</p>
+        </div>
       ),
     },
     {
-      titulo: "Cantidad",
-      alinear: "derecha",
-      render: (i) => <span className="tabular-nums">{i.cantidad_productos ?? 0}</span>,
-    },
-    {
       titulo: "Solicitado por",
+      soloEscritorio: true,
       render: (i) => i.solicitado_por_nombre,
     },
     {
       titulo: "Acciones",
       render: (i) => (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-1">
+          <Button compacto variante="secundario" onClick={() => setDetalle(i)}>
+            Ver detalle
+          </Button>
           <Button
             compacto
-            onClick={() => void manejarAprobar(i)}
+            onClick={() => setParaAprobar(i)}
             icono={<Check className="h-4 w-4" aria-hidden />}
           >
             Aprobar
           </Button>
           <Button
-            variante="secundario"
             compacto
+            variante="secundario"
             className="text-peligro"
-            onClick={() => setParaRechazar(i)}
+            onClick={() => {
+              setParaRechazar(i);
+              setMotivo("");
+              setErrorAccion(null);
+            }}
             icono={<X className="h-4 w-4" aria-hidden />}
           >
             Rechazar
@@ -153,7 +188,7 @@ export default function AprobacionIngresos() {
       <Card sinPadding>
         <Table
           columnas={columnas}
-          filas={pendientes}
+          filas={ingresos}
           claveDe={(i) => i.id}
           vacio={
             <EmptyState
@@ -163,39 +198,171 @@ export default function AprobacionIngresos() {
             />
           }
         />
+        <PaginacionControles
+          paginados={paginados}
+          page={page}
+          pageSize={pageSize}
+          onCambiarPage={setPage}
+          onCambiarPageSize={setPageSize}
+          etiqueta="pendientes"
+        />
       </Card>
 
-      <Modal
-        abierto={paraRechazar !== null}
-        titulo={
-          paraRechazar
-            ? `Rechazar ingreso de '${
-                paraRechazar.lineas.length === 1
-                  ? `producto #${paraRechazar.lineas[0].producto_id}`
-                  : `${paraRechazar.lineas.length} productos`
-              }'`
-            : "Rechazar ingreso"
+      {/* Modal: detalle completo de la solicitud */}
+      {detalle && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4"
+          onClick={() => setDetalle(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Detalle de la solicitud"
+            className="max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-lg sm:max-w-2xl sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
+              <h3 className="font-semibold text-zinc-900">Solicitud #{detalle.id}</h3>
+              <button
+                onClick={() => setDetalle(null)}
+                aria-label="Cerrar"
+                className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="space-y-4 px-5 py-4">
+              <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-zinc-500">Fecha</dt>
+                  <dd>{detalle.created_at ? new Date(detalle.created_at).toLocaleString("es-PE") : "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-zinc-500">Solicitado por</dt>
+                  <dd>{detalle.solicitado_por_nombre}</dd>
+                </div>
+                {detalle.monto_total != null && (
+                  <div>
+                    <dt className="text-zinc-500">Monto total</dt>
+                    <dd>S/ {detalle.monto_total.toFixed(2)}</dd>
+                  </div>
+                )}
+              </dl>
+              {detalle.foto_boleta_url && (
+                <a href={detalle.foto_boleta_url} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={detalle.foto_boleta_url}
+                    alt="Boleta"
+                    className="max-h-64 rounded-lg border border-zinc-200 object-contain"
+                  />
+                </a>
+              )}
+              <div>
+                <h4 className="mb-2 text-sm font-semibold text-zinc-800">Líneas</h4>
+                <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200">
+                  {detalle.lineas.map((l) => (
+                    <li key={l.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                      <span className="truncate">{nombreProducto(l.producto_id)}</span>
+                      <span className="ml-3 shrink-0 tabular-nums text-zinc-500">
+                        {l.cantidad} × S/ {l.precio_compra_unitario.toFixed(2)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
+              <Button variante="secundario" onClick={() => setDetalle(null)}>
+                Cerrar
+              </Button>
+              <Button
+                onClick={() => {
+                  setParaAprobar(detalle);
+                  setDetalle(null);
+                }}
+                icono={<Check className="h-4 w-4" aria-hidden />}
+              >
+                Aprobar
+              </Button>
+              <Button
+                variante="secundario"
+                className="text-peligro"
+                onClick={() => {
+                  setParaRechazar(detalle);
+                  setMotivo("");
+                  setDetalle(null);
+                }}
+                icono={<X className="h-4 w-4" aria-hidden />}
+              >
+                Rechazar
+              </Button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: confirmar aprobación */}
+      <ModalConfirmacion
+        abierto={paraAprobar !== null}
+        titulo="Aprobar ingreso"
+        mensaje={
+          paraAprobar
+            ? `Vas a sumar ${paraAprobar.cantidad_productos ?? paraAprobar.lineas.length} unidades al stock de ${
+                paraAprobar.lineas.length
+              } producto(s). Esta acción no se puede deshacer.`
+            : ""
         }
-        alCerrar={() => setParaRechazar(null)}
-        pie={
-          <>
-            <Button variante="secundario" onClick={() => setParaRechazar(null)}>
+        textoConfirmar="Aprobar"
+        cargando={procesando}
+        alCancelar={() => setParaAprobar(null)}
+        alConfirmar={() => void manejarAprobar()}
+      />
+
+      {/* Modal: rechazar (con motivo obligatorio) */}
+      <div
+        className={`fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4 ${
+          paraRechazar ? "" : "hidden"
+        }`}
+        onClick={() => !procesando && setParaRechazar(null)}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Rechazar ingreso"
+          className="w-full max-w-lg overflow-hidden rounded-t-2xl bg-white shadow-lg sm:rounded-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <header className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
+            <h3 className="font-semibold text-zinc-900">Rechazar ingreso #{paraRechazar?.id}</h3>
+            <button
+              onClick={() => setParaRechazar(null)}
+              disabled={procesando}
+              aria-label="Cerrar"
+              className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-50"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </header>
+          <div className="px-5 py-4">
+            <Input
+              label="Motivo del rechazo"
+              requerido
+              placeholder="ej. cantidad no coincide con la guía"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+            />
+            {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
+          </div>
+          <footer className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
+            <Button variante="secundario" onClick={() => setParaRechazar(null)} disabled={procesando}>
               Cancelar
             </Button>
             <Button variante="peligro" cargando={procesando} onClick={() => void manejarRechazar()}>
               Rechazar ingreso
             </Button>
-          </>
-        }
-      >
-        <Input
-          label="Motivo del rechazo"
-          requerido
-          placeholder="ej. cantidad no coincide con la guía"
-          value={motivo}
-          onChange={(e) => setMotivo(e.target.value)}
-        />
-      </Modal>
+          </footer>
+        </div>
+      </div>
     </div>
   );
 }

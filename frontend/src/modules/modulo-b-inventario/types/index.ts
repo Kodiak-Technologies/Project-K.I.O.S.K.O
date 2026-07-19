@@ -154,7 +154,7 @@ export interface FiltrosProductos extends FiltrosPaginacion {
 // Solicitudes de ingreso (ingresos de mercadería)
 // =============================================================================
 
-export type EstadoIngreso = "PENDIENTE" | "APROBADO" | "RECHAZADO";
+export type EstadoIngreso = "Pendiente" | "Aprobada" | "Rechazada";
 
 /** Alias de compat: la forma canónica nueva es `SolicitudIngreso` (con
  *  `lineas[]`, `proveedor_id`, `foto_boleta_url`). Las páginas legadas
@@ -227,7 +227,7 @@ export interface FiltrosIngresos extends FiltrosPaginacion {
 // Mermas
 // =============================================================================
 
-export type EstadoMerma = "PENDIENTE" | "CONFIRMADA" | "RECHAZADA";
+export type EstadoMerma = "Registrada" | "Confirmada" | "Rechazada";
 
 export type MotivoMerma = "vencimiento" | "rotura" | "otro";
 
@@ -370,7 +370,7 @@ export interface FiltrosPagosProveedor extends FiltrosPaginacion {
 // Movimientos de inventario (bitácora append-only)
 // =============================================================================
 
-export type TipoMovimiento = "INGRESO" | "MERMA" | "VENTA" | "DEVOLUCION" | "AJUSTE";
+export type TipoMovimiento = "ingreso" | "merma" | "venta" | "devolucion" | "ajuste";
 
 /** `GET /inventario/movimientos` (cada item). */
 export interface MovimientoInventario {
