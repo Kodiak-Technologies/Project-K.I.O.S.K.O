@@ -20,7 +20,13 @@ class CategoriaRepositoryPort(ABC):
     async def find_by_id(self, categoria_id: int) -> Categoria | None: ...
 
     @abstractmethod
-    async def actualizar(self, categoria_id: int, cambios: dict) -> Categoria:
+    async def actualizar(
+        self,
+        categoria_id: int,
+        cambios: dict,
+        usuario_id: int | None = None,
+        usuario_nombre: str | None = None,
+    ) -> Categoria:
         """Edita nombre y/o descripción. Valida unicidad de nombre si cambia."""
 
     @abstractmethod

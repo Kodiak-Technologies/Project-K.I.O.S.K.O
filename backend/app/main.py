@@ -17,8 +17,23 @@ from app.modules.modulo_a_seguridad.infrastructure.http.usuarios_router import (
 from app.modules.modulo_b_inventario.infrastructure.http.categorias_router import (
     router as categorias_router,
 )
+from app.modules.modulo_b_inventario.infrastructure.http.ingresos_router import (
+    router as ingresos_router,
+)
+from app.modules.modulo_b_inventario.infrastructure.http.inventario_movimientos_router import (
+    router as inventario_movimientos_router,
+)
+from app.modules.modulo_b_inventario.infrastructure.http.mermas_router import (
+    router as mermas_router,
+)
 from app.modules.modulo_b_inventario.infrastructure.http.productos_router import (
     router as productos_router,
+)
+from app.modules.modulo_b_inventario.infrastructure.http.proveedores_router import (
+    router as proveedores_router,
+)
+from app.modules.modulo_b_inventario.infrastructure.http.storage_router import (
+    router as storage_router,
 )
 from app.modules.modulo_c_ventas.application.cierre_automatico_usecase import (
     CierreAutomaticoUseCase,
@@ -65,6 +80,11 @@ app.include_router(configuracion_router)
 
 app.include_router(productos_router)
 app.include_router(categorias_router)
+app.include_router(ingresos_router)
+app.include_router(mermas_router)
+app.include_router(proveedores_router)
+app.include_router(inventario_movimientos_router)
+app.include_router(storage_router)
 
 app.include_router(caja_router)
 app.include_router(ventas_router)

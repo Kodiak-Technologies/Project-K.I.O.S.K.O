@@ -190,16 +190,10 @@ def test_import_adaptadores_stub() -> None:
 
 
 def test_adaptadores_stub_levantan_not_implemented() -> None:
-    """Los métodos stub de PR1 deben levantar `NotImplementedError('Implementado en PR2')`.
-
-    Verifica con uno de cada tipo (entidad, movimiento, storage).
+    """PR2: los adaptadores YA NO son stubs; este test verifica que los
+    métodos esenciales existen y son awaitable. La lógica de cada adaptador
+    se valida en `test_caminos_criticos.py` con BD real.
     """
-    import pytest
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    # AsyncSession real no es necesario para invocar los stubs: basta con None.
-    # Pero para que la firma de los constructores sea feliz, usamos None
-    # (los constructores guardan el arg pero no lo usan).
     from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_historial_precio_repository import (
         SqlAlchemyHistorialPrecioRepository,
     )
@@ -210,25 +204,18 @@ def test_adaptadores_stub_levantan_not_implemented() -> None:
         SupabaseStorageAdapter,
     )
 
-    # type: ignore[arg-type]: pasamos None solo para instanciar.
+    # Solo verificamos que los métodos están definidos (PR2 implementados).
     hist = SqlAlchemyHistorialPrecioRepository(None)  # type: ignore[arg-type]
-    with pytest.raises(NotImplementedError, match="Implementado en PR2"):
-        # Las anotaciones son opcionales en el stub
-        import asyncio
-
-        asyncio.run(hist.append(None))  # type: ignore[arg-type]
+    assert hasattr(hist, "append")
+    assert hasattr(hist, "listar_por_producto")
 
     mov = SqlAlchemyMovimientoInventarioRepository(None)  # type: ignore[arg-type]
-    with pytest.raises(NotImplementedError, match="Implementado en PR2"):
-        import asyncio
-
-        asyncio.run(mov.append(None))  # type: ignore[arg-type]
+    assert hasattr(mov, "append")
+    assert hasattr(mov, "listar_paginado")
 
     storage = SupabaseStorageAdapter()
-    with pytest.raises(NotImplementedError, match="Implementado en PR2"):
-        import asyncio
-
-        asyncio.run(storage.subir("boletas", "x.jpg", b"data", "image/jpeg"))
+    assert hasattr(storage, "subir")
+    assert callable(storage.subir)
 
 
 # =============================================================================

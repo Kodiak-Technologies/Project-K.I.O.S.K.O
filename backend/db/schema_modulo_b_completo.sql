@@ -151,59 +151,8 @@ CREATE INDEX IF NOT EXISTS idx_detsol_producto
     ON detalle_solicitud (producto_id);
 
 -- -----------------------------------------------------------------------------
--- Sección 5: movimientos_inventario (bitácora append-only)
--- -----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS movimientos_inventario (
-    id                        BIGSERIAL      PRIMARY KEY,
-    producto_id               BIGINT         NOT NULL,
-    cantidad                  INT            NOT NULL,
-    tipo                      VARCHAR(20)    NOT NULL,
-    motivo                    VARCHAR(200),
-    solicitud_ingreso_id      BIGINT,
-    merma_id                  BIGINT,
-    created_at                TIMESTAMPTZ    NOT NULL DEFAULT now(),
-    registrado_por            BIGINT         NOT NULL,
-    registrado_por_nombre     VARCHAR(100)   NOT NULL,
-    CONSTRAINT chk_mov_cantidad_no_cero  CHECK (cantidad <> 0),
-    CONSTRAINT chk_mov_tipo
-        CHECK (tipo IN ('ingreso','merma','ajuste','venta','devolucion')),
-    CONSTRAINT chk_mov_signo_por_tipo CHECK (
-        (tipo IN ('ingreso','devolucion') AND cantidad > 0) OR
-        (tipo IN ('merma','venta')       AND cantidad < 0) OR
-        (tipo = 'ajuste')
-    ),
-    CONSTRAINT chk_mov_ingreso_tiene_solicitud
-        CHECK (tipo <> 'ingreso' OR solicitud_ingreso_id IS NOT NULL),
-    CONSTRAINT chk_mov_merma_tiene_merma
-        CHECK (
-            tipo <> 'merma' OR (merma_id IS NOT NULL AND motivo IS NOT NULL AND length(trim(motivo)) > 0)
-        ),
-    CONSTRAINT fk_mov_producto
-        FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE RESTRICT,
-    CONSTRAINT fk_mov_solicitud
-        FOREIGN KEY (solicitud_ingreso_id) REFERENCES solicitudes_ingreso(id) ON DELETE RESTRICT,
-    CONSTRAINT fk_mov_merma
-        FOREIGN KEY (merma_id) REFERENCES mermas(id) ON DELETE RESTRICT,
-    CONSTRAINT fk_mov_usuario
-        FOREIGN KEY (registrado_por) REFERENCES usuarios(id) ON DELETE RESTRICT
-);
-
-CREATE INDEX IF NOT EXISTS idx_mov_producto_fecha
-    ON movimientos_inventario (producto_id, created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_mov_tipo
-    ON movimientos_inventario (tipo);
-
-CREATE INDEX IF NOT EXISTS idx_mov_solicitud
-    ON movimientos_inventario (solicitud_ingreso_id)
-    WHERE solicitud_ingreso_id IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_mov_merma
-    ON movimientos_inventario (merma_id)
-    WHERE merma_id IS NOT NULL;
-
--- -----------------------------------------------------------------------------
--- Sección 6: mermas (HU-B12, RF-23) — flujo de validación en 2 pasos (D-14)
+-- Sección 5: mermas (HU-B12, RF-23) — flujo de validación en 2 pasos (D-14)
+--   Creada ANTES de movimientos_inventario porque ese le hace FK.
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS mermas (
     id                          BIGSERIAL    PRIMARY KEY,
@@ -258,6 +207,59 @@ CREATE INDEX IF NOT EXISTS idx_mermas_motivo
 CREATE INDEX IF NOT EXISTS idx_mermas_estado
     ON mermas (estado, created_at DESC)
     WHERE deleted_at IS NULL;
+
+-- -----------------------------------------------------------------------------
+-- Sección 6: movimientos_inventario (bitácora append-only)
+--   Depende de mermas (FK a mermas.id), por eso se crea después.
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS movimientos_inventario (
+    id                        BIGSERIAL      PRIMARY KEY,
+    producto_id               BIGINT         NOT NULL,
+    cantidad                  INT            NOT NULL,
+    tipo                      VARCHAR(20)    NOT NULL,
+    motivo                    VARCHAR(200),
+    solicitud_ingreso_id      BIGINT,
+    merma_id                  BIGINT,
+    created_at                TIMESTAMPTZ    NOT NULL DEFAULT now(),
+    registrado_por            BIGINT         NOT NULL,
+    registrado_por_nombre     VARCHAR(100)   NOT NULL,
+    CONSTRAINT chk_mov_cantidad_no_cero  CHECK (cantidad <> 0),
+    CONSTRAINT chk_mov_tipo
+        CHECK (tipo IN ('ingreso','merma','ajuste','venta','devolucion')),
+    CONSTRAINT chk_mov_signo_por_tipo CHECK (
+        (tipo IN ('ingreso','devolucion') AND cantidad > 0) OR
+        (tipo IN ('merma','venta')       AND cantidad < 0) OR
+        (tipo = 'ajuste')
+    ),
+    CONSTRAINT chk_mov_ingreso_tiene_solicitud
+        CHECK (tipo <> 'ingreso' OR solicitud_ingreso_id IS NOT NULL),
+    CONSTRAINT chk_mov_merma_tiene_merma
+        CHECK (
+            tipo <> 'merma' OR (merma_id IS NOT NULL AND motivo IS NOT NULL AND length(trim(motivo)) > 0)
+        ),
+    CONSTRAINT fk_mov_producto
+        FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_mov_solicitud
+        FOREIGN KEY (solicitud_ingreso_id) REFERENCES solicitudes_ingreso(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_mov_merma
+        FOREIGN KEY (merma_id) REFERENCES mermas(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_mov_usuario
+        FOREIGN KEY (registrado_por) REFERENCES usuarios(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_mov_producto_fecha
+    ON movimientos_inventario (producto_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_mov_tipo
+    ON movimientos_inventario (tipo);
+
+CREATE INDEX IF NOT EXISTS idx_mov_solicitud
+    ON movimientos_inventario (solicitud_ingreso_id)
+    WHERE solicitud_ingreso_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_mov_merma
+    ON movimientos_inventario (merma_id)
+    WHERE merma_id IS NOT NULL;
 
 -- -----------------------------------------------------------------------------
 -- Sección 7: pagos_proveedor (HU-B14) — historial de deuda (D-12, D-15)

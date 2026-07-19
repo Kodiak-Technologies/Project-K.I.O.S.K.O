@@ -2,7 +2,7 @@
 
 > Especificación de la **capa HTTP** del Módulo B y de los **contratos** con el Módulo C (Ventas) y con el frontend.
 > Autor: Brayan. Mantenedor: equipo Módulo B.
-> Versión: 1.0.
+> Versión: 1.1. (PR2: lógica de catálogo, inventario, ingresos, mermas, proveedores y storage implementada).
 
 ## 1. Introducción
 
