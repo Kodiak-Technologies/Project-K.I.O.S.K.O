@@ -17,6 +17,25 @@ from app.modules.modulo_a_seguridad.infrastructure.http.roles_router import rout
 from app.modules.modulo_a_seguridad.infrastructure.http.usuarios_router import (
     router as usuarios_router,
 )
+from app.modules.modulo_b_inventario.infrastructure.http.categorias_router import (
+    router as categorias_router,
+)
+from app.modules.modulo_b_inventario.infrastructure.http.productos_router import (
+    router as productos_router,
+)
+from app.modules.modulo_c_ventas.application.cierre_automatico_usecase import (
+    CierreAutomaticoUseCase,
+)
+from app.modules.modulo_c_ventas.infrastructure.adapters.database.sqlalchemy_caja_repository import (
+    SqlAlchemyCajaRepository,
+)
+from app.modules.modulo_c_ventas.infrastructure.http.caja_router import router as caja_router
+from app.modules.modulo_c_ventas.infrastructure.http.fiados_router import router as fiados_router
+from app.modules.modulo_c_ventas.infrastructure.http.metodos_pago_router import (
+    router as metodos_pago_router,
+)
+from app.modules.modulo_c_ventas.infrastructure.http.ventas_router import router as ventas_router
+from app.shared.database.session import SessionLocal
 from app.shared.http.error_handlers import registrar_error_handlers
 from app.shared.http.middlewares import registrar_middlewares
 
@@ -58,6 +77,15 @@ async def _ejecutar_tarea_respaldos() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    async with SessionLocal() as db:
+        try:
+            usecase = CierreAutomaticoUseCase(SqlAlchemyCajaRepository(db))
+            await usecase.ejecutar()
+            await db.commit()
+        except Exception as exc:
+            await db.rollback()
+            logger.error("Fallo en cierre automático al arrancar: %s", exc, exc_info=True)
+
     logger.info("Iniciando tareas en segundo plano...")
     task_reintentar = asyncio.create_task(_ejecutar_tarea_reintentar())
     task_respaldos = asyncio.create_task(_ejecutar_tarea_respaldos())
@@ -72,12 +100,19 @@ app = FastAPI(title="Tienda Sistema API", docs_url="/docs", lifespan=lifespan)
 registrar_middlewares(app)
 registrar_error_handlers(app)
 
-# --- Módulo A: Seguridad, Accesos, Configuración y Auditoría (Matías) ---
 app.include_router(auth_router)
 app.include_router(usuarios_router)
 app.include_router(roles_router)
 app.include_router(bitacora_router)
 app.include_router(configuracion_router)
+
+app.include_router(productos_router)
+app.include_router(categorias_router)
+
+app.include_router(caja_router)
+app.include_router(ventas_router)
+app.include_router(metodos_pago_router)
+app.include_router(fiados_router)
 
 # --- Módulo D (Fabrizio): Documentos ---
 from app.modules.modulo_d_documentos.infrastructure.http.boletas_router import router as boletas_router
@@ -92,10 +127,7 @@ app.include_router(notificaciones_router)
 app.include_router(respaldos_router)
 app.include_router(drive_router)
 
-# --- Módulo B (Brayan) y C (Clever): montar sus routers aquí ---
-
 
 @app.get("/health", tags=["Infra"])
 async def health():
-    """Usado por Cloud Run para verificar que la app está viva."""
     return {"status": "ok"}

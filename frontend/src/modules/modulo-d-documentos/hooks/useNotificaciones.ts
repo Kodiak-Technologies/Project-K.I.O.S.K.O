@@ -12,8 +12,9 @@ export function useNotificaciones() {
   const [noDisponible, setNoDisponible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // `cargando` es solo para la primera carga; las recargas son silenciosas
+  // (la campanita de la TopBar recarga cada vez que se abre).
   const recargar = useCallback(async () => {
-    setCargando(true);
     setError(null);
     try {
       setNotificaciones(await notificacionesHttpAdapter.listar());

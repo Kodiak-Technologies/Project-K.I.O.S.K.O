@@ -1,7 +1,9 @@
-// Página de historial de ventas con filtros. Anular requiere permiso de ADMIN
-// (el backend lo valida); acá solo se muestra la acción al ADMIN.
+// Página de historial de ventas con filtros. Anular y devolver los puede hacer
+// también el cajero (HU-C08): no se pide autorización previa, pero TODO deja
+// rastro que la administradora revisa desde su panel de caja y la bitácora.
+// El backend valida los permisos (ventas.anular / ventas.devolver) en servidor.
 import { useState } from "react";
-import { History } from "lucide-react";
+import { History, Printer, Undo2 } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -16,19 +18,21 @@ import {
   Table,
   type Columna,
 } from "../../../shared/components/ui";
-import { useAuthContext } from "../../../shared/lib/auth-context";
 import { mensajeDeError } from "../../../shared/lib/http-client";
+import { useTema } from "../../../shared/lib/theme-context";
+import { ModalDevolucion } from "../components/ModalDevolucion";
+import { imprimirTicket, preferenciaPapel } from "../services/ticket-printer";
 import { useVenta } from "../hooks/useVenta";
 import type { Venta } from "../types";
 
 export default function HistorialVentas() {
-  const { usuario } = useAuthContext();
-  const { ventas, cargando, error, noDisponible, recargar, anular } = useVenta();
-  const esAdmin = usuario?.rol === "ADMIN";
+  const { tema } = useTema();
+  const { ventas, cargando, error, noDisponible, recargar, anular, devolver } = useVenta();
 
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [paraAnular, setParaAnular] = useState<Venta | null>(null);
+  const [paraDevolver, setParaDevolver] = useState<Venta | null>(null);
   const [motivo, setMotivo] = useState("");
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
@@ -40,9 +44,28 @@ export default function HistorialVentas() {
     setErrorAccion(null);
     try {
       await anular(paraAnular.id, motivo);
-      setMensaje(`Venta #${paraAnular.id} anulada. Quedó registrada en la bitácora.`);
+      setMensaje(
+        `Venta #${paraAnular.id} anulada: stock repuesto y caja ajustada. El rastro queda para la administradora.`
+      );
       setParaAnular(null);
       setMotivo("");
+    } catch (e) {
+      setErrorAccion(mensajeDeError(e));
+    } finally {
+      setProcesando(false);
+    }
+  }
+
+  async function manejarDevolver(items: { detalle_id: number; cantidad: number }[], motivoDev: string) {
+    if (!paraDevolver) return;
+    setProcesando(true);
+    setErrorAccion(null);
+    try {
+      await devolver(paraDevolver.id, items, motivoDev);
+      setMensaje(
+        `Devolución registrada en la venta #${paraDevolver.id}: stock repuesto y rastro guardado.`
+      );
+      setParaDevolver(null);
     } catch (e) {
       setErrorAccion(mensajeDeError(e));
     } finally {
@@ -94,21 +117,65 @@ export default function HistorialVentas() {
     {
       titulo: "Estado",
       render: (v) =>
-        v.anulada ? <Badge tono="peligro">Anulada</Badge> : <Badge tono="exito">Válida</Badge>,
+        v.estado === "ANULADA" ? (
+          <Badge tono="peligro">Anulada</Badge>
+        ) : v.estado === "DEVUELTA_PARCIAL" ? (
+          <Badge tono="alerta">Dev. parcial</Badge>
+        ) : (
+          <Badge tono="exito">Válida</Badge>
+        ),
     },
-    ...(esAdmin
-      ? [
-          {
-            titulo: "Acciones",
-            render: (v: Venta) =>
-              v.anulada ? null : (
-                <Button variante="secundario" compacto className="text-peligro" onClick={() => setParaAnular(v)}>
-                  Anular
-                </Button>
-              ),
-          } satisfies Columna<Venta>,
-        ]
-      : []),
+    {
+      // HU-C05: reimprimir el ticket si el cliente lo pide después
+      titulo: "Ticket",
+      render: (v) =>
+        v.anulada ? null : (
+          <Button
+            variante="fantasma"
+            compacto
+            title="Imprimir ticket"
+            aria-label={`Imprimir ticket de la venta ${v.id}`}
+            onClick={() =>
+              imprimirTicket(
+                v,
+                { nombre: tema.nombreNegocio, logoUrl: tema.logoUrl },
+                preferenciaPapel.obtener()
+              )
+            }
+            icono={<Printer className="h-4 w-4" aria-hidden />}
+          />
+        ),
+    },
+    {
+      titulo: "Acciones",
+      render: (v: Venta) =>
+        v.anulada ? null : (
+          <div className="flex items-center gap-1">
+            <Button
+              variante="secundario"
+              compacto
+              onClick={() => {
+                setErrorAccion(null);
+                setParaDevolver(v);
+              }}
+              icono={<Undo2 className="h-4 w-4" aria-hidden />}
+            >
+              Devolver
+            </Button>
+            <Button
+              variante="secundario"
+              compacto
+              className="text-peligro"
+              onClick={() => {
+                setErrorAccion(null);
+                setParaAnular(v);
+              }}
+            >
+              Anular
+            </Button>
+          </div>
+        ),
+    },
   ];
 
   return (
@@ -174,7 +241,8 @@ export default function HistorialVentas() {
       >
         <div className="space-y-3">
           <p className="text-sm text-zinc-600">
-            La anulación devuelve el stock y queda registrada en la bitácora con tu usuario.
+            La anulación repone el stock, descuenta el efectivo de la caja actual y queda
+            registrada con tu usuario para que la administradora la revise.
           </p>
           <Input
             label="Motivo"
@@ -186,6 +254,15 @@ export default function HistorialVentas() {
           {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
         </div>
       </Modal>
+
+      {/* Devolución parcial (cambio de producto) */}
+      <ModalDevolucion
+        venta={paraDevolver}
+        procesando={procesando}
+        error={errorAccion}
+        alCerrar={() => setParaDevolver(null)}
+        alConfirmar={(items, motivoDev) => void manejarDevolver(items, motivoDev)}
+      />
     </div>
   );
 }

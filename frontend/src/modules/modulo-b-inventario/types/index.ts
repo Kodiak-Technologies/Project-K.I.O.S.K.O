@@ -36,4 +36,6 @@ export interface NuevoProducto {
   categoria_id: number | null;
   precio: number;
   stock_minimo: number;
+  /** Existencias con las que se da de alta (el flujo formal de reposición es el de ingresos). */
+  stock_inicial?: number;
 }

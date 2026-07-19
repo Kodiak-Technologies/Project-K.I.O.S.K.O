@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Bell,
   ClipboardCheck,
+  HandCoins,
   History,
   Home,
   Package,
@@ -43,6 +44,7 @@ const GRUPOS: Grupo[] = [
     enlaces: [
       { a: "/pos", texto: "Punto de venta", icono: ShoppingCart },
       { a: "/caja", texto: "Caja", icono: Wallet },
+      { a: "/fiados", texto: "Fiados", icono: HandCoins },
       { a: "/historial-ventas", texto: "Historial", icono: History },
     ],
   },
@@ -88,7 +90,7 @@ function Item({ enlace }: { enlace: Enlace }) {
       {({ isActive }) => (
         <>
           {isActive && <span className="absolute left-0 h-5 w-1 rounded-r bg-marca" aria-hidden />}
-          <Icono className="h-5 w-5 shrink-0" aria-hidden />
+          <Icono className={`h-5 w-5 shrink-0 ${isActive ? "text-marca" : ""}`} aria-hidden />
           {enlace.texto}
         </>
       )}
@@ -103,12 +105,13 @@ export function Sidebar() {
 
   return (
     <div className="flex h-full flex-col border-r border-zinc-200 bg-white">
-      {/* Identidad del negocio */}
-      <div className="flex items-center gap-2.5 border-b border-zinc-100 px-4 py-4">
+      {/* Identidad del negocio. Altura FIJA h-16, igual que la TopBar: así los
+          bordes inferiores quedan alineados sin importar el logo que suban. */}
+      <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-zinc-100 px-4">
         {tema.logoUrl ? (
-          <img src={tema.logoUrl} alt="Logo" className="h-9 w-9 rounded-lg object-contain" />
+          <img src={tema.logoUrl} alt="Logo" className="h-9 w-9 shrink-0 rounded-lg object-contain" />
         ) : (
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-900 text-white">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-marca text-white">
             <Store className="h-5 w-5" aria-hidden />
           </span>
         )}

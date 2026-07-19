@@ -12,7 +12,7 @@ interface Props {
 
 export function Card({ titulo, descripcion, accion, sinPadding = false, className = "", children }: Props) {
   return (
-    <section className={`rounded-xl border border-zinc-200 bg-white shadow-tarjeta ${className}`}>
+    <section className={`rounded-xl border border-zinc-200 bg-white shadow-tarjeta overflow-hidden ${className}`}>
       {(titulo || accion) && (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 px-4 py-3 sm:px-5">
           <div>
