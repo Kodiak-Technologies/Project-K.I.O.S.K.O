@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -54,17 +55,38 @@ from app.shared.http.middlewares import registrar_middlewares
 logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    async with SessionLocal() as db:
-        try:
+async def _ejecutar_cierre_automatico_background() -> None:
+    """Cierre automático de caja como tarea en segundo plano.
+
+    Se lanza DESPUÉS del yield del lifespan para no bloquear el startup del
+    servidor si la base de datos está lenta o el pool del Supabase Pooler
+    tiene una conexión muerta al momento del arranque. Cualquier error se
+    loguea y la app sigue funcionando con normalidad.
+    """
+    try:
+        async with SessionLocal() as db:
             usecase = CierreAutomaticoUseCase(SqlAlchemyCajaRepository(db))
             await usecase.ejecutar()
             await db.commit()
-        except Exception as exc:
-            await db.rollback()
-            logger.error("Fallo en cierre automático al arrancar: %s", exc, exc_info=True)
-    yield
+    except Exception as exc:
+        logger.error(
+            "Cierre automático de caja falló (no afecta el funcionamiento del servidor): %s",
+            exc,
+            exc_info=True,
+        )
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # El yield debe ejecutarse sí o sí; nunca debe propagarse una excepción
+    # previa porque eso impediría que uvicorn termine de arrancar y deje al
+    # server "vivo pero sin aceptar conexiones".
+    try:
+        yield
+    finally:
+        # Background task post-startup. Usamos create_task para no bloquear
+        # el startup y dar margen a que el pool de conexiones se estabilice.
+        asyncio.create_task(_ejecutar_cierre_automatico_background())
 
 
 app = FastAPI(title="Tienda Sistema API", docs_url="/docs", lifespan=lifespan)

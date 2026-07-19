@@ -35,6 +35,10 @@ PERMISOS = [
     ("inventario.aprobar_ingreso", "Aprobar ingresos de mercadería", False),
     ("inventario.solicitar_ingreso", "Solicitar/registrar ingresos de mercadería", True),
     ("inventario.ver", "Consultar inventario y stock", True),
+    ("proveedores.compras_credito", "Registrar compras a crédito de proveedores", False),
+    ("proveedores.gestionar", "Gestionar proveedores", False),
+    ("proveedores.pagos", "Registrar pagos a proveedores", False),
+    ("proveedores.ver", "Ver proveedores", True),
     ("ventas.registrar", "Registrar ventas en el POS", True),
     # El cajero puede anular/devolver dejando rastro (HU-C08); el ADMIN supervisa
     # desde el panel de caja y puede quitarle el permiso sin redeploy si lo desea.

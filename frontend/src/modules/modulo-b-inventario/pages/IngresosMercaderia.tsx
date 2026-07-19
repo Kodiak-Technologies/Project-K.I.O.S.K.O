@@ -40,7 +40,7 @@ export default function IngresosMercaderia() {
 
   const { ingresos, paginados, cargando, error, noDisponible, recargar, solicitar } = useIngresos();
   const { productos } = useProductos({ page_size: 200 });
-  const { proveedores } = useProveedores({ page_size: 100 });
+  const { proveedores, error: errorProveedores } = useProveedores({ page_size: 100 });
 
   const [lineas, setLineas] = useState<LineaIngreso[]>([LINEA_VACIA]);
   const [proveedorId, setProveedorId] = useState<number | "">("");
@@ -216,6 +216,9 @@ export default function IngresosMercaderia() {
               </option>
             ))}
           </Select>
+          {errorProveedores && (
+            <Alert tono="peligro">No se pudieron cargar los proveedores: {errorProveedores}</Alert>
+          )}
           <div className="space-y-3">
             {lineas.map((l, i) => (
               <FormularioLineaIngreso

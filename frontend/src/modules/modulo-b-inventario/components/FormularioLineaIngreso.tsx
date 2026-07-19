@@ -53,7 +53,7 @@ export function FormularioLineaIngreso({
           </button>
         )}
       </div>
-      <div className="grid gap-3 sm:grid-cols-[1fr_5rem_7rem]">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_6rem] lg:grid-cols-[1fr_6rem_9rem]">
         {productos ? (
           <Select
             label="Producto"

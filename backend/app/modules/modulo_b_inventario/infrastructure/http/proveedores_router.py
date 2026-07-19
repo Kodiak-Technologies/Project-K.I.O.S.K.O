@@ -33,7 +33,7 @@ async def listar(
     activo: bool | None = None,
     page: int = 1,
     page_size: int = 20,
-    _usuario: Usuario = Depends(require_permission("proveedores.gestionar")),
+    _usuario: Usuario = Depends(require_permission("proveedores.ver")),
     db: AsyncSession = Depends(get_db),
 ):
     items, total, page, page_size, total_pages = await contenedor.listar_proveedores_usecase(

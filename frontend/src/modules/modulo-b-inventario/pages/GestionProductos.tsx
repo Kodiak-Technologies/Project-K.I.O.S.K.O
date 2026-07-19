@@ -23,39 +23,26 @@ import { SubirImagen } from "../components/SubirImagen";
 import { useProductos } from "../hooks/useProductos";
 import type { EdicionProducto, NuevoProducto, Producto } from "../types";
 
-// PR3b: el form ahora separa precio_venta y precio_compra_actual, y tiene
-// toggle `es_codigo_interno` + upload de `foto_url`.
-const esquemaProducto = z
-  .object({
-    nombre: z.string().min(1, "Ingresa el nombre del producto"),
-    codigo: z.string().nullable().optional(),
-    precio_venta: z.number().positive("El precio de venta debe ser mayor a 0"),
-    precio_compra_actual: z.number().min(0, "El precio de compra no puede ser negativo"),
-    stock_minimo: z.number().int().min(0, "El stock mínimo no puede ser negativo"),
-    stock_inicial: z.number().int().min(0).optional(),
-    categoria_id: z.number().nullable().optional(),
-    es_codigo_interno: z.boolean(),
-    foto_url: z.string().nullable().optional(),
-  })
-  .superRefine((val, ctx) => {
-    if (!val.es_codigo_interno && !val.codigo?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["codigo"],
-        message: "Escaneá o escribí un código (o activá 'código interno').",
-      });
-    }
-  });
+// Formulario simplificado: un solo precio de venta y código siempre manual.
+// El backend sigue recibiendo `precio_compra_actual=0` y `es_codigo_interno=false`
+// por compatibilidad, pero no se exponen al usuario.
+const esquemaProducto = z.object({
+  nombre: z.string().min(1, "Ingresa el nombre del producto"),
+  codigo: z.string().min(1, "Escaneá o escribí un código"),
+  precio_venta: z.number().positive("El precio de venta debe ser mayor a 0"),
+  stock_minimo: z.number().int().min(0, "El stock mínimo no puede ser negativo"),
+  stock_inicial: z.number().int().min(0).optional(),
+  categoria_id: z.number().nullable().optional(),
+  foto_url: z.string().nullable().optional(),
+});
 
 interface FormProducto {
   codigo: string;
   nombre: string;
   categoria_id: number | null;
   precio_venta: number;
-  precio_compra_actual: number;
   stock_minimo: number;
   stock_inicial: number;
-  es_codigo_interno: boolean;
   foto_url: string | null;
 }
 
@@ -64,10 +51,8 @@ const FORMULARIO_VACIO: FormProducto = {
   nombre: "",
   categoria_id: null,
   precio_venta: 0,
-  precio_compra_actual: 0,
   stock_minimo: 0,
   stock_inicial: 0,
-  es_codigo_interno: false,
   foto_url: null,
 };
 
@@ -97,10 +82,8 @@ export default function GestionProductos() {
       nombre: p.nombre,
       categoria_id: p.categoria_id,
       precio_venta: p.precio_venta ?? p.precio,
-      precio_compra_actual: p.precio_compra_actual,
       stock_minimo: p.stock_minimo,
       stock_inicial: 0,
-      es_codigo_interno: p.es_codigo_interno,
       foto_url: p.foto_url,
     });
     setErrorAccion(null);
@@ -121,10 +104,9 @@ export default function GestionProductos() {
         // El backend NO acepta precios en PATCH /productos/{id} (van por /precio).
         const cambios: EdicionProducto = {
           nombre: formulario.nombre.trim(),
-          codigo: formulario.es_codigo_interno ? undefined : formulario.codigo.trim() || undefined,
+          codigo: formulario.codigo.trim(),
           categoria_id: formulario.categoria_id,
           stock_minimo: formulario.stock_minimo,
-          es_codigo_interno: formulario.es_codigo_interno,
           foto_url: formulario.foto_url,
         };
         await actualizar(editando.id, cambios);
@@ -132,13 +114,13 @@ export default function GestionProductos() {
       } else {
         const nuevo: NuevoProducto = {
           nombre: formulario.nombre.trim(),
-          codigo: formulario.es_codigo_interno ? null : formulario.codigo.trim(),
+          codigo: formulario.codigo.trim(),
           categoria_id: formulario.categoria_id,
           precio_venta: formulario.precio_venta,
-          precio_compra_actual: formulario.precio_compra_actual,
+          precio_compra_actual: 0,
           stock_minimo: formulario.stock_minimo,
           stock_inicial: formulario.stock_inicial,
-          es_codigo_interno: formulario.es_codigo_interno,
+          es_codigo_interno: false,
           foto_url: formulario.foto_url,
         };
         await crear(nuevo);
@@ -283,30 +265,12 @@ export default function GestionProductos() {
       >
         <form onSubmit={(e) => void manejarGuardar(e)} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="flex items-center gap-2 self-end pb-2 sm:col-span-2">
-              <input
-                type="checkbox"
-                checked={formulario.es_codigo_interno}
-                onChange={(e) =>
-                  setFormulario({
-                    ...formulario,
-                    es_codigo_interno: e.target.checked,
-                    codigo: e.target.checked ? "" : formulario.codigo,
-                  })
-                }
-                className="h-4 w-4 rounded border-zinc-300"
-              />
-              <span className="text-sm text-zinc-700">
-                Es código interno (el backend autogenere el código)
-              </span>
-            </label>
             <Input
               label="Código (escanéalo o escríbelo)"
-              requerido={!formulario.es_codigo_interno}
+              requerido
               autoFocus={!editando}
-              placeholder={formulario.es_codigo_interno ? "(autogenerado)" : "ej. 7750100000000 o PAP-001"}
+              placeholder="ej. 7750100000000 o PAP-001"
               value={formulario.codigo}
-              disabled={formulario.es_codigo_interno}
               onChange={(e) => setFormulario({ ...formulario, codigo: e.target.value })}
             />
             <Input
@@ -317,7 +281,7 @@ export default function GestionProductos() {
               onChange={(e) => setFormulario({ ...formulario, nombre: e.target.value })}
             />
             <Input
-              label="Precio de venta (S/)"
+              label="Precio (S/)"
               requerido
               type="number"
               step="0.10"
@@ -325,17 +289,6 @@ export default function GestionProductos() {
               disabled={!!editando}
               value={formulario.precio_venta || ""}
               onChange={(e) => setFormulario({ ...formulario, precio_venta: Number(e.target.value) })}
-            />
-            <Input
-              label="Precio de compra actual (S/)"
-              type="number"
-              step="0.10"
-              min={0}
-              disabled={!!editando}
-              value={formulario.precio_compra_actual || ""}
-              onChange={(e) =>
-                setFormulario({ ...formulario, precio_compra_actual: Number(e.target.value) })
-              }
             />
             <Input
               label="Stock mínimo (alerta)"
