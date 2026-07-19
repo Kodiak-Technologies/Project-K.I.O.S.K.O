@@ -1,5 +1,6 @@
 // Página de historial de notificaciones (stock bajo, cierres de caja, sistema).
-import { Bell, BellOff } from "lucide-react";
+import { useState } from "react";
+import { Bell, BellOff, Settings } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -9,19 +10,31 @@ import {
   ModuloPendiente,
   PageHeader,
   PageSpinner,
+  Select,
   type Tono,
 } from "../../../shared/components/ui";
 import { useNotificaciones } from "../hooks/useNotificaciones";
+import { useAuthContext } from "../../../shared/lib/auth-context";
 import type { TipoNotificacion } from "../types";
 
 const TONO_TIPO: Record<TipoNotificacion, Tono> = {
   STOCK_BAJO: "alerta",
   CIERRE_CAJA: "info",
+  SOLICITUD_INGRESO: "alerta",
   SISTEMA: "neutro",
 };
 
 export default function Notificaciones() {
-  const { notificaciones, cargando, error, noDisponible, marcarLeida } = useNotificaciones();
+  const { usuario } = useAuthContext();
+  const esAdmin = usuario?.rol === "ADMIN";
+  const { notificaciones, config, cargando, error, noDisponible, marcarLeida, actualizarConfig } =
+    useNotificaciones();
+  const [mostrarConfig, setMostrarConfig] = useState(false);
+  const [filtroTipo, setFiltroTipo] = useState<TipoNotificacion | "TODOS">("TODOS");
+
+  const notificacionesFiltradas = filtroTipo === "TODOS"
+    ? notificaciones
+    : notificaciones.filter((n) => n.tipo === filtroTipo);
 
   if (noDisponible) {
     return (
@@ -38,15 +51,86 @@ export default function Notificaciones() {
 
   return (
     <div className="max-w-2xl">
-      <PageHeader titulo="Notificaciones" descripcion="Avisos del sistema: stock bajo, cierres de caja y más." />
+      <PageHeader
+        titulo="Notificaciones"
+        descripcion="Avisos del sistema: stock bajo, cierres de caja y más."
+        acciones={
+          esAdmin ? (
+            <Button
+              variante="secundario"
+              icono={<Settings className="h-4 w-4" aria-hidden />}
+              onClick={() => setMostrarConfig(!mostrarConfig)}
+            >
+              Configuración
+            </Button>
+          ) : undefined
+        }
+      />
 
-      {notificaciones.length === 0 ? (
+      {mostrarConfig && config && (
+        <Card titulo="Configuración de notificaciones" className="mb-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="telegram"
+                checked={config.canal_telegram_activo}
+                onChange={(e) => void actualizarConfig({ canal_telegram_activo: e.target.checked })}
+                className="h-4 w-4 rounded border-zinc-300"
+              />
+              <label htmlFor="telegram" className="text-sm text-zinc-700">
+                Telegram
+              </label>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="correo"
+                checked={config.canal_correo_activo}
+                onChange={(e) => void actualizarConfig({ canal_correo_activo: e.target.checked })}
+                className="h-4 w-4 rounded border-zinc-300"
+              />
+              <label htmlFor="correo" className="text-sm text-zinc-700">
+                Correo electrónico
+              </label>
+            </div>
+            <Select
+              label="Nivel de detalle"
+              value={config.nivel_detalle}
+              onChange={(e) =>
+                void actualizarConfig({ nivel_detalle: e.target.value as "BAJO" | "ALTO" })
+              }
+            >
+              <option value="BAJO">Bajo — Solo aviso</option>
+              <option value="ALTO">Alto — Detalle completo</option>
+            </Select>
+          </div>
+        </Card>
+      )}
+
+      {notificaciones.length > 0 && (
+        <div className="mb-4">
+          <Select
+            label="Filtrar por tipo"
+            value={filtroTipo}
+            onChange={(e) => setFiltroTipo(e.target.value as TipoNotificacion | "TODOS")}
+          >
+            <option value="TODOS">Todos</option>
+            <option value="STOCK_BAJO">Stock bajo</option>
+            <option value="CIERRE_CAJA">Cierre de caja</option>
+            <option value="SOLICITUD_INGRESO">Solicitud de ingreso</option>
+            <option value="SISTEMA">Sistema</option>
+          </Select>
+        </div>
+      )}
+
+      {notificacionesFiltradas.length === 0 ? (
         <Card sinPadding>
           <EmptyState icono={BellOff} titulo="Sin notificaciones" descripcion="Todo tranquilo por ahora." />
         </Card>
       ) : (
         <ul className="space-y-2">
-          {notificaciones.map((n) => (
+          {notificacionesFiltradas.map((n) => (
             <li key={n.id}>
               <Card className={n.leida ? "opacity-60" : ""}>
                 <div className="flex items-start gap-3">
@@ -56,7 +140,7 @@ export default function Notificaciones() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium text-zinc-900">{n.titulo}</p>
-                      <Badge tono={TONO_TIPO[n.tipo]}>{n.tipo.replace("_", " ")}</Badge>
+                      <Badge tono={TONO_TIPO[n.tipo] ?? "neutro"}>{n.tipo.replace("_", " ")}</Badge>
                     </div>
                     <p className="mt-0.5 text-sm text-zinc-600">{n.mensaje}</p>
                     <p className="mt-1 text-xs text-zinc-400">
