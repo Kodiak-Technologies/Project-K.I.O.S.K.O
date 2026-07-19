@@ -1,8 +1,9 @@
 // Página de consulta/descarga de boletas generadas.
 import { useState } from "react";
-import { Download, Receipt, X } from "lucide-react";
+import { Download, Receipt, Upload, X } from "lucide-react";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   EmptyState,
@@ -23,6 +24,7 @@ export default function Boletas() {
   const [hasta, setHasta] = useState("");
   const [cliente, setCliente] = useState("");
   const [descargandoId, setDescargandoId] = useState<number | null>(null);
+  const [subiendoId, setSubiendoId] = useState<number | null>(null);
 
   const filtrar = () => void recargar(desde || undefined, hasta || undefined, cliente || undefined);
 
@@ -52,6 +54,17 @@ export default function Boletas() {
     } catch {
     } finally {
       setDescargandoId(null);
+    }
+  };
+
+  const subirDrive = async (b: Boleta) => {
+    setSubiendoId(b.id);
+    try {
+      await boletasHttpAdapter.subirDrive(b.id);
+      void recargar(desde || undefined, hasta || undefined, cliente || undefined);
+    } catch {
+    } finally {
+      setSubiendoId(null);
     }
   };
 
@@ -89,15 +102,26 @@ export default function Boletas() {
     {
       titulo: "Boleta",
       render: (b) => (
-        <Button
-          variante="secundario"
-          compacto
-          icono={<Download className="h-4 w-4" aria-hidden />}
-          onClick={() => void descargarPng(b)}
-          disabled={descargandoId === b.id}
-        >
-          {descargandoId === b.id ? "Descargando…" : "PNG"}
-        </Button>
+        <div className="flex gap-1">
+          <Button
+            variante="secundario"
+            compacto
+            icono={<Download className="h-4 w-4" aria-hidden />}
+            onClick={() => void descargarPng(b)}
+            disabled={descargandoId === b.id}
+          >
+            {descargandoId === b.id ? "Descargando…" : "PNG"}
+          </Button>
+          <Button
+            variante="secundario"
+            compacto
+            icono={<Upload className="h-4 w-4" aria-hidden />}
+            onClick={() => void subirDrive(b)}
+            disabled={subiendoId === b.id}
+          >
+            {subiendoId === b.id ? "Subiendo…" : "Drive"}
+          </Button>
+        </div>
       ),
     },
   ];

@@ -55,5 +55,5 @@ class BoletaPngGenerator:
 
         import io
         buffer = io.BytesIO()
-        img.save(buffer, format="PNG")
+        img.save(buffer, format="PNG", optimize=True)
         return buffer.getvalue()

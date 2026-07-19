@@ -1,4 +1,4 @@
-import { Database, Download, Plus } from "lucide-react";
+import { Database, Download, Plus, RotateCcw } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -27,7 +27,7 @@ function formatearTamano(bytes: number): string {
 }
 
 export default function Respaldos() {
-  const { respaldos, cargando, error, noDisponible, crear, descargar } = useRespaldos();
+  const { respaldos, cargando, error, noDisponible, crear, descargar, restaurar } = useRespaldos();
 
   if (noDisponible) {
     return (
@@ -74,14 +74,24 @@ export default function Respaldos() {
       titulo: "Acción",
       render: (r) =>
         r.estado === "COMPLETADO" ? (
-          <Button
-            variante="secundario"
-            compacto
-            icono={<Download className="h-4 w-4" aria-hidden />}
-            onClick={() => void descargar(r.id, r.archivo_nombre)}
-          >
-            Descargar
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              variante="secundario"
+              compacto
+              icono={<Download className="h-4 w-4" aria-hidden />}
+              onClick={() => void descargar(r.id, r.archivo_nombre)}
+            >
+              Descargar
+            </Button>
+            <Button
+              variante="secundario"
+              compacto
+              icono={<RotateCcw className="h-4 w-4" aria-hidden />}
+              onClick={() => void restaurar(r.id)}
+            >
+              Restaurar
+            </Button>
+          </div>
         ) : (
           <span className="text-xs text-zinc-400">—</span>
         ),

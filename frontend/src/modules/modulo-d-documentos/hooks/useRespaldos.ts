@@ -51,5 +51,14 @@ export function useRespaldos() {
     }
   }, []);
 
-  return { respaldos, cargando, error, noDisponible, recargar, crear, descargar };
+  const restaurar = useCallback(async (id: number) => {
+    try {
+      await respaldosHttpAdapter.restaurar(id);
+      await recargar();
+    } catch (e) {
+      setError(mensajeDeError(e));
+    }
+  }, [recargar]);
+
+  return { respaldos, cargando, error, noDisponible, recargar, crear, descargar, restaurar };
 }

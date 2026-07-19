@@ -40,5 +40,24 @@ export function useReportes() {
     []
   );
 
-  return { resumen, masVendidos, cargando, error, noDisponible, generar, generarMasVendidos };
+  const exportar = useCallback(
+    async (desde: string, hasta: string, tipo: string) => {
+      try {
+        const blob = await reportesHttpAdapter.exportar(desde, hasta, tipo);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `reporte_${tipo}_${desde}_${hasta}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        setError(mensajeDeError(e));
+      }
+    },
+    []
+  );
+
+  return { resumen, masVendidos, cargando, error, noDisponible, generar, generarMasVendidos, exportar };
 }

@@ -14,4 +14,8 @@ export const boletasHttpAdapter: BoletasPort = {
     });
     return data;
   },
+
+  async subirDrive(boletaId) {
+    await httpClient.post(`/boletas/${boletaId}/subir-drive`);
+  },
 };

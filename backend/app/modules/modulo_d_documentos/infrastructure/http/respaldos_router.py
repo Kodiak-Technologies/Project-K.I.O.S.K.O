@@ -8,6 +8,7 @@ from app.modules.modulo_d_documentos.infrastructure.http.schemas import Respaldo
 from app.modules.modulo_d_documentos.application.crear_respaldo_usecase import (
     CrearRespaldoUseCase,
     ObtenerRutaRespaldoUseCase,
+    RestaurarRespaldoUseCase,
 )
 
 router = APIRouter(prefix="/respaldos", tags=["Documentos"])
@@ -45,3 +46,17 @@ async def crear_respaldo(
     use_case = CrearRespaldoUseCase(respaldo_repo)
     respaldo = await use_case.ejecutar()
     return RespaldoResponse.desde_entidad(respaldo)
+
+
+@router.post("/{respaldo_id}/restaurar", status_code=200)
+async def restaurar_respaldo(
+    respaldo_id: int,
+    usuario: Usuario = Depends(require_role("ADMIN")),
+    respaldo_repo=Depends(get_respaldo_repository),
+):
+    use_case = RestaurarRespaldoUseCase(respaldo_repo)
+    ok = await use_case.ejecutar(respaldo_id)
+    if not ok:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="Error al restaurar respaldo")
+    return {"detail": "Respaldo restaurado correctamente"}

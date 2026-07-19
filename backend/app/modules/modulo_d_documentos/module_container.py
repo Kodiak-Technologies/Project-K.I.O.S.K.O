@@ -6,6 +6,7 @@ from app.modules.modulo_d_documentos.application.generar_reporte_ventas_usecase 
 from app.modules.modulo_d_documentos.application.generar_reporte_mas_vendidos_usecase import GenerarReporteMasVendidosUseCase
 from app.modules.modulo_d_documentos.application.exportar_reporte_excel_usecase import ExportarReporteExcelUseCase
 from app.modules.modulo_d_documentos.application.enviar_notificacion_usecase import EnviarNotificacionUseCase
+from app.modules.modulo_d_documentos.application.crear_respaldo_usecase import CrearRespaldoUseCase, RestaurarRespaldoUseCase
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_boleta_repository import (
     SqlAlchemyBoletaRepository,
 )
@@ -84,6 +85,7 @@ def exportar_reporte_excel_usecase(db: AsyncSession) -> ExportarReporteExcelUseC
         _reporte_generator,
         _venta_data_provider,
         _configuracion_provider,
+        _egresos_data_provider,
     )
 
 
@@ -93,3 +95,7 @@ def enviar_notificacion_usecase(db: AsyncSession) -> EnviarNotificacionUseCase:
         SqlAlchemyNotificacionRepository(db),
         SqlAlchemyConfigNotificacionesRepository(db),
     )
+
+
+def restaurar_respaldo_usecase(db: AsyncSession) -> RestaurarRespaldoUseCase:
+    return RestaurarRespaldoUseCase(SqlAlchemyRespaldoRepository(db))

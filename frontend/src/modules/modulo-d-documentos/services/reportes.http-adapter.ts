@@ -13,4 +13,11 @@ export const reportesHttpAdapter: ReportesPort = {
     });
     return data;
   },
+  async exportar(desde, hasta, tipo = "resumen") {
+    const { data } = await httpClient.get("/reportes/exportar", {
+      params: { desde, hasta, tipo },
+      responseType: "blob",
+    });
+    return data;
+  },
 };

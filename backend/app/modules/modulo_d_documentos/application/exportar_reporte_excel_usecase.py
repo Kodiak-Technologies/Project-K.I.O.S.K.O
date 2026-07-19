@@ -1,6 +1,7 @@
 from app.modules.modulo_d_documentos.domain.ports.reporte_generator_port import ReporteGeneratorPort
 from app.modules.modulo_d_documentos.domain.ports.venta_data_provider_port import VentaDataProviderPort
 from app.modules.modulo_d_documentos.domain.ports.configuracion_provider_port import ConfiguracionProviderPort
+from app.modules.modulo_d_documentos.domain.ports.egresos_data_provider_port import EgresosDataProviderPort
 from app.modules.modulo_d_documentos.application.generar_reporte_ventas_usecase import GenerarReporteVentasUseCase
 from app.modules.modulo_d_documentos.application.generar_reporte_mas_vendidos_usecase import GenerarReporteMasVendidosUseCase
 
@@ -11,10 +12,12 @@ class ExportarReporteExcelUseCase:
         reporte_generator: ReporteGeneratorPort,
         venta_data: VentaDataProviderPort,
         config_data: ConfiguracionProviderPort,
+        egresos_data: EgresosDataProviderPort,
     ) -> None:
         self._reporte_generator = reporte_generator
         self._venta_data = venta_data
         self._config_data = config_data
+        self._egresos_data = egresos_data
 
     async def ejecutar(
         self,
@@ -34,6 +37,16 @@ class ExportarReporteExcelUseCase:
                     {"nombre": p.nombre, "cantidad": p.cantidad, "total": p.total}
                     for p in await use_case.ejecutar(desde, hasta)
                 ],
+            }
+        elif tipo == "egresos":
+            egresos = await self._egresos_data.obtener_egresos(desde, hasta)
+            total_egresos = sum(e.get("monto", 0) for e in egresos)
+            datos = {
+                "titulo": f"Reporte de Egresos — {nombre_negocio}",
+                "periodo": f"{desde} al {hasta}",
+                "total_egresos": total_egresos,
+                "numero_registros": len(egresos),
+                "egresos": egresos,
             }
         else:
             use_case = GenerarReporteVentasUseCase(self._venta_data)

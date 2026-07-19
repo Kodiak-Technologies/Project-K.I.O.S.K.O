@@ -18,4 +18,8 @@ export const respaldosHttpAdapter: RespaldosPort = {
     });
     return data;
   },
+
+  async restaurar(id) {
+    await httpClient.post(`/respaldos/${id}/restaurar`);
+  },
 };

@@ -30,6 +30,11 @@ export default function Notificaciones() {
   const { notificaciones, config, cargando, error, noDisponible, marcarLeida, actualizarConfig } =
     useNotificaciones();
   const [mostrarConfig, setMostrarConfig] = useState(false);
+  const [filtroTipo, setFiltroTipo] = useState<TipoNotificacion | "TODOS">("TODOS");
+
+  const notificacionesFiltradas = filtroTipo === "TODOS"
+    ? notificaciones
+    : notificaciones.filter((n) => n.tipo === filtroTipo);
 
   if (noDisponible) {
     return (
@@ -103,13 +108,29 @@ export default function Notificaciones() {
         </Card>
       )}
 
-      {notificaciones.length === 0 ? (
+      {notificaciones.length > 0 && (
+        <div className="mb-4">
+          <Select
+            label="Filtrar por tipo"
+            value={filtroTipo}
+            onChange={(e) => setFiltroTipo(e.target.value as TipoNotificacion | "TODOS")}
+          >
+            <option value="TODOS">Todos</option>
+            <option value="STOCK_BAJO">Stock bajo</option>
+            <option value="CIERRE_CAJA">Cierre de caja</option>
+            <option value="SOLICITUD_INGRESO">Solicitud de ingreso</option>
+            <option value="SISTEMA">Sistema</option>
+          </Select>
+        </div>
+      )}
+
+      {notificacionesFiltradas.length === 0 ? (
         <Card sinPadding>
           <EmptyState icono={BellOff} titulo="Sin notificaciones" descripcion="Todo tranquilo por ahora." />
         </Card>
       ) : (
         <ul className="space-y-2">
-          {notificaciones.map((n) => (
+          {notificacionesFiltradas.map((n) => (
             <li key={n.id}>
               <Card className={n.leida ? "opacity-60" : ""}>
                 <div className="flex items-start gap-3">
