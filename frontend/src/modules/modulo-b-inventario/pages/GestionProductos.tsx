@@ -82,11 +82,23 @@ export default function GestionProductos() {
     setErrorAccion(null);
     try {
       if (editando) {
-        const { stock_inicial: _sinStock, ...cambios } = formulario;
+        const { stock_inicial: _sinStock, precio: _precioLegacy, ...cambios } = formulario;
+        // TODO PR3b: el form debe tener inputs separados para precio_venta /
+        // precio_compra_actual y un toggle "es código interno".
         await actualizar(editando.id, cambios);
         setMensaje(`Producto '${formulario.nombre}' actualizado.`);
       } else {
-        await crear(formulario);
+        // TODO PR3b: el form de alta debe pedir precio_compra_actual (hoy lo
+        // asumimos 0) y un flag `es_codigo_interno`. Por ahora mandamos
+        // precio_venta del form y precio_compra_actual=0 para que el
+        // backend no rechace por 422.
+        const { precio, stock_inicial, ...resto } = formulario;
+        await crear({
+          ...resto,
+          precio_venta: precio,
+          precio_compra_actual: 0,
+          stock_inicial,
+        });
         setMensaje(`Producto '${formulario.nombre}' creado.`);
       }
       setModalAbierto(false);
@@ -100,7 +112,7 @@ export default function GestionProductos() {
   async function manejarNuevaCategoria() {
     if (!nuevaCategoria.trim()) return;
     try {
-      await crearCategoria(nuevaCategoria.trim());
+      await crearCategoria({ nombre: nuevaCategoria.trim() });
       setNuevaCategoria("");
     } catch (e) {
       setErrorAccion(mensajeDeError(e));
@@ -123,7 +135,7 @@ export default function GestionProductos() {
   const columnas: Columna<Producto>[] = [
     { titulo: "Código", render: (p) => <span className="font-mono text-xs text-zinc-500">{p.codigo}</span> },
     { titulo: "Producto", render: (p) => <span className="font-medium text-zinc-800">{p.nombre}</span> },
-    { titulo: "Categoría", soloEscritorio: true, render: (p) => p.categoria ?? "—" },
+    { titulo: "Categoría", soloEscritorio: true, render: (p) => p.categoria_nombre ?? "—" },
     {
       titulo: "Precio",
       alinear: "derecha",

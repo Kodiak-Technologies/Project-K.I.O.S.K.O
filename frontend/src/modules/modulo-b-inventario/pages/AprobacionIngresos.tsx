@@ -34,7 +34,13 @@ export default function AprobacionIngresos() {
     setMensaje(null);
     try {
       await aprobar(ingreso.id);
-      setMensaje(`Ingreso de '${ingreso.producto}' aprobado: el stock ya se actualizó.`);
+      // TODO PR3b: el modal de aprobación debería mostrar el resumen (líneas
+      // con productos/cantidades) antes de aprobar. Acá usamos un nombre
+      // resumido provisional.
+      const resumen = ingreso.lineas.length === 1
+        ? `producto #${ingreso.lineas[0].producto_id}`
+        : `${ingreso.lineas.length} productos`;
+      setMensaje(`Ingreso de '${resumen}' aprobado: el stock ya se actualizó.`);
     } catch (e) {
       setErrorAccion(mensajeDeError(e));
     }
@@ -45,8 +51,12 @@ export default function AprobacionIngresos() {
     setProcesando(true);
     setErrorAccion(null);
     try {
-      await rechazar(paraRechazar.id, motivo);
-      setMensaje(`Ingreso de '${paraRechazar.producto}' rechazado.`);
+      // PR3a: la API exige `{ motivo_rechazo }` en el body.
+      await rechazar(paraRechazar.id, { motivo_rechazo: motivo });
+      const resumen = paraRechazar.lineas.length === 1
+        ? `producto #${paraRechazar.lineas[0].producto_id}`
+        : `${paraRechazar.lineas.length} productos`;
+      setMensaje(`Ingreso de '${resumen}' rechazado.`);
       setParaRechazar(null);
       setMotivo("");
     } catch (e) {
@@ -78,9 +88,25 @@ export default function AprobacionIngresos() {
         </span>
       ),
     },
-    { titulo: "Producto", render: (i) => <span className="font-medium text-zinc-800">{i.producto}</span> },
-    { titulo: "Cantidad", alinear: "derecha", render: (i) => <span className="tabular-nums">{i.cantidad}</span> },
-    { titulo: "Solicitado por", render: (i) => i.solicitado_por },
+    {
+      // TODO PR3b: la shape nueva es `lineas: DetalleSolicitud[]`. Acá
+      // mostramos un resumen mientras se rehace la pantalla.
+      titulo: "Producto",
+      render: (i) => (
+        <span className="font-medium text-zinc-800">
+          {i.lineas.length === 1 ? `Producto #${i.lineas[0].producto_id}` : `${i.lineas.length} productos`}
+        </span>
+      ),
+    },
+    {
+      titulo: "Cantidad",
+      alinear: "derecha",
+      render: (i) => <span className="tabular-nums">{i.cantidad_productos ?? 0}</span>,
+    },
+    {
+      titulo: "Solicitado por",
+      render: (i) => i.solicitado_por_nombre,
+    },
     {
       titulo: "Acciones",
       render: (i) => (
@@ -141,7 +167,15 @@ export default function AprobacionIngresos() {
 
       <Modal
         abierto={paraRechazar !== null}
-        titulo={`Rechazar ingreso de '${paraRechazar?.producto}'`}
+        titulo={
+          paraRechazar
+            ? `Rechazar ingreso de '${
+                paraRechazar.lineas.length === 1
+                  ? `producto #${paraRechazar.lineas[0].producto_id}`
+                  : `${paraRechazar.lineas.length} productos`
+              }'`
+            : "Rechazar ingreso"
+        }
         alCerrar={() => setParaRechazar(null)}
         pie={
           <>

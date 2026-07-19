@@ -48,7 +48,18 @@ export default function IngresosMercaderia() {
     }
     setProcesando(true);
     try {
-      await solicitar(productoId, cantidad);
+      // TODO PR3b: el form debe permitir varias líneas (un producto por línea,
+      // con su precio de compra unitario) y subir una foto de la boleta. El
+      // backend rechaza con 422 si `foto_boleta_url` viene vacía o si no hay
+      // al menos una línea. Acá mandamos un placeholder para que la página
+      // compile hasta el refactor; el botón "Registrar" no va a funcionar
+      // contra el backend real en PR3a.
+      await solicitar({
+        foto_boleta_url: "https://placeholder.local/pendiente-pr3b",
+        lineas: [
+          { producto_id: Number(productoId), cantidad, precio_compra_unitario: 0 },
+        ],
+      });
       setMensaje("Ingreso registrado. Queda pendiente de aprobación del ADMIN.");
       setProductoId("");
       setCantidad(1);
@@ -79,17 +90,40 @@ export default function IngresosMercaderia() {
         </span>
       ),
     },
-    { titulo: "Producto", render: (i) => <span className="font-medium text-zinc-800">{i.producto}</span> },
-    { titulo: "Cantidad", alinear: "derecha", render: (i) => <span className="tabular-nums">{i.cantidad}</span> },
-    { titulo: "Solicitado por", soloEscritorio: true, render: (i) => i.solicitado_por },
+    {
+      // TODO PR3b: la shape nueva es `lineas: DetalleSolicitud[]`. Acá
+      // mostramos un resumen mientras se rehace la pantalla.
+      titulo: "Producto",
+      render: (i) => (
+        <span className="font-medium text-zinc-800">
+          {i.lineas.length === 1 ? `Producto #${i.lineas[0].producto_id}` : `${i.lineas.length} productos`}
+        </span>
+      ),
+    },
+    {
+      titulo: "Cantidad",
+      alinear: "derecha",
+      render: (i) => <span className="tabular-nums">{i.cantidad_productos ?? 0}</span>,
+    },
+    {
+      titulo: "Solicitado por",
+      soloEscritorio: true,
+      render: (i) => i.solicitado_por_nombre,
+    },
     {
       titulo: "Estado",
-      render: (i) => (
-        <div>
-          <Badge tono={TONO_ESTADO[i.estado]}>{i.estado}</Badge>
-          {i.motivo_rechazo && <p className="mt-1 text-xs text-zinc-500">{i.motivo_rechazo}</p>}
-        </div>
-      ),
+      render: (i) => {
+        // `estado` en backend es string; casteamos a `EstadoIngreso` para
+        // indexar el mapa de tonos.
+        const estado = i.estado as EstadoIngreso;
+        const tono = TONO_ESTADO[estado] ?? "neutro";
+        return (
+          <div>
+            <Badge tono={tono}>{i.estado}</Badge>
+            {i.motivo_rechazo && <p className="mt-1 text-xs text-zinc-500">{i.motivo_rechazo}</p>}
+          </div>
+        );
+      },
     },
   ];
 

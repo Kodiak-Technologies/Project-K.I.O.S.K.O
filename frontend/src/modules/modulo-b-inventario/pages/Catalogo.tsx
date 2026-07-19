@@ -29,7 +29,7 @@ export default function Catalogo() {
   const columnas: Columna<Producto>[] = [
     { titulo: "Código", render: (p) => <span className="font-mono text-xs text-zinc-500">{p.codigo}</span> },
     { titulo: "Producto", render: (p) => <span className="font-medium text-zinc-800">{p.nombre}</span> },
-    { titulo: "Categoría", soloEscritorio: true, render: (p) => p.categoria ?? "—" },
+    { titulo: "Categoría", soloEscritorio: true, render: (p) => p.categoria_nombre ?? "—" },
     {
       titulo: "Precio",
       alinear: "derecha",
@@ -63,7 +63,9 @@ export default function Catalogo() {
             value={busqueda}
             onChange={(e) => {
               setBusqueda(e.target.value);
-              void recargar(e.target.value || undefined);
+              // TODO PR3b: armar debounce. Por ahora PR3a solo necesita
+              // que el parámetro sea `FiltrosProductos` (search, filtros, paginación).
+              void recargar({ search: e.target.value || undefined });
             }}
           />
         </div>
