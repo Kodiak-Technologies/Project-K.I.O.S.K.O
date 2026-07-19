@@ -1,14 +1,16 @@
-// Hook: consultar historial y marcar notificaciones como leídas.
-import { useCallback, useEffect, useState } from "react";
+// Hook: consultar historial y configuración de notificaciones.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mensajeDeError, servicioNoDisponible } from "../../../shared/lib/http-client";
 import { notificacionesHttpAdapter } from "../services/notificaciones.http-adapter";
-import type { Notificacion } from "../types";
+import type { ConfigNotificaciones, Notificacion } from "../types";
 
 export function useNotificaciones() {
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const [config, setConfig] = useState<ConfigNotificaciones | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // `cargando` es solo para la primera carga; las recargas son silenciosas
   // (la campanita de la TopBar recarga cada vez que se abre).
@@ -24,9 +26,17 @@ export function useNotificaciones() {
     }
   }, []);
 
+  const recargarConfig = useCallback(async () => {
+    try {
+      setConfig(await notificacionesHttpAdapter.obtenerConfig());
+    } catch {
+    }
+  }, []);
+
   useEffect(() => {
     void recargar();
-  }, [recargar]);
+    void recargarConfig();
+  }, [recargar, recargarConfig]);
 
   const marcarLeida = useCallback(
     async (id: number) => {
@@ -36,5 +46,17 @@ export function useNotificaciones() {
     [recargar]
   );
 
-  return { notificaciones, cargando, error, noDisponible, recargar, marcarLeida };
+  const actualizarConfig = useCallback(
+    (nuevaConfig: Partial<ConfigNotificaciones>) => {
+      setConfig((prev) => (prev ? { ...prev, ...nuevaConfig } : prev));
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(async () => {
+        const resultado = await notificacionesHttpAdapter.actualizarConfig(nuevaConfig);
+        setConfig(resultado);
+      }, 500);
+    },
+    []
+  );
+
+  return { notificaciones, config, cargando, error, noDisponible, marcarLeida, actualizarConfig };
 }

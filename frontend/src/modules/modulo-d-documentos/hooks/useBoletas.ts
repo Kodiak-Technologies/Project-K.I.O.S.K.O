@@ -10,11 +10,11 @@ export function useBoletas() {
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
 
-  // `cargando` es solo para la primera carga; las recargas son silenciosas.
-  const recargar = useCallback(async (desde?: string, hasta?: string) => {
+  const recargar = useCallback(async (desde?: string, hasta?: string, cliente?: string) => {
+    setCargando(true);
     setError(null);
     try {
-      setBoletas(await boletasHttpAdapter.listar(desde, hasta));
+      setBoletas(await boletasHttpAdapter.listar(desde, hasta, cliente));
     } catch (e) {
       if (servicioNoDisponible(e)) setNoDisponible(true);
       else setError(mensajeDeError(e));
