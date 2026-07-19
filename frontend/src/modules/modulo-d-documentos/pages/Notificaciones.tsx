@@ -7,7 +7,6 @@ import {
   Button,
   Card,
   EmptyState,
-  Input,
   ModuloPendiente,
   PageHeader,
   PageSpinner,
@@ -94,30 +93,12 @@ export default function Notificaciones() {
               label="Nivel de detalle"
               value={config.nivel_detalle}
               onChange={(e) =>
-                void actualizarConfig({ nivel_detalle: e.target.value as "BAJO" | "MEDIO" | "ALTO" })
+                void actualizarConfig({ nivel_detalle: e.target.value as "BAJO" | "ALTO" })
               }
             >
               <option value="BAJO">Bajo — Solo aviso</option>
-              <option value="MEDIO">Medio — Detalle parcial</option>
               <option value="ALTO">Alto — Detalle completo</option>
             </Select>
-            {config.canal_telegram_activo && (
-              <Input
-                label="Chat ID de Telegram"
-                value={config.telegram_chat_id ?? ""}
-                onChange={(e) => void actualizarConfig({ telegram_chat_id: e.target.value || null })}
-                placeholder="Ej: 123456789"
-              />
-            )}
-            {config.canal_correo_activo && (
-              <Input
-                label="Correo destino"
-                type="email"
-                value={config.correo_destino ?? ""}
-                onChange={(e) => void actualizarConfig({ correo_destino: e.target.value || null })}
-                placeholder="notificaciones@mitienda.com"
-              />
-            )}
           </div>
         </Card>
       )}

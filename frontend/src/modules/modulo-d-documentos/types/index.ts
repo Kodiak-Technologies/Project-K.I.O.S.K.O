@@ -41,9 +41,7 @@ export interface Notificacion {
 export interface ConfigNotificaciones {
   canal_telegram_activo: boolean;
   canal_correo_activo: boolean;
-  nivel_detalle: "BAJO" | "MEDIO" | "ALTO";
-  telegram_chat_id: string | null;
-  correo_destino: string | null;
+  nivel_detalle: "BAJO" | "ALTO";
 }
 
 export type EstadoRespaldo = "PENDIENTE" | "COMPLETADO" | "FALLIDO";

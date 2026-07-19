@@ -20,6 +20,10 @@ BACKUPS_DIR = os.path.join(
 
 
 async def respaldo_automatico_diario() -> None:
+    if settings.environment == "local":
+        logger.info("Respaldo automático deshabilitado en entorno local.")
+        return
+
     logger.info("Iniciando respaldo automático diario...")
     os.makedirs(BACKUPS_DIR, exist_ok=True)
 

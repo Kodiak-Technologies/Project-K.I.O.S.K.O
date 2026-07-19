@@ -1,5 +1,5 @@
 // Hook: consultar historial y configuración de notificaciones.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mensajeDeError, servicioNoDisponible } from "../../../shared/lib/http-client";
 import { notificacionesHttpAdapter } from "../services/notificaciones.http-adapter";
 import type { ConfigNotificaciones, Notificacion } from "../types";
@@ -10,6 +10,7 @@ export function useNotificaciones() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const recargar = useCallback(async () => {
     setCargando(true);
@@ -45,9 +46,13 @@ export function useNotificaciones() {
   );
 
   const actualizarConfig = useCallback(
-    async (nuevaConfig: Partial<ConfigNotificaciones>) => {
-      const resultado = await notificacionesHttpAdapter.actualizarConfig(nuevaConfig);
-      setConfig(resultado);
+    (nuevaConfig: Partial<ConfigNotificaciones>) => {
+      setConfig((prev) => (prev ? { ...prev, ...nuevaConfig } : prev));
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(async () => {
+        const resultado = await notificacionesHttpAdapter.actualizarConfig(nuevaConfig);
+        setConfig(resultado);
+      }, 500);
     },
     []
   );

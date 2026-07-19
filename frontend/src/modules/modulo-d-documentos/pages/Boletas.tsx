@@ -1,6 +1,6 @@
 // Página de consulta/descarga de boletas generadas.
 import { useState } from "react";
-import { Download, Receipt } from "lucide-react";
+import { Download, Receipt, X } from "lucide-react";
 import {
   Alert,
   Button,
@@ -23,6 +23,19 @@ export default function Boletas() {
   const [hasta, setHasta] = useState("");
   const [cliente, setCliente] = useState("");
   const [descargandoId, setDescargandoId] = useState<number | null>(null);
+
+  const filtrar = () => void recargar(desde || undefined, hasta || undefined, cliente || undefined);
+
+  const limpiarFiltros = () => {
+    setDesde("");
+    setHasta("");
+    setCliente("");
+    void recargar();
+  };
+
+  const teclaEnter = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") filtrar();
+  };
 
   const descargarPng = async (b: Boleta) => {
     setDescargandoId(b.id);
@@ -96,16 +109,19 @@ export default function Boletas() {
       <Card className="mb-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-44">
-            <Input label="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            <Input label="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} onKeyDown={teclaEnter} />
           </div>
           <div className="w-44">
-            <Input label="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            <Input label="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} onKeyDown={teclaEnter} />
           </div>
           <div className="w-44">
-            <Input label="Cliente" value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Buscar por cliente" />
+            <Input label="Cliente" value={cliente} onChange={(e) => setCliente(e.target.value)} onKeyDown={teclaEnter} placeholder="Buscar por cliente" />
           </div>
-          <Button variante="secundario" onClick={() => void recargar(desde || undefined, hasta || undefined, cliente || undefined)}>
+          <Button variante="secundario" onClick={filtrar}>
             Filtrar
+          </Button>
+          <Button variante="secundario" onClick={limpiarFiltros} icono={<X className="h-4 w-4" aria-hidden />}>
+            Limpiar
           </Button>
         </div>
       </Card>

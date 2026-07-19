@@ -27,15 +27,17 @@ class EnviarNotificacionUseCase:
     ) -> Notificacion:
         config = await self._config_repo.obtener()
 
-        if config.canal_telegram_activo and config.telegram_chat_id:
+        texto_enviar = titulo if config.nivel_detalle == "BAJO" else f"{titulo}\n\n{mensaje}"
+
+        if config.canal_telegram_activo:
             try:
-                await self._notificacion_sender.enviar("TELEGRAM", titulo, mensaje)
+                await self._notificacion_sender.enviar("TELEGRAM", titulo, texto_enviar)
             except Exception:
                 pass
 
-        if config.canal_correo_activo and config.correo_destino:
+        if config.canal_correo_activo:
             try:
-                await self._notificacion_sender.enviar("CORREO", titulo, mensaje)
+                await self._notificacion_sender.enviar("CORREO", titulo, texto_enviar)
             except Exception:
                 pass
 

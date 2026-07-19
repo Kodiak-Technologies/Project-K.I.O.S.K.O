@@ -135,8 +135,6 @@ class ConfigNotificacionesResponse(BaseModel):
     canal_telegram_activo: bool
     canal_correo_activo: bool
     nivel_detalle: str
-    telegram_chat_id: str | None
-    correo_destino: str | None
 
     @classmethod
     def desde_entidad(cls, c) -> "ConfigNotificacionesResponse":
@@ -144,17 +142,13 @@ class ConfigNotificacionesResponse(BaseModel):
             canal_telegram_activo=c.canal_telegram_activo,
             canal_correo_activo=c.canal_correo_activo,
             nivel_detalle=c.nivel_detalle,
-            telegram_chat_id=c.telegram_chat_id,
-            correo_destino=c.correo_destino,
         )
 
 
 class ConfigNotificacionesRequest(BaseModel):
-    canal_telegram_activo: bool = True
-    canal_correo_activo: bool = False
-    nivel_detalle: str = "MEDIO"
-    telegram_chat_id: str | None = None
-    correo_destino: str | None = None
+    canal_telegram_activo: bool | None = None
+    canal_correo_activo: bool | None = None
+    nivel_detalle: str | None = None
 
 
 class CrearNotificacionRequest(BaseModel):

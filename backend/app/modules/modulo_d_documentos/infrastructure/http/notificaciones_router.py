@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app.modules.modulo_a_seguridad.infrastructure.dependencies import get_current_user, require_role
 from app.modules.modulo_a_seguridad.domain.entities import Usuario
+from app.modules.modulo_d_documentos.application.enviar_notificacion_usecase import EnviarNotificacionUseCase
 from app.modules.modulo_d_documentos.infrastructure.dependencies import (
     get_notificacion_repository,
     get_config_notificaciones_repository,
@@ -56,13 +57,12 @@ async def actualizar_config(
     usuario: Usuario = Depends(require_role("ADMIN")),
     config_repo=Depends(get_config_notificaciones_repository),
 ):
+    existente = await config_repo.obtener()
     config = ConfigNotificaciones(
         id=1,
-        canal_telegram_activo=body.canal_telegram_activo,
-        canal_correo_activo=body.canal_correo_activo,
-        nivel_detalle=body.nivel_detalle,
-        telegram_chat_id=body.telegram_chat_id,
-        correo_destino=body.correo_destino,
+        canal_telegram_activo=body.canal_telegram_activo if body.canal_telegram_activo is not None else existente.canal_telegram_activo,
+        canal_correo_activo=body.canal_correo_activo if body.canal_correo_activo is not None else existente.canal_correo_activo,
+        nivel_detalle=body.nivel_detalle if body.nivel_detalle is not None else existente.nivel_detalle,
     )
     resultado = await config_repo.actualizar(config)
     return ConfigNotificacionesResponse.desde_entidad(resultado)
@@ -76,10 +76,8 @@ async def crear_notificacion(
     config_repo=Depends(get_config_notificaciones_repository),
     notificacion_sender=Depends(get_notificacion_sender),
 ):
-    config = await config_repo.obtener()
-
-    notificacion = Notificacion(
-        id=None,
+    use_case = EnviarNotificacionUseCase(notificacion_sender, notificacion_repo, config_repo)
+    notificacion = await use_case.ejecutar(
         tipo=body.tipo,
         titulo=body.titulo,
         mensaje=body.mensaje,
@@ -87,9 +85,4 @@ async def crear_notificacion(
         entidad_id=body.entidad_id,
         usuario_id=body.usuario_id,
     )
-    notificacion = await notificacion_repo.crear(notificacion)
-
-    if config.canal_telegram_activo and notificacion_sender:
-        await notificacion_sender.enviar("TELEGRAM", body.titulo, body.mensaje)
-
     return NotificacionResponse.desde_entidad(notificacion)
