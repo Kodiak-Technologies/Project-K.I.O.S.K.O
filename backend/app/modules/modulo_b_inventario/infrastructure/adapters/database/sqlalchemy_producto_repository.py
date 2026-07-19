@@ -325,6 +325,12 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
             raise NoEncontradoError("Producto no encontrado.")
 
         filas_historial: list[HistorialPrecio] = []
+        # Historial rows staged for flush. Each HistorialPrecioModel is added to
+        # the session, but the domain entity MUST be built AFTER `flush()` so
+        # the DB-assigned `id` and `created_at` are populated. Building before
+        # flush would yield `id=None` and break the strict `id: int` contract
+        # in `HistorialPrecioResponse`, surfacing as HTTP 500.
+        filas_historial_pendientes: list[HistorialPrecioModel] = []
 
         # Precio de venta
         if precio_venta is not None and Decimal(str(precio_venta)) != fila.precio:
@@ -339,7 +345,7 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
                 modificado_por_nombre=usuario_nombre,
             )
             self._db.add(hist)
-            filas_historial.append(_historial_a_entidad(hist))
+            filas_historial_pendientes.append(hist)
             fila.precio = nuevo
 
         # Precio de compra
@@ -358,12 +364,17 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
                 modificado_por_nombre=usuario_nombre,
             )
             self._db.add(hist)
-            filas_historial.append(_historial_a_entidad(hist))
+            filas_historial_pendientes.append(hist)
             fila.precio_compra_actual = nuevo
 
         fila.actualizado_por = usuario_id
         fila.actualizado_por_nombre = usuario_nombre
         await self._db.flush()
+        # Build domain entities from the flushed models so `id` is the real
+        # DB-assigned value. Matches the pattern in
+        # `sqlalchemy_pago_proveedor_repository.py:54-58` and
+        # `sqlalchemy_historial_precio_repository.py:48-51`.
+        filas_historial = [_historial_a_entidad(h) for h in filas_historial_pendientes]
         producto = await self.buscar_por_id(producto_id)  # type: ignore[return-value]
         return producto, filas_historial
 

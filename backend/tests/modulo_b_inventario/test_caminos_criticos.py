@@ -330,6 +330,10 @@ def test_invariante_deuda_proveedor() -> None:
                         select(ProveedorModel).where(ProveedorModel.id == pid)
                     )
                 ).scalar_one()
+                # Materialize the ScalarResult with `.all()` before iterating.
+                # Bug #3: `ScalarResult` is a one-shot iterable; the second
+                # `sum()` over `pagos` would see 0 rows and the invariant
+                # would break (`credito - pago = 245 - 0 = 245 != 145`).
                 pagos = (
                     await db.execute(
                         select(PagoProveedorModel).where(
@@ -337,7 +341,7 @@ def test_invariante_deuda_proveedor() -> None:
                             PagoProveedorModel.deleted_at.is_(None),
                         )
                     )
-                ).scalars()
+                ).scalars().all()
                 total_credito = sum(
                     p.monto for p in pagos if p.tipo == "compra_credito"
                 )
@@ -352,6 +356,90 @@ def test_invariante_deuda_proveedor() -> None:
                 headers=admin_auth,
             )
             assert r.status_code == 422, r.text
+
+    correr(_run())
+
+
+def test_invariante_deuda_proveedor_3_pagos() -> None:
+    """Regression guard for Bug #3: 1 compra_credito + 3 pagos (instead of 1+1).
+
+    If the test re-iterates a one-shot `ScalarResult` (the original bug), the
+    second `sum()` would see 0 rows and the invariant would silently break.
+    This scenario proves the test exercises the REAL invariant on multi-pago
+    proveedores — the second iteration MUST see all 3 pagos.
+    """
+
+    async def _run():
+        from sqlalchemy import select
+
+        async with cliente_api() as api:
+            admin_user = username_unico("adminp3")
+            await crear_usuario_directo(admin_user, "ADMIN")
+            await asignar_permisos(
+                "ADMIN",
+                [
+                    "proveedores.gestionar",
+                    "proveedores.compras_credito",
+                    "proveedores.pagos",
+                ],
+            )
+            admin_token = (await token_de(api, admin_user))["access_token"]
+            admin_auth = auth(admin_token)
+
+            # 1) Crear proveedor
+            r = await api.post(
+                "/proveedores",
+                json={"razon_social": f"Prov3p-{secrets.token_hex(3)}"},
+                headers=admin_auth,
+            )
+            assert r.status_code == 201, r.text
+            pid = r.json()["id"]
+            assert r.json()["deuda_actual"] == 0.0
+
+            # 2) Compra crédito 300.00
+            r = await api.post(
+                f"/proveedores/{pid}/compras-credito",
+                json={"monto": 300.00, "fecha": "2026-07-19", "concepto": "Lote grande"},
+                headers=admin_auth,
+            )
+            assert r.status_code == 201, r.text
+            assert r.json()["deuda_actual"] == 300.00
+
+            # 3) Tres pagos: 50, 70, 80 (total 200) → deuda esperada = 100
+            for monto in (50.00, 70.00, 80.00):
+                r = await api.post(
+                    f"/proveedores/{pid}/pagos",
+                    json={"monto": monto, "fecha": "2026-07-19", "concepto": f"Pago {monto}"},
+                    headers=admin_auth,
+                )
+                assert r.status_code == 201, r.text
+            assert r.json()["deuda_actual"] == 100.00
+
+            # 4) Verificar invariante en BD directamente con `.all()` materializado
+            async with SessionLocal() as db:
+                prov = (
+                    await db.execute(
+                        select(ProveedorModel).where(ProveedorModel.id == pid)
+                    )
+                ).scalar_one()
+                pagos = (
+                    await db.execute(
+                        select(PagoProveedorModel).where(
+                            PagoProveedorModel.proveedor_id == pid,
+                            PagoProveedorModel.deleted_at.is_(None),
+                        )
+                    )
+                ).scalars().all()
+                total_credito = sum(
+                    p.monto for p in pagos if p.tipo == "compra_credito"
+                )
+                total_pago = sum(p.monto for p in pagos if p.tipo == "pago")
+                # Real assertions on real data — guards against the double-iteration bug
+                assert len(pagos) == 4, f"Esperaba 4 filas (1 compra + 3 pagos), obtuve {len(pagos)}"
+                assert total_credito == Decimal("300.00")
+                assert total_pago == Decimal("200.00")
+                assert prov.deuda_actual == total_credito - total_pago
+                assert prov.deuda_actual == Decimal("100.00")
 
     correr(_run())
 

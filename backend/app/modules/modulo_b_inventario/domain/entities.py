@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from app.modules.modulo_b_inventario.domain.value_objects import (
@@ -120,6 +120,10 @@ class SolicitudIngreso(EntidadConBorradoLogico):
         self.estado = EstadoSolicitud("Aprobada")
         self.revisado_por = usuario_id
         self.revisado_por_nombre = nombre
+        # D-09 + chk_solicitudes_revisado_consistente: a reviewed request
+        # MUST have a review timestamp. Set it in the same operation that
+        # transitions the state, so the DB CHECK constraint is satisfied.
+        self.revisado_en = datetime.now(timezone.utc)
 
     def rechazar(self, usuario_id: int, nombre: str, motivo: str) -> None:
         """Transición de estado con motivo obligatorio (D-09)."""
@@ -134,6 +138,9 @@ class SolicitudIngreso(EntidadConBorradoLogico):
         self.motivo_rechazo = motivo_limpio
         self.revisado_por = usuario_id
         self.revisado_por_nombre = nombre
+        # D-09 + chk_solicitudes_revisado_consistente: same as aprobar() —
+        # the reject path was a latent twin of the bug, fixed preemptively.
+        self.revisado_en = datetime.now(timezone.utc)
 
 
 @dataclass(kw_only=True)
