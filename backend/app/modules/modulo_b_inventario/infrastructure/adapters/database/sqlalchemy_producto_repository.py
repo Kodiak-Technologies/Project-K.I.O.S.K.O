@@ -1,11 +1,9 @@
-# Adaptador: implementa ProductoRepositoryPort y CategoriaRepositoryPort usando SQLAlchemy.
+# Adaptador: implementa ProductoRepositoryPort usando SQLAlchemy async.
+# EXTENDIDO en PR1: agrega stubs de los métodos nuevos (implementación en PR2).
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.modulo_b_inventario.domain.entities import Categoria, Producto
-from app.modules.modulo_b_inventario.domain.ports.categoria_repository_port import (
-    CategoriaRepositoryPort,
-)
+from app.modules.modulo_b_inventario.domain.entities import Producto
 from app.modules.modulo_b_inventario.domain.ports.producto_repository_port import (
     ProductoRepositoryPort,
 )
@@ -13,7 +11,6 @@ from app.modules.modulo_b_inventario.infrastructure.adapters.database.models imp
     CategoriaModel,
     ProductoModel,
 )
-from app.shared.kernel.exceptions import ConflictoError
 
 
 def _a_entidad(fila: ProductoModel, categoria: str | None = None) -> Producto:
@@ -23,11 +20,22 @@ def _a_entidad(fila: ProductoModel, categoria: str | None = None) -> Producto:
         nombre=fila.nombre,
         categoria_id=fila.categoria_id,
         precio=fila.precio,
+        precio_compra_actual=fila.precio_compra_actual,
+        es_codigo_interno=fila.es_codigo_interno,
+        foto_url=fila.foto_url,
         stock=fila.stock,
         stock_minimo=fila.stock_minimo,
         activo=fila.activo,
         categoria=categoria,
+        categoria_nombre=categoria,
+        creado_por=fila.creado_por,
+        creado_por_nombre=fila.creado_por_nombre,
+        actualizado_por=fila.actualizado_por,
+        actualizado_por_nombre=fila.actualizado_por_nombre,
         created_at=fila.created_at,
+        updated_at=fila.updated_at,
+        deleted_at=fila.deleted_at,
+        deleted_by=fila.deleted_by,
     )
 
 
@@ -71,9 +79,14 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
             nombre=producto.nombre,
             categoria_id=producto.categoria_id,
             precio=producto.precio,
+            precio_compra_actual=producto.precio_compra_actual,
+            es_codigo_interno=producto.es_codigo_interno,
+            foto_url=producto.foto_url,
             stock=producto.stock,
             stock_minimo=producto.stock_minimo,
             activo=producto.activo,
+            creado_por=producto.creado_por,
+            creado_por_nombre=producto.creado_por_nombre,
         )
         self._db.add(fila)
         await self._db.flush()
@@ -85,32 +98,50 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
         ).scalar_one()
         # `cambios` viene con exclude_unset: toda clave presente es intencional
         # (categoria_id=None significa "quitar la categoría").
-        editables = ("codigo", "nombre", "categoria_id", "precio", "stock_minimo", "activo")
+        editables = (
+            "codigo", "nombre", "categoria_id", "precio", "precio_compra_actual",
+            "stock_minimo", "activo",
+        )
         for campo, valor in cambios.items():
             if campo in editables:
                 setattr(fila, campo, valor)
         await self._db.flush()
         return await self.buscar_por_id(producto_id)
 
+    # ----- PR1: stubs de métodos nuevos (implementación en PR2) -----
 
-class SqlAlchemyCategoriaRepository(CategoriaRepositoryPort):
-    def __init__(self, db: AsyncSession):
-        self._db = db
+    async def listar_paginado(
+        self,
+        *,
+        search=None,
+        categoria_id=None,
+        solo_con_stock=False,
+        solo_bajo_minimo=False,
+        activo=None,
+        page=1,
+        page_size=20,
+    ):
+        raise NotImplementedError("Implementado en PR2")
 
-    async def listar(self) -> list[Categoria]:
-        filas = (
-            await self._db.execute(select(CategoriaModel).order_by(CategoriaModel.nombre))
-        ).scalars()
-        return [Categoria(id=f.id, nombre=f.nombre) for f in filas]
+    async def find_bajo_minimo(
+        self, *, categoria_id=None, page=1, page_size=20
+    ) -> list[Producto]:
+        raise NotImplementedError("Implementado en PR2")
 
-    async def crear(self, nombre: str) -> Categoria:
-        nombre = nombre.strip()
-        existente = (
-            await self._db.execute(select(CategoriaModel).where(CategoriaModel.nombre == nombre))
-        ).scalar_one_or_none()
-        if existente is not None:
-            raise ConflictoError(f"La categoría '{nombre}' ya existe.")
-        fila = CategoriaModel(nombre=nombre)
-        self._db.add(fila)
-        await self._db.flush()
-        return Categoria(id=fila.id, nombre=fila.nombre)
+    async def find_by_id_for_update(self, producto_id: int) -> Producto | None:
+        raise NotImplementedError("Implementado en PR2")
+
+    async def actualizar_general(
+        self, producto_id: int, cambios: dict, usuario_id: int, usuario_nombre: str
+    ) -> Producto:
+        raise NotImplementedError("Implementado en PR2")
+
+    async def actualizar_precio(
+        self, producto_id, precio_venta, precio_compra_actual, usuario_id, usuario_nombre
+    ):
+        raise NotImplementedError("Implementado en PR2")
+
+    async def incrementar_stock_atomic(
+        self, producto_id: int, delta: int
+    ) -> tuple[bool, int | None]:
+        raise NotImplementedError("Implementado en PR2")

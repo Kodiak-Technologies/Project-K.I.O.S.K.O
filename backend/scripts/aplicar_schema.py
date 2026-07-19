@@ -18,9 +18,14 @@ from app.shared.config.settings import settings
 DIRECTORIO_DB = Path(__file__).resolve().parent.parent / "db"
 
 # Orden explícito: productos (B) primero porque detalles_venta (C) le hace FK.
+# `modulo_b_completo` se aplica DESPUÉS del mínimo y DESPUÉS de C (para que las
+# FKs del B hacia C se resuelvan; e.g. `movimientos_inventario` puede referenciar
+# `mermas` y `solicitudes_ingreso` del propio módulo, pero se aplica tarde para
+# no chocar con la corrida de C si la BD está recién inicializada).
 ARCHIVOS = [
     "schema_modulo_b_minimo.sql",
     "schema_modulo_c.sql",
+    "schema_modulo_b_completo.sql",
 ]
 
 

@@ -5,8 +5,10 @@ from app.modules.modulo_b_inventario.application.actualizar_producto_usecase imp
     ActualizarProductoUseCase,
 )
 from app.modules.modulo_b_inventario.application.crear_producto_usecase import CrearProductoUseCase
-from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_producto_repository import (
+from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_categoria_repository import (
     SqlAlchemyCategoriaRepository,
+)
+from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_producto_repository import (
     SqlAlchemyProductoRepository,
 )
 
