@@ -36,7 +36,14 @@ PERMISOS = [
     ("inventario.solicitar_ingreso", "Solicitar/registrar ingresos de mercadería", True),
     ("inventario.ver", "Consultar inventario y stock", True),
     ("ventas.registrar", "Registrar ventas en el POS", True),
-    ("ventas.anular", "Anular ventas", False),
+    # El cajero puede anular/devolver dejando rastro (HU-C08); el ADMIN supervisa
+    # desde el panel de caja y puede quitarle el permiso sin redeploy si lo desea.
+    ("ventas.anular", "Anular ventas", True),
+    ("ventas.devolver", "Registrar devoluciones de venta", True),
+    ("metodos_pago.gestionar", "Agregar/desactivar métodos de pago", False),
+    ("clientes.gestionar", "Registrar y editar clientes del fiado", True),
+    ("clientes.limite_credito", "Fijar límite de crédito por cliente", False),
+    ("fiados.abonar", "Registrar abonos de fiados", True),
     ("caja.abrir_turno", "Abrir turno de caja", True),
     ("caja.cerrar_turno", "Cerrar turno de caja", True),
     ("reportes.ver", "Ver reportes", False),

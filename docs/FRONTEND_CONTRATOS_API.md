@@ -55,39 +55,62 @@ Cuerpo: `{ motivo }` → pasa a `RECHAZADO` sin tocar stock. Registrar en bitác
 
 ## Módulo C — Ventas (Clever)
 
+> **Implementado y AMPLIADO** (HU-C01…C10). El contrato original de abajo sigue vigente y
+> funcionando; el contrato completo (pagos mixtos, arqueo, devoluciones, fiados, offline) está
+> documentado en `docs/CAMBIOS-CLEVER/API_MODULO_C.md`. Resumen de lo nuevo:
+>
+> - `GET /caja/resumen` (sugerencia de cierre), `GET /caja/turnos` (historial con arqueo),
+>   `GET /caja/turnos/{id}/movimientos` (rastro: ventas, reversos, abonos).
+> - `POST /caja/cerrar` acepta `{monto_final, comentario?}`; el comentario es obligatorio si
+>   el monto difiere de la sugerencia y devuelve el turno con su `arqueo`.
+> - `POST /ventas` acepta además `pagos: [{metodo, monto?, monto_recibido?}]` (pago mixto y
+>   vuelto), `cliente_id` (fiado) y `client_uuid`/`registrada_offline`/`vendida_en` (offline
+>   idempotente). La respuesta incluye `pagos`, `vuelto`, `estado`, `turno_id`.
+> - `POST /ventas/{id}/devolver` (devolución parcial), `GET/POST/PATCH /metodos-pago`,
+>   `GET/POST/PATCH /clientes`, `GET /fiados`, `POST /fiados/{id}/abonos`.
+> - `ventas.anular` ya no es solo ADMIN: el cajero anula/devuelve dejando rastro (HU-C08).
+
 ### `GET /caja/turno-actual`
 El turno abierto del día, o `null` si no hay.
 
 ```json
 { "id": 3, "abierto_por": "vendedor1", "monto_inicial": 50.0,
   "monto_final": null, "abierto_en": "2026-07-12T08:00:00Z",
-  "cerrado_en": null, "estado": "ABIERTO" }
+  "cerrado_en": null, "estado": "ABIERTO", "cerrado_por": null, "arqueo": null }
 ```
 
 ### `POST /caja/abrir` (permiso `caja.abrir_turno`)
-Cuerpo: `{ monto_inicial }` → responde el turno creado. Debe rechazar si ya hay uno abierto.
+Cuerpo: `{ monto_inicial }` → responde el turno creado. Rechaza (409) si ya hay uno abierto.
 
 ### `POST /caja/cerrar` (permiso `caja.cerrar_turno`)
-Cuerpo: `{ monto_final }` → cierra el turno y registra en bitácora la diferencia contra lo esperado (inicial + ventas en efectivo).
+Cuerpo: `{ monto_final, comentario? }` → cierra el turno con su arqueo y registra en bitácora
+la diferencia contra lo esperado (inicial + ventas en efectivo + abonos − devoluciones).
 
 ### `POST /ventas` (permiso `ventas.registrar`)
-Cuerpo: `{ "items": [{ "producto_id": 1, "cantidad": 2 }], "metodo_pago": "EFECTIVO" }`.
-`metodo_pago` ∈ `EFECTIVO | YAPE | PLIN | TARJETA`. Debe descontar stock y rechazar si la caja está cerrada.
+Cuerpo mínimo (retrocompatible): `{ "items": [{ "producto_id": 1, "cantidad": 2 }], "metodo_pago": "EFECTIVO" }`.
+Los métodos válidos son los del catálogo `GET /metodos-pago`. Descuenta stock de forma atómica
+y rechaza (409) si la caja está cerrada.
 
 Respuesta (y elemento de `GET /ventas`):
 
 ```json
-{ "id": 12, "items": [{ "producto_id": 1, "nombre": "Arroz 5kg",
-    "precio_unitario": 18.5, "cantidad": 2 }],
-  "total": 37.0, "metodo_pago": "EFECTIVO", "vendedor": "vendedor1",
-  "anulada": false, "created_at": "2026-07-12T10:15:00Z" }
+{ "id": 12, "items": [{ "id": 30, "producto_id": 1, "nombre": "Arroz 5kg",
+    "precio_unitario": 18.5, "cantidad": 2, "cantidad_devuelta": 0 }],
+  "total": 37.0, "metodo_pago": "EFECTIVO",
+  "pagos": [{ "metodo": "EFECTIVO", "monto": 37.0, "es_efectivo": true,
+              "monto_recibido": 40.0, "vuelto": 3.0 }],
+  "vuelto": 3.0, "vendedor": "vendedor1", "cliente_id": null,
+  "anulada": false, "estado": "COMPLETADA", "turno_id": 3,
+  "registrada_offline": false, "vendida_en": null,
+  "created_at": "2026-07-12T10:15:00Z" }
 ```
 
-### `GET /ventas?desde=&hasta=`
-Historial filtrable por fecha (ambos opcionales).
+### `GET /ventas?desde=&hasta=&turno_id=`
+Historial filtrable por fecha y por turno (todos opcionales).
 
-### `POST /ventas/{id}/anular` (ADMIN, permiso `ventas.anular`)
-Cuerpo: `{ motivo }` → marca `anulada: true`, devuelve stock y registra en bitácora. Nunca borra la fila.
+### `POST /ventas/{id}/anular` (permiso `ventas.anular` — cajero incluido, deja rastro)
+Cuerpo: `{ motivo }` → reverso total: `estado: "ANULADA"`, repone stock, descuenta de la caja
+actual el efectivo devuelto y registra el rastro en `anulaciones` + bitácora. Nunca borra la fila.
 
 ---
 
