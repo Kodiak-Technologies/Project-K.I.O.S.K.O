@@ -60,7 +60,7 @@ const GRUPOS: Grupo[] = [
   {
     titulo: "Documentos",
     enlaces: [
-      { a: "/boletas", texto: "Boletas", icono: Receipt },
+      { a: "/notas-venta", texto: "Notas de Venta", icono: Receipt },
       { a: "/reportes", texto: "Reportes", icono: BarChart3, soloAdmin: true },
       { a: "/notificaciones", texto: "Notificaciones", icono: Bell },
       { a: "/respaldos", texto: "Respaldos", icono: Database, soloAdmin: true },
