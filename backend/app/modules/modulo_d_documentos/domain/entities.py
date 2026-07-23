@@ -1,59 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
 
-from app.modules.modulo_d_documentos.domain.value_objects import (
-    EstadoArchivoDrive,
-    EstadoRespaldo,
-)
-
-
-@dataclass
-class Boleta:
-    """Boleta digital generada para una venta confirmada."""
-
-    id: int | None
-    venta_id: int
-    numero: str 
-    total: float
-    emitida_en: datetime | None = None
-    url_pdf: str | None = None
-    cliente_nombre: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.emitida_en is None:
-            self.emitida_en = datetime.now(timezone.utc)
-
-
-@dataclass
-class ArchivoDrive:
-    """Registro de un archivo subido (o pendiente) a Google Drive."""
-
-    id: int | None
-    boleta_id: int
-    archivo_nombre: str
-    carpeta: str
-    estado: str = EstadoArchivoDrive.PENDIENTE.value
-    intentos: int = 0
-    drive_file_id: str | None = None
-    error_mensaje: str | None = None
-    creado_en: datetime | None = None
-    actualizado_en: datetime | None = None
-
-    def __post_init__(self) -> None:
-        ahora = datetime.now(timezone.utc)
-        if self.creado_en is None:
-            self.creado_en = ahora
-        if self.actualizado_en is None:
-            self.actualizado_en = ahora
-
-    @property
-    def esta_subido(self) -> bool:
-        return self.estado == EstadoArchivoDrive.SUBIDO.value
-
-    @property
-    def esta_pendiente(self) -> bool:
-        return self.estado == EstadoArchivoDrive.PENDIENTE.value
+from app.modules.modulo_d_documentos.domain.value_objects import EstadoRespaldo
 
 
 @dataclass
@@ -68,6 +16,7 @@ class Notificacion:
     entidad_origen: str | None = None
     entidad_id: str | None = None
     usuario_id: int | None = None
+    producto_id: int | None = None
     created_at: datetime | None = None
 
     def __post_init__(self) -> None:
@@ -80,14 +29,10 @@ class Notificacion:
 
 @dataclass
 class ConfigNotificaciones:
-    """Configuración de canales de notificación (fila única id=1)."""
+    """Configuración global de notificaciones (fila única id=1)."""
 
     id: int = 1
-    canal_telegram_activo: bool = True
-    canal_correo_activo: bool = False
-    nivel_detalle: str = "MEDIO"
-    telegram_chat_id: str | None = None
-    correo_destino: str | None = None
+    nivel_detalle: str = "BAJO"
     updated_at: datetime | None = None
 
     def __post_init__(self) -> None:
@@ -179,3 +124,37 @@ class ResumenReporte:
             self.ticket_promedio = self.total_vendido / self.numero_ventas
         else:
             self.ticket_promedio = 0.0
+
+
+@dataclass
+class VentaResumen:
+    """Resumen de una venta para notas de venta."""
+
+    id: int
+    fecha: datetime
+    total: float
+    metodo_pago: str
+    estado: str
+    items: list["ItemVentaResumen"] = field(default_factory=list)
+    vendedor: str = ""
+
+    @property
+    def fecha_formato(self) -> str:
+        return self.fecha.strftime("%Y-%m-%d")
+
+    @property
+    def identificacion(self) -> str:
+        return f"{self.fecha_formato}_VENTA-{self.id}"
+
+
+@dataclass
+class ItemVentaResumen:
+    """Ítem de una venta para notas de venta."""
+
+    nombre: str
+    cantidad: int
+    precio_unitario: float
+
+    @property
+    def subtotal(self) -> float:
+        return self.cantidad * self.precio_unitario

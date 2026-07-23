@@ -17,45 +17,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.shared.database.base_model import Base
 
 
-class BoletaModel(Base):
-    __tablename__ = "boletas_clientes"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    venta_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
-    numero: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
-    total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    emitida_en: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    url_pdf: Mapped[str | None] = mapped_column(Text)
-    cliente_nombre: Mapped[str | None] = mapped_column(String(120))
-
-
-class ArchivoDriveModel(Base):
-    __tablename__ = "archivos_drive"
-    __table_args__ = (
-        Index("ix_archivos_drive_boleta_id", "boleta_id"),
-        Index("ix_archivos_drive_estado", "estado"),
-    )
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    boleta_id: Mapped[int] = mapped_column(
-        ForeignKey("boletas_clientes.id", ondelete="RESTRICT"), nullable=False
-    )
-    archivo_nombre: Mapped[str] = mapped_column(String(255), nullable=False)
-    carpeta: Mapped[str] = mapped_column(String(255), default="", nullable=False)
-    estado: Mapped[str] = mapped_column(String(20), default="PENDIENTE", nullable=False)
-    intentos: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    drive_file_id: Mapped[str | None] = mapped_column(String(255))
-    error_mensaje: Mapped[str | None] = mapped_column(Text)
-    creado_en: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    actualizado_en: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-
 class NotificacionModel(Base):
     __tablename__ = "notificaciones"
     __table_args__ = (
@@ -71,7 +32,10 @@ class NotificacionModel(Base):
     leida: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     entidad_origen: Mapped[str | None] = mapped_column(String(60))
     entidad_id: Mapped[str | None] = mapped_column(String(60))
-    usuario_id: Mapped[int | None] = mapped_column(BigInteger)
+    usuario_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    producto_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -81,11 +45,7 @@ class ConfigNotificacionesModel(Base):
     __tablename__ = "config_notificaciones"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    canal_telegram_activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    canal_correo_activo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    nivel_detalle: Mapped[str] = mapped_column(String(20), default="MEDIO", nullable=False)
-    telegram_chat_id: Mapped[str | None] = mapped_column(String(100))
-    correo_destino: Mapped[str | None] = mapped_column(String(120))
+    nivel_detalle: Mapped[str] = mapped_column(String(20), default="BAJO", nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
@@ -119,7 +79,9 @@ class OAuthTokenModel(Base):
     access_token: Mapped[str] = mapped_column(Text, nullable=False)
     refresh_token: Mapped[str] = mapped_column(Text, nullable=False)
     token_expiry: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    usuario_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    usuario_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
     fecha_creacion: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
