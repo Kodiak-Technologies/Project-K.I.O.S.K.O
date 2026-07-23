@@ -1,0 +1,45 @@
+from app.modules.modulo_d_documentos.application.generar_nota_venta_usecase import GenerarNotaVentaUseCase
+from app.modules.modulo_d_documentos.domain.ports.venta_data_provider_port import VentaDataProviderPort
+from app.modules.modulo_d_documentos.domain.ports.drive_storage_port import DriveStoragePort
+
+
+class SubirNotasDriveUseCase:
+    def __init__(
+        self,
+        venta_data: VentaDataProviderPort,
+        generar_nota: GenerarNotaVentaUseCase,
+        drive_storage: DriveStoragePort,
+    ) -> None:
+        self._venta_data = venta_data
+        self._generar_nota = generar_nota
+        self._drive_storage = drive_storage
+
+    async def ejecutar(
+        self,
+        desde: str | None = None,
+        hasta: str | None = None,
+        carpeta: str = "Notas de Venta",
+    ) -> dict:
+        ventas = await self._venta_data.listar_ventas(desde=desde, hasta=hasta)
+
+        subidos = 0
+        errores = 0
+
+        for venta in ventas:
+            venta_id = venta["id"]
+            try:
+                png_bytes = await self._generar_nota.ejecutar(venta_id)
+                fecha = venta.get("fecha", "")
+                if hasattr(fecha, "strftime"):
+                    fecha = fecha.strftime("%Y-%m-%d")
+                nombre = f"{str(fecha)[:10]}_VENTA-{venta_id}.png"
+                await self._drive_storage.subir(
+                    archivo_bytes=png_bytes,
+                    nombre=nombre,
+                    carpeta=carpeta,
+                )
+                subidos += 1
+            except Exception:
+                errores += 1
+
+        return {"subidos": subidos, "errores": errores, "total": len(ventas)}
