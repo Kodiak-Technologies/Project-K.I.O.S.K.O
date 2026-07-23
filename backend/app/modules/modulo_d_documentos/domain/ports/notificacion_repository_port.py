@@ -8,8 +8,16 @@ class NotificacionRepositoryPort(Protocol):
         """Retorna todas las notificaciones, no leídas primero."""
         ...
 
+    async def listar_por_usuario(self, usuario_id: int) -> list[Notificacion]:
+        """Retorna notificaciones de un usuario específico, no leídas primero."""
+        ...
+
     async def marcar_leida(self, notificacion_id: int) -> Notificacion | None:
         """Marca una notificación como leída. Retorna None si no existe."""
+        ...
+
+    async def marcar_todas_leidas(self, usuario_id: int) -> int:
+        """Marca todas las no leídas de un usuario como leídas. Retorna cantidad."""
         ...
 
     async def crear(self, notificacion: Notificacion) -> Notificacion: ...
