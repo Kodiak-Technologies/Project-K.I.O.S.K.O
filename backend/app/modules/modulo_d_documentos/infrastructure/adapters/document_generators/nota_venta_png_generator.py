@@ -1,7 +1,9 @@
+import io
+
 from PIL import Image, ImageDraw, ImageFont
 
 
-class BoletaPngGenerator:
+class NotaVentaPngGenerator:
     ANCHO = 400
     MARGEN = 20
 
@@ -27,7 +29,7 @@ class BoletaPngGenerator:
         y = self.MARGEN
         draw.text((self.MARGEN, y), nombre_negocio, fill="black", font=font_title)
         y += 30
-        draw.text((self.MARGEN, y), f"Boleta: {numero}", fill="black", font=font_normal)
+        draw.text((self.MARGEN, y), f"Nota de Venta: {numero}", fill="black", font=font_normal)
         y += 20
         draw.text((self.MARGEN, y), f"Fecha: {fecha}", fill="black", font=font_normal)
         y += 30
@@ -53,7 +55,6 @@ class BoletaPngGenerator:
         y += 10
         draw.text((self.MARGEN, y), f"TOTAL: S/ {total:.2f}", fill="black", font=font_title)
 
-        import io
         buffer = io.BytesIO()
         img.save(buffer, format="PNG", optimize=True)
         return buffer.getvalue()
