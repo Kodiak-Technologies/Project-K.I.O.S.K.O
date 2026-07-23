@@ -1,12 +1,12 @@
 import io
 
-from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.modules.modulo_a_seguridad.infrastructure.dependencies import get_current_user, require_role
 from app.modules.modulo_a_seguridad.domain.entities import Usuario
 from app.modules.modulo_d_documentos.application.generar_nota_venta_usecase import GenerarNotaVentaUseCase
-
+from app.modules.modulo_d_documentos.application.descargar_notas_venta_usecase import DescargarNotasVentaUseCase
 from app.modules.modulo_d_documentos.application.subir_notas_drive_usecase import SubirNotasDriveUseCase
 from app.modules.modulo_d_documentos.infrastructure.dependencies import (
     get_venta_data_provider,
@@ -62,9 +62,6 @@ async def descargar_notas_venta_batch(
     config_data=Depends(get_configuracion_provider),
     png_generator=Depends(get_png_generator),
 ):
-    from app.modules.modulo_d_documentos.application.generar_nota_venta_usecase import GenerarNotaVentaUseCase
-    from app.modules.modulo_d_documentos.application.descargar_notas_venta_usecase import DescargarNotasVentaUseCase
-
     generar_nota = GenerarNotaVentaUseCase(venta_data, config_data, png_generator)
     usecase = DescargarNotasVentaUseCase(venta_data, generar_nota)
     data, count = await usecase.ejecutar(desde=body.desde, hasta=body.hasta)
@@ -95,9 +92,6 @@ async def subir_notas_drive_batch(
     png_generator=Depends(get_png_generator),
     drive_storage=Depends(get_drive_storage),
 ):
-    from app.modules.modulo_d_documentos.application.generar_nota_venta_usecase import GenerarNotaVentaUseCase
-    from app.modules.modulo_d_documentos.application.subir_notas_drive_usecase import SubirNotasDriveUseCase
-
     generar_nota = GenerarNotaVentaUseCase(venta_data, config_data, png_generator)
     usecase = SubirNotasDriveUseCase(venta_data, generar_nota, drive_storage)
     resultado = await usecase.ejecutar(desde=body.desde, hasta=body.hasta, carpeta=body.carpeta)
