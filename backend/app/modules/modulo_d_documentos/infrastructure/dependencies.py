@@ -13,6 +13,12 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_oauth_token_repository import (
     SqlAlchemyOAuthTokenRepository,
 )
+from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_venta_data_provider import (
+    SqlAlchemyVentaDataProvider,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_configuracion_provider import (
+    SqlAlchemyConfiguracionProvider,
+)
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_drive_adapter import (
     GoogleDriveAdapter,
 )
@@ -75,42 +81,12 @@ def get_png_generator():
     return _png_generator
 
 
-class MockVentaDataProvider:
-    async def obtener_venta(self, venta_id: int) -> dict | None:
-        mock_ventas = {
-            1: {"id": 1, "total": 150.00, "metodo_pago": "EFECTIVO", "fecha": "2026-07-15T10:30:00Z"},
-            2: {"id": 2, "total": 85.50, "metodo_pago": "TARJETA", "fecha": "2026-07-14T15:45:00Z"},
-            3: {"id": 3, "total": 320.00, "metodo_pago": "EFECTIVO", "fecha": "2026-07-13T09:00:00Z"},
-        }
-        return mock_ventas.get(venta_id)
-
-    async def listar_ventas(self, desde: str | None = None, hasta: str | None = None) -> list[dict]:
-        return [
-            {"id": 1, "total": 150.00, "fecha": "2026-07-15", "cliente_nombre": "Cliente 1"},
-            {"id": 2, "total": 85.50, "fecha": "2026-07-14", "cliente_nombre": "Cliente 2"},
-            {"id": 3, "total": 320.00, "fecha": "2026-07-13", "cliente_nombre": "Cliente 1"},
-        ]
-
-    async def obtener_detalle_venta(self, venta_id: int) -> list[dict]:
-        mock_detalles = {
-            1: [
-                {"nombre": "Arroz 1kg", "cantidad": 2, "precio_unitario": 25.00, "subtotal": 50.00},
-                {"nombre": "Aceite 1L", "cantidad": 1, "precio_unitario": 100.00, "subtotal": 100.00},
-            ],
-            2: [
-                {"nombre": "Leche 1L", "cantidad": 3, "precio_unitario": 5.50, "subtotal": 16.50},
-                {"nombre": "Pan tajado", "cantidad": 2, "precio_unitario": 8.50, "subtotal": 17.00},
-            ],
-            3: [
-                {"nombre": "Pollo entero", "cantidad": 1, "precio_unitario": 320.00, "subtotal": 320.00},
-            ],
-        }
-        return mock_detalles.get(venta_id, [])
+async def get_venta_data_provider(db: AsyncSession = Depends(get_db)):
+    return SqlAlchemyVentaDataProvider(db)
 
 
-class MockConfiguracionProvider:
-    async def obtener(self) -> dict:
-        return {"nombre_negocio": "Mi Tienda", "logo_url": ""}
+async def get_configuracion_provider(db: AsyncSession = Depends(get_db)):
+    return SqlAlchemyConfiguracionProvider(db)
 
 
 class MockEgresosDataProvider:
@@ -131,18 +107,8 @@ class MockMetodoPagoProvider:
         return {"EFECTIVO": 850.00, "YAPE": 320.00, "PLIN": 180.00, "TARJETA": 200.00}
 
 
-_venta_data_provider = MockVentaDataProvider()
-_configuracion_provider = MockConfiguracionProvider()
 _egresos_data_provider = MockEgresosDataProvider()
 _metodo_pago_provider = MockMetodoPagoProvider()
-
-
-def get_venta_data_provider():
-    return _venta_data_provider
-
-
-def get_configuracion_provider():
-    return _configuracion_provider
 
 
 def get_egresos_data_provider():

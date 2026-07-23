@@ -14,6 +14,12 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_respaldo_repository import (
     SqlAlchemyRespaldoRepository,
 )
+from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_venta_data_provider import (
+    SqlAlchemyVentaDataProvider,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_configuracion_provider import (
+    SqlAlchemyConfiguracionProvider,
+)
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_oauth_token_repository import (
     SqlAlchemyOAuthTokenRepository,
 )
@@ -30,8 +36,6 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.composite_
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.excel_generator import ExcelGenerator
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.nota_venta_png_generator import NotaVentaPngGenerator
 from app.modules.modulo_d_documentos.infrastructure.dependencies import (
-    _venta_data_provider,
-    _configuracion_provider,
     _egresos_data_provider,
     _metodo_pago_provider,
 )
@@ -45,18 +49,18 @@ _png_generator = NotaVentaPngGenerator()
 
 
 def generar_reporte_ventas_usecase(db: AsyncSession) -> GenerarReporteVentasUseCase:
-    return GenerarReporteVentasUseCase(_venta_data_provider)
+    return GenerarReporteVentasUseCase(SqlAlchemyVentaDataProvider(db))
 
 
 def generar_reporte_mas_vendidos_usecase(db: AsyncSession) -> GenerarReporteMasVendidosUseCase:
-    return GenerarReporteMasVendidosUseCase(_venta_data_provider)
+    return GenerarReporteMasVendidosUseCase(SqlAlchemyVentaDataProvider(db))
 
 
 def exportar_reporte_excel_usecase(db: AsyncSession) -> ExportarReporteExcelUseCase:
     return ExportarReporteExcelUseCase(
         _reporte_generator,
-        _venta_data_provider,
-        _configuracion_provider,
+        SqlAlchemyVentaDataProvider(db),
+        SqlAlchemyConfiguracionProvider(db),
         _egresos_data_provider,
     )
 
