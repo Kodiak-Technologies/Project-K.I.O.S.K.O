@@ -1,12 +1,6 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_boleta_repository import (
-    SqlAlchemyBoletaRepository,
-)
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_archivo_drive_repository import (
-    SqlAlchemyArchivoDriveRepository,
-)
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_notificacion_repository import (
     SqlAlchemyNotificacionRepository,
 )
@@ -34,8 +28,8 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.composite_
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.excel_generator import (
     ExcelGenerator,
 )
-from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.boleta_png_generator import (
-    BoletaPngGenerator,
+from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.nota_venta_png_generator import (
+    NotaVentaPngGenerator,
 )
 from app.shared.database.session import get_db
 
@@ -44,15 +38,7 @@ _notificacion_sender = CompositeNotificationSender([
     CorreoNotificationAdapter(),
 ])
 _reporte_generator = ExcelGenerator()
-_png_generator = BoletaPngGenerator()
-
-
-async def get_boleta_repository(db: AsyncSession = Depends(get_db)):
-    return SqlAlchemyBoletaRepository(db)
-
-
-async def get_archivo_drive_repository(db: AsyncSession = Depends(get_db)):
-    return SqlAlchemyArchivoDriveRepository(db)
+_png_generator = NotaVentaPngGenerator()
 
 
 async def get_notificacion_repository(db: AsyncSession = Depends(get_db)):
