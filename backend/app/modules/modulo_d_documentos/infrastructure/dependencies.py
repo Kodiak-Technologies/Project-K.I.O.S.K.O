@@ -13,11 +13,11 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_oauth_token_repository import (
     SqlAlchemyOAuthTokenRepository,
 )
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_venta_data_provider import (
-    SqlAlchemyVentaDataProvider,
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_venta_data_provider import (
+    HttpVentaDataProvider,
 )
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_configuracion_provider import (
-    SqlAlchemyConfiguracionProvider,
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_configuracion_provider import (
+    HttpConfiguracionProvider,
 )
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_drive_adapter import (
     GoogleDriveAdapter,
@@ -45,6 +45,8 @@ _notificacion_sender = CompositeNotificationSender([
 ])
 _reporte_generator = ExcelGenerator()
 _png_generator = NotaVentaPngGenerator()
+_venta_data_provider = HttpVentaDataProvider()
+_configuracion_provider = HttpConfiguracionProvider()
 
 
 async def get_notificacion_repository(db: AsyncSession = Depends(get_db)):
@@ -81,12 +83,12 @@ def get_png_generator():
     return _png_generator
 
 
-async def get_venta_data_provider(db: AsyncSession = Depends(get_db)):
-    return SqlAlchemyVentaDataProvider(db)
+def get_venta_data_provider():
+    return _venta_data_provider
 
 
-async def get_configuracion_provider(db: AsyncSession = Depends(get_db)):
-    return SqlAlchemyConfiguracionProvider(db)
+def get_configuracion_provider():
+    return _configuracion_provider
 
 
 class MockEgresosDataProvider:

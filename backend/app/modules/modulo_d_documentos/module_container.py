@@ -14,14 +14,14 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_respaldo_repository import (
     SqlAlchemyRespaldoRepository,
 )
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_venta_data_provider import (
-    SqlAlchemyVentaDataProvider,
-)
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_configuracion_provider import (
-    SqlAlchemyConfiguracionProvider,
-)
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_oauth_token_repository import (
     SqlAlchemyOAuthTokenRepository,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_venta_data_provider import (
+    HttpVentaDataProvider,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_configuracion_provider import (
+    HttpConfiguracionProvider,
 )
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_drive_adapter import GoogleDriveAdapter
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.telegram_notification_adapter import (
@@ -46,21 +46,23 @@ _notificacion_sender = CompositeNotificationSender([
 ])
 _reporte_generator = ExcelGenerator()
 _png_generator = NotaVentaPngGenerator()
+_venta_data_provider = HttpVentaDataProvider()
+_configuracion_provider = HttpConfiguracionProvider()
 
 
 def generar_reporte_ventas_usecase(db: AsyncSession) -> GenerarReporteVentasUseCase:
-    return GenerarReporteVentasUseCase(SqlAlchemyVentaDataProvider(db))
+    return GenerarReporteVentasUseCase(_venta_data_provider)
 
 
 def generar_reporte_mas_vendidos_usecase(db: AsyncSession) -> GenerarReporteMasVendidosUseCase:
-    return GenerarReporteMasVendidosUseCase(SqlAlchemyVentaDataProvider(db))
+    return GenerarReporteMasVendidosUseCase(_venta_data_provider)
 
 
 def exportar_reporte_excel_usecase(db: AsyncSession) -> ExportarReporteExcelUseCase:
     return ExportarReporteExcelUseCase(
         _reporte_generator,
-        SqlAlchemyVentaDataProvider(db),
-        SqlAlchemyConfiguracionProvider(db),
+        _venta_data_provider,
+        _configuracion_provider,
         _egresos_data_provider,
     )
 
