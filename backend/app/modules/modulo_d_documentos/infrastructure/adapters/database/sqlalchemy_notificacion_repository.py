@@ -56,7 +56,8 @@ class SqlAlchemyNotificacionRepository:
         resultado = await self._db.execute(
             update(NotificacionModel)
             .where(
-                NotificacionModel.usuario_id == usuario_id,
+                (NotificacionModel.usuario_id == usuario_id)
+                | (NotificacionModel.usuario_id.is_(None)),
                 NotificacionModel.leida == False,
             )
             .values(leida=True)

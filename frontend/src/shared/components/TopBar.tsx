@@ -8,6 +8,7 @@ import { Bell, LogOut, Menu } from "lucide-react";
 // Import cruzado consciente: las notificaciones son del módulo D, igual que el
 // POS consume el catálogo del módulo B a través de su puerto.
 import { useNotificaciones } from "../../modules/modulo-d-documentos/hooks/useNotificaciones";
+import { notificacionesHttpAdapter } from "../../modules/modulo-d-documentos/services/notificaciones.http-adapter";
 import { useAuthContext } from "../lib/auth-context";
 
 function CampanaNotificaciones() {
@@ -29,10 +30,15 @@ function CampanaNotificaciones() {
   }, [abierto]);
   useEffect(() => setAbierto(false), [ubicacion.pathname]);
 
+  // Auto-marcar todas como leídas al abrir la campana.
+  useEffect(() => {
+    if (abierto && noLeidas.length > 0) {
+      void notificacionesHttpAdapter.marcarTodasLeidas().then(() => void recargar());
+    }
+  }, [abierto]);
+
   function alternar() {
-    const abriendo = !abierto;
-    setAbierto(abriendo);
-    if (abriendo) void recargar(); // refrescar el "entrante" cada vez que se abre
+    setAbierto((prev) => !prev);
   }
 
   return (

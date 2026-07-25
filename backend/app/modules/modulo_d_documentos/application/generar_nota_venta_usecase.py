@@ -37,10 +37,24 @@ class GenerarNotaVentaUseCase:
 
         identificacion = f"{str(fecha)[:10]}_VENTA-{venta_id}"
 
+        pagos = venta.get("pagos", [])
+        pagos_formateados = [
+            {
+                "metodo": p.get("metodo", ""),
+                "monto": float(p.get("monto", 0)),
+                "monto_recibido": p.get("monto_recibido"),
+                "vuelto": float(p.get("vuelto", 0)),
+            }
+            for p in pagos
+        ]
+
         return await self._png_generator.generar(
             numero=identificacion,
             total=float(venta.get("total", 0.0)),
             fecha=fecha,
             productos=productos,
             nombre_negocio=config.get("nombre_negocio", "Mi Tienda"),
+            vendedor=venta.get("vendedor", ""),
+            pagos=pagos_formateados,
+            vuelto=float(venta.get("vuelto", 0)),
         )

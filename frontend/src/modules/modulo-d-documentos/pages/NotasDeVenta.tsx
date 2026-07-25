@@ -126,7 +126,7 @@ export default function NotasDeVenta() {
           onClick={() => void descargarPng(nv)}
           disabled={descargandoId === nv.venta_id}
         >
-          {descargandoId === nv.venta_id ? "Descargando…" : "PNG"}
+          PNG
         </Button>
       ),
     },

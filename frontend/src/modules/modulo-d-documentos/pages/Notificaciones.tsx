@@ -1,5 +1,5 @@
 // Página de historial de notificaciones (stock bajo, apertura/cierre de caja, sistema).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, BellOff, CheckCheck, Settings } from "lucide-react";
 import {
   Alert,
@@ -29,10 +29,17 @@ const TONO_TIPO: Record<TipoNotificacion, Tono> = {
 export default function Notificaciones() {
   const { usuario } = useAuthContext();
   const esAdmin = usuario?.rol === "ADMIN";
-  const { notificaciones, config, cargando, error, noDisponible, marcarLeida, actualizarConfig } =
+  const { notificaciones, config, cargando, error, noDisponible, recargar, marcarLeida, actualizarConfig } =
     useNotificaciones();
   const [mostrarConfig, setMostrarConfig] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState<TipoNotificacion | "TODOS">("TODOS");
+
+  // Auto-marcar todas como leídas al entrar a la página.
+  useEffect(() => {
+    if (!cargando && !noDisponible && notificaciones.some((n) => !n.leida)) {
+      void notificacionesHttpAdapter.marcarTodasLeidas().then(() => void recargar());
+    }
+  }, [cargando, noDisponible]);
 
   const notificacionesFiltradas = filtroTipo === "TODOS"
     ? notificaciones

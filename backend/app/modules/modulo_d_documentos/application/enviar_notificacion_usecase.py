@@ -1,7 +1,11 @@
+import logging
+
 from app.modules.modulo_d_documentos.domain.entities import Notificacion
 from app.modules.modulo_d_documentos.domain.ports.notificacion_sender_port import NotificacionSenderPort
 from app.modules.modulo_d_documentos.domain.ports.notificacion_repository_port import NotificacionRepositoryPort
 from app.modules.modulo_d_documentos.domain.ports.config_notificaciones_repository_port import ConfigNotificacionesRepositoryPort
+
+logger = logging.getLogger(__name__)
 
 
 class EnviarNotificacionUseCase:
@@ -29,15 +33,18 @@ class EnviarNotificacionUseCase:
 
         texto_enviar = titulo if config.nivel_detalle == "BAJO" else f"{titulo}\n\n{mensaje}"
 
-        try:
-            await self._notificacion_sender.enviar("TELEGRAM", titulo, texto_enviar)
-        except Exception:
-            pass
+        # Admin (usuario_id=None): sistema + telegram + email
+        # Trabajador (usuario_id con valor): solo sistema (guardar en BD)
+        if usuario_id is None:
+            try:
+                await self._notificacion_sender.enviar("TELEGRAM", titulo, texto_enviar)
+            except Exception as e:
+                logger.debug("Error enviando por Telegram: %s", e)
 
-        try:
-            await self._notificacion_sender.enviar("CORREO", titulo, texto_enviar)
-        except Exception:
-            pass
+            try:
+                await self._notificacion_sender.enviar("CORREO", titulo, texto_enviar)
+            except Exception as e:
+                logger.debug("Error enviando por Correo: %s", e)
 
         notificacion = Notificacion(
             id=None,

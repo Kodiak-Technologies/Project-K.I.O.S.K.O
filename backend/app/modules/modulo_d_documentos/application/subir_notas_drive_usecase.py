@@ -1,6 +1,10 @@
+import logging
+
 from app.modules.modulo_d_documentos.application.generar_nota_venta_usecase import GenerarNotaVentaUseCase
 from app.modules.modulo_d_documentos.domain.ports.venta_data_provider_port import VentaDataProviderPort
 from app.modules.modulo_d_documentos.domain.ports.drive_storage_port import DriveStoragePort
+
+logger = logging.getLogger(__name__)
 
 
 class SubirNotasDriveUseCase:
@@ -39,7 +43,8 @@ class SubirNotasDriveUseCase:
                     carpeta=carpeta,
                 )
                 subidos += 1
-            except Exception:
+            except Exception as e:
                 errores += 1
+                logger.error("Error subiendo venta %d a Drive: %s", venta_id, e)
 
         return {"subidos": subidos, "errores": errores, "total": len(ventas)}
