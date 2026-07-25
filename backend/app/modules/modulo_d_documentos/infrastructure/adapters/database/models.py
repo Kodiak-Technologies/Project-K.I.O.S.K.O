@@ -56,6 +56,7 @@ class RespaldoModel(Base):
     __table_args__ = (
         Index("ix_respaldos_estado", "estado"),
         Index("ix_respaldos_generado_en", "generado_en"),
+        Index("ix_respaldos_usuario_id", "usuario_id"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -66,6 +67,10 @@ class RespaldoModel(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    usuario_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    drive_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class OAuthTokenModel(Base):

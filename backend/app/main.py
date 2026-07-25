@@ -41,7 +41,7 @@ from app.shared.http.middlewares import registrar_middlewares
 
 logger = logging.getLogger(__name__)
 
-TAREA_RESPALDO_INTERVALO = 86400  # 24 horas
+TAREA_RESPALDO_INTERVALO = 604800  # 7 días (una semana)
 
 
 async def _ejecutar_tarea_respaldos() -> None:

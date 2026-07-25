@@ -50,6 +50,8 @@ class Respaldo:
     estado: str = EstadoRespaldo.PENDIENTE.value
     generado_en: datetime | None = None
     expira_en: datetime | None = None
+    usuario_id: int | None = None
+    drive_file_id: str | None = None
 
     def __post_init__(self) -> None:
         ahora = datetime.now(timezone.utc)
@@ -58,7 +60,7 @@ class Respaldo:
         if self.expira_en is None:
             from datetime import timedelta
 
-            self.expira_en = ahora + timedelta(days=30)
+            self.expira_en = ahora + timedelta(days=21)
 
     @property
     def esta_completado(self) -> bool:

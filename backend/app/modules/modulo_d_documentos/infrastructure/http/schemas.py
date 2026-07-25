@@ -98,6 +98,8 @@ class RespaldoResponse(BaseModel):
     estado: str
     generado_en: datetime | None
     expira_en: datetime | None
+    usuario_id: int | None = None
+    drive_file_id: str | None = None
 
     @classmethod
     def desde_entidad(cls, r) -> "RespaldoResponse":
@@ -108,6 +110,8 @@ class RespaldoResponse(BaseModel):
             estado=r.estado,
             generado_en=r.generado_en,
             expira_en=r.expira_en,
+            usuario_id=getattr(r, "usuario_id", None),
+            drive_file_id=getattr(r, "drive_file_id", None),
         )
 
 

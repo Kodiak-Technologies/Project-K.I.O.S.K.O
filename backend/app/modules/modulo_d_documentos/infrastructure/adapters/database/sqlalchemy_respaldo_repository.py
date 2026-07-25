@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,8 @@ def _a_entidad(fila: RespaldoModel) -> Respaldo:
         estado=fila.estado,
         generado_en=fila.generado_en,
         expira_en=fila.expira_en,
+        usuario_id=fila.usuario_id,
+        drive_file_id=fila.drive_file_id,
     )
 
 
@@ -28,6 +30,8 @@ class SqlAlchemyRespaldoRepository:
             tamano_bytes=respaldo.tamano_bytes,
             estado=respaldo.estado,
             expira_en=respaldo.expira_en,
+            usuario_id=respaldo.usuario_id,
+            drive_file_id=respaldo.drive_file_id,
         )
         self._db.add(fila)
         await self._db.flush()
@@ -57,13 +61,20 @@ class SqlAlchemyRespaldoRepository:
         fila.estado = respaldo.estado
         fila.tamano_bytes = respaldo.tamano_bytes
         fila.expira_en = respaldo.expira_en
+        fila.drive_file_id = respaldo.drive_file_id
         await self._db.flush()
         await self._db.refresh(fila)
         return _a_entidad(fila)
 
-    async def eliminar_expirados(self) -> int:
+    async def eliminar_expirados(self) -> list[Respaldo]:
+        """Retorna los respaldos expirados antes de eliminarlos."""
         ahora = datetime.now(timezone.utc)
         resultado = await self._db.execute(
+            select(RespaldoModel).where(RespaldoModel.expira_en < ahora)
+        )
+        expirados = [_a_entidad(fila) for fila in resultado.scalars().all()]
+
+        await self._db.execute(
             delete(RespaldoModel).where(RespaldoModel.expira_en < ahora)
         )
-        return resultado.rowcount
+        return expirados
