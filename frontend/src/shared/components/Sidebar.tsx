@@ -9,6 +9,7 @@ import {
   Home,
   Package,
   PackagePlus,
+  PackageX,
   Receipt,
   ScrollText,
   Settings,
@@ -53,6 +54,10 @@ const GRUPOS: Grupo[] = [
       { a: "/productos", texto: "Productos", icono: PackagePlus, soloAdmin: true },
       { a: "/ingresos", texto: "Ingresos", icono: Truck },
       { a: "/aprobaciones", texto: "Aprobaciones", icono: ClipboardCheck, soloAdmin: true },
+      { a: "/mermas", texto: "Mermas", icono: PackageX },
+      { a: "/mermas/aprobacion", texto: "Aprobar mermas", icono: ClipboardCheck, soloAdmin: true },
+      { a: "/proveedores", texto: "Proveedores", icono: Users, soloAdmin: true },
+      { a: "/movimientos", texto: "Movimientos", icono: History },
     ],
   },
   {

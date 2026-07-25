@@ -1,5 +1,6 @@
 # Engine SQLAlchemy async compartido, SessionLocal y get_db(). Sin lógica de negocio.
 from collections.abc import AsyncGenerator
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
