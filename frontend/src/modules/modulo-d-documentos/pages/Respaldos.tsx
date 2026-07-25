@@ -93,6 +93,12 @@ export default function Respaldos() {
       ),
     },
     {
+      titulo: "Creado por",
+      render: (r) => (
+        <span className="text-zinc-600">{r.usuario_nombre ?? "—"}</span>
+      ),
+    },
+    {
       titulo: "Acción",
       render: (r) =>
         r.estado === "COMPLETADO" ? (

@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.modulo_a_seguridad.infrastructure.adapters.database.models import UsuarioModel
 from app.modules.modulo_a_seguridad.infrastructure.dependencies import require_role
 from app.modules.modulo_a_seguridad.domain.entities import Usuario
 from app.modules.modulo_d_documentos.infrastructure.dependencies import (
     get_respaldo_repository,
     get_drive_storage,
+    get_db,
 )
 from app.modules.modulo_d_documentos.infrastructure.http.schemas import RespaldoResponse
 from app.modules.modulo_d_documentos.application.crear_respaldo_usecase import (
@@ -22,9 +25,22 @@ router = APIRouter(prefix="/respaldos", tags=["Documentos"])
 async def listar_respaldos(
     usuario: Usuario = Depends(require_role("ADMIN")),
     respaldo_repo=Depends(get_respaldo_repository),
+    db: AsyncSession = Depends(get_db),
 ):
     respaldos = await respaldo_repo.listar()
-    return [RespaldoResponse.desde_entidad(r) for r in respaldos]
+
+    usuario_ids = {r.usuario_id for r in respaldos if r.usuario_id is not None}
+    nombres_map: dict[int, str] = {}
+    if usuario_ids:
+        resultado = await db.execute(
+            select(UsuarioModel.id, UsuarioModel.nombre).where(UsuarioModel.id.in_(usuario_ids))
+        )
+        nombres_map = {fila.id: fila.nombre for fila in resultado.all()}
+
+    return [
+        RespaldoResponse.desde_entidad(r, usuario_nombre=nombres_map.get(r.usuario_id))
+        for r in respaldos
+    ]
 
 
 @router.get("/{respaldo_id}/descargar")

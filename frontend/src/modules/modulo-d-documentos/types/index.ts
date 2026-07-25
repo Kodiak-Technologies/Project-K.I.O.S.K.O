@@ -53,5 +53,6 @@ export interface Respaldo {
   generado_en: string | null;
   expira_en: string | null;
   usuario_id: number | null;
+  usuario_nombre: string | null;
   drive_file_id: string | null;
 }
