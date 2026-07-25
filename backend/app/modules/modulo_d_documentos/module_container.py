@@ -1,18 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.modulo_d_documentos.application.generar_boleta_usecase import GenerarBoletaUseCase
-from app.modules.modulo_d_documentos.application.subir_boleta_drive_usecase import SubirBoletaDriveUseCase
 from app.modules.modulo_d_documentos.application.generar_reporte_ventas_usecase import GenerarReporteVentasUseCase
 from app.modules.modulo_d_documentos.application.generar_reporte_mas_vendidos_usecase import GenerarReporteMasVendidosUseCase
 from app.modules.modulo_d_documentos.application.exportar_reporte_excel_usecase import ExportarReporteExcelUseCase
 from app.modules.modulo_d_documentos.application.enviar_notificacion_usecase import EnviarNotificacionUseCase
 from app.modules.modulo_d_documentos.application.crear_respaldo_usecase import CrearRespaldoUseCase, RestaurarRespaldoUseCase
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_boleta_repository import (
-    SqlAlchemyBoletaRepository,
-)
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_archivo_drive_repository import (
-    SqlAlchemyArchivoDriveRepository,
-)
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_notificacion_repository import (
     SqlAlchemyNotificacionRepository,
 )
@@ -25,6 +17,12 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_oauth_token_repository import (
     SqlAlchemyOAuthTokenRepository,
 )
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_venta_data_provider import (
+    HttpVentaDataProvider,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_configuracion_provider import (
+    HttpConfiguracionProvider,
+)
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_drive_adapter import GoogleDriveAdapter
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.telegram_notification_adapter import (
     TelegramNotificationAdapter,
@@ -36,10 +34,8 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.composite_
     CompositeNotificationSender,
 )
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.excel_generator import ExcelGenerator
-from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.boleta_png_generator import BoletaPngGenerator
+from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.nota_venta_png_generator import NotaVentaPngGenerator
 from app.modules.modulo_d_documentos.infrastructure.dependencies import (
-    _venta_data_provider,
-    _configuracion_provider,
     _egresos_data_provider,
     _metodo_pago_provider,
 )
@@ -49,27 +45,9 @@ _notificacion_sender = CompositeNotificationSender([
     CorreoNotificationAdapter(),
 ])
 _reporte_generator = ExcelGenerator()
-_png_generator = BoletaPngGenerator()
-
-
-def generar_boleta_usecase(db: AsyncSession) -> GenerarBoletaUseCase:
-    return GenerarBoletaUseCase(
-        SqlAlchemyBoletaRepository(db),
-        _venta_data_provider,
-        _configuracion_provider,
-    )
-
-
-def subir_boleta_drive_usecase(db: AsyncSession) -> SubirBoletaDriveUseCase:
-    token_repo = SqlAlchemyOAuthTokenRepository(db)
-    drive_adapter = GoogleDriveAdapter(token_repository=token_repo)
-    return SubirBoletaDriveUseCase(
-        SqlAlchemyBoletaRepository(db),
-        drive_adapter,
-        SqlAlchemyArchivoDriveRepository(db),
-        _png_generator,
-        _configuracion_provider,
-    )
+_png_generator = NotaVentaPngGenerator()
+_venta_data_provider = HttpVentaDataProvider()
+_configuracion_provider = HttpConfiguracionProvider()
 
 
 def generar_reporte_ventas_usecase(db: AsyncSession) -> GenerarReporteVentasUseCase:

@@ -10,6 +10,9 @@ export const notificacionesHttpAdapter: NotificacionesPort = {
   async marcarLeida(id) {
     await httpClient.post(`/notificaciones/${id}/leida`);
   },
+  async marcarTodasLeidas() {
+    await httpClient.post("/notificaciones/leer-todas");
+  },
   async obtenerConfig() {
     const { data } = await httpClient.get("/notificaciones/config");
     return data;

@@ -120,13 +120,13 @@ app.include_router(ventas_router)
 app.include_router(metodos_pago_router)
 
 # --- Módulo D (Fabrizio): Documentos ---
-from app.modules.modulo_d_documentos.infrastructure.http.boletas_router import router as boletas_router
+from app.modules.modulo_d_documentos.infrastructure.http.notas_venta_router import router as notas_venta_router
 from app.modules.modulo_d_documentos.infrastructure.http.reportes_router import router as reportes_router
 from app.modules.modulo_d_documentos.infrastructure.http.notificaciones_router import router as notificaciones_router
 from app.modules.modulo_d_documentos.infrastructure.http.respaldos_router import router as respaldos_router
 from app.modules.modulo_d_documentos.infrastructure.http.drive_router import router as drive_router
 
-app.include_router(boletas_router)
+app.include_router(notas_venta_router)
 app.include_router(reportes_router)
 app.include_router(notificaciones_router)
 app.include_router(respaldos_router)

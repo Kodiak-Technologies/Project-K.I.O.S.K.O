@@ -58,5 +58,5 @@ export function useNotificaciones() {
     []
   );
 
-  return { notificaciones, config, cargando, error, noDisponible, marcarLeida, actualizarConfig };
+  return { notificaciones, config, cargando, error, noDisponible, recargar, marcarLeida, actualizarConfig };
 }
