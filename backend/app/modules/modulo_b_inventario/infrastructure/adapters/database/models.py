@@ -12,6 +12,7 @@
 from datetime import datetime
 from decimal import Decimal
 
+import sqlalchemy as sa
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -153,6 +154,12 @@ class SolicitudIngresoModel(Base, SoftDeleteMixin):
         Index("idx_solicitudes_estado", "estado", "created_at"),
         Index("idx_solicitudes_solicitante", "solicitado_por", "created_at"),
         Index("idx_solicitudes_proveedor", "proveedor_id"),
+        # sdd/modulo-b-aprobaciones-detalle-editar
+        Index(
+            "idx_solicitudes_editado_en",
+            "editado_en",
+            postgresql_where=sa.text("editado_en IS NOT NULL AND deleted_at IS NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -171,6 +178,14 @@ class SolicitudIngresoModel(Base, SoftDeleteMixin):
     )
     revisado_por_nombre: Mapped[str | None] = mapped_column(String(100))
     revisado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # sdd/modulo-b-aprobaciones-detalle-editar: free-text edit justification (PATCH allowlist).
+    motivo: Mapped[str | None] = mapped_column(Text)
+    # Edit audit triple (denormalized; SET NULL on user delete to preserve history).
+    editado_por: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
+    editado_por_nombre: Mapped[str | None] = mapped_column(String(100))
+    editado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -222,6 +237,12 @@ class MermaModel(Base, SoftDeleteMixin):
         Index("idx_mermas_producto_fecha", "producto_id", "created_at"),
         Index("idx_mermas_motivo", "motivo"),
         Index("idx_mermas_estado", "estado", "created_at"),
+        # sdd/modulo-b-aprobaciones-detalle-editar
+        Index(
+            "idx_mermas_editado_en",
+            "editado_en",
+            postgresql_where=sa.text("editado_en IS NOT NULL AND deleted_at IS NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -250,6 +271,12 @@ class MermaModel(Base, SoftDeleteMixin):
     )
     rechazado_por_nombre: Mapped[str | None] = mapped_column(String(100))
     rechazado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # sdd/modulo-b-aprobaciones-detalle-editar: edit audit triple.
+    editado_por: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
+    editado_por_nombre: Mapped[str | None] = mapped_column(String(100))
+    editado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

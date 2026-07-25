@@ -398,6 +398,63 @@ WHERE r.nombre = 'CAJERO'
   )
 ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 
+-- -----------------------------------------------------------------------------
+-- Sección 3.5 (sdd/modulo-b-aprobaciones-detalle-editar):
+--   Edit audit fields + free-text motivo on solicitudes_ingreso.
+--   Idempotent (ADD COLUMN IF NOT EXISTS, CREATE INDEX IF NOT EXISTS).
+-- -----------------------------------------------------------------------------
+ALTER TABLE solicitudes_ingreso
+    ADD COLUMN IF NOT EXISTS motivo             TEXT,
+    ADD COLUMN IF NOT EXISTS editado_por        BIGINT,
+    ADD COLUMN IF NOT EXISTS editado_por_nombre VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS editado_en         TIMESTAMPTZ;
+
+-- FK del editor (SET NULL on user delete — softer than revisado_por's RESTRICT
+-- porque editar es colaborativo; perder el user no debe invalidar la fila).
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_solicitudes_editado_por'
+          AND table_name = 'solicitudes_ingreso'
+    ) THEN
+        ALTER TABLE solicitudes_ingreso
+            ADD CONSTRAINT fk_solicitudes_editado_por
+            FOREIGN KEY (editado_por) REFERENCES usuarios(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_solicitudes_editado_en
+    ON solicitudes_ingreso (editado_en DESC)
+    WHERE editado_en IS NOT NULL AND deleted_at IS NULL;
+
+-- -----------------------------------------------------------------------------
+-- Sección 5.5 (sdd/modulo-b-aprobaciones-detalle-editar):
+--   Edit audit fields on mermas. NO `motivo` column (the existing motivo
+--   column is the enum `vencimiento | rotura | otro`).
+-- -----------------------------------------------------------------------------
+ALTER TABLE mermas
+    ADD COLUMN IF NOT EXISTS editado_por        BIGINT,
+    ADD COLUMN IF NOT EXISTS editado_por_nombre VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS editado_en         TIMESTAMPTZ;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_mermas_editado_por'
+          AND table_name = 'mermas'
+    ) THEN
+        ALTER TABLE mermas
+            ADD CONSTRAINT fk_mermas_editado_por
+            FOREIGN KEY (editado_por) REFERENCES usuarios(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_mermas_editado_en
+    ON mermas (editado_en DESC)
+    WHERE editado_en IS NOT NULL AND deleted_at IS NULL;
+
 -- =============================================================================
 -- Fin del script. Tras aplicar:
 --   1. Verificar con \dt public.* y \d productos.

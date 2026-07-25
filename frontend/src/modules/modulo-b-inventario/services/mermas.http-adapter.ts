@@ -4,6 +4,7 @@ import type {
   ConfirmacionMerma,
   FiltrosMermas,
   Merma,
+  MermaUpdateBody,
   NuevaMerma,
   PaginadosResponse,
   RechazoMerma,
@@ -30,6 +31,10 @@ export const mermasHttpAdapter: MermasPort = {
     const { data } = await httpClient.get<Merma>(`/mermas/${id}`);
     return data;
   },
+  async obtenerPorId(id) {
+    const { data } = await httpClient.get<Merma>(`/mermas/${id}`);
+    return data;
+  },
   async crear(datos: NuevaMerma) {
     const { data } = await httpClient.post<Merma>("/mermas", datos);
     return data;
@@ -40,6 +45,10 @@ export const mermasHttpAdapter: MermasPort = {
   },
   async rechazar(id, datos: RechazoMerma) {
     const { data } = await httpClient.post<Merma>(`/mermas/${id}/rechazar`, datos);
+    return data;
+  },
+  async editar(id, body: MermaUpdateBody) {
+    const { data } = await httpClient.patch<Merma>(`/mermas/${id}`, body);
     return data;
   },
 };

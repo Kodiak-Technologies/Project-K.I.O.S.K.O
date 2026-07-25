@@ -323,11 +323,17 @@ class SolicitudIngresoResponse(BaseModel):
     estado: str
     foto_boleta_url: str
     motivo_rechazo: str | None
+    motivo: str | None = None  # sdd/modulo-b-aprobaciones-detalle-editar
     lineas: list[DetalleResponse]
+    solicitado_por: int  # sdd/modulo-b-aprobaciones-detalle-editar: id (gate)
     solicitado_por_nombre: str
     revisado_por_nombre: str | None
     revisado_en: datetime | None
+    editado_por: int | None = None
+    editado_por_nombre: str | None = None
+    editado_en: datetime | None = None
     created_at: datetime | None
+    updated_at: datetime | None = None
     cantidad_productos: int | None = None
     monto_total: float | None = None
 
@@ -345,11 +351,17 @@ class SolicitudIngresoResponse(BaseModel):
             estado=str(s.estado),
             foto_boleta_url=s.foto_boleta_url,
             motivo_rechazo=s.motivo_rechazo,
+            motivo=s.motivo,
             lineas=[DetalleResponse.desde_entidad(l) for l in s.lineas],
+            solicitado_por=s.solicitado_por,
             solicitado_por_nombre=s.solicitado_por_nombre,
             revisado_por_nombre=s.revisado_por_nombre,
             revisado_en=s.revisado_en,
+            editado_por=s.editado_por,
+            editado_por_nombre=s.editado_por_nombre,
+            editado_en=s.editado_en,
             created_at=s.created_at,
+            updated_at=s.updated_at,
             cantidad_productos=cantidad_productos,
             monto_total=monto_total,
         )
@@ -382,6 +394,45 @@ class RechazarIngresoRequest(BaseModel):
 
 
 # =============================================================================
+# sdd/modulo-b-aprobaciones-detalle-editar: PATCH /ingresos/{id}
+# =============================================================================
+
+
+class LineaIngresoUpdateItem(BaseModel):
+    """Línea dentro del PATCH /ingresos. producto_id OBLIGATORIO, cantidad>0, precio>=0."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    producto_id: int = Field(gt=0)
+    cantidad: int = Field(gt=0)
+    precio_unitario: Decimal = Field(ge=0)
+
+
+class SolicitudIngresoUpdateRequest(BaseModel):
+    """PATCH /ingresos/{id}. Allowlist cerrada (NFR-4). At least 1 field required (FR-3.3.2).
+
+    Nota: `observaciones` y `foto_boleta_url` se aceptan pero NO se persisten
+    en esta versión (la entidad no tiene esos campos persistibles; el spec lo
+    documenta en el §10 de decisiones).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    proveedor_id: int | None = None
+    motivo: str | None = Field(default=None, max_length=500)
+    lineas: list[LineaIngresoUpdateItem] | None = None
+
+    @model_validator(mode="after")
+    def _at_least_one_field(self) -> "SolicitudIngresoUpdateRequest":
+        if all(
+            getattr(self, f) is None
+            for f in ("proveedor_id", "motivo", "lineas")
+        ):
+            raise ValueError("Debes enviar al menos un campo para editar.")
+        return self
+
+
+# =============================================================================
 # Mermas
 # =============================================================================
 
@@ -401,12 +452,16 @@ class MermaResponse(BaseModel):
     motivo: str
     observacion: str | None
     estado: str
+    registrado_por: int  # sdd/modulo-b-aprobaciones-detalle-editar: id (gate)
     registrado_por_nombre: str
     confirmado_por_nombre: str | None = None
     confirmado_en: datetime | None = None
     rechazado_por_nombre: str | None = None
     rechazado_en: datetime | None = None
     motivo_rechazo: str | None = None
+    editado_por: int | None = None
+    editado_por_nombre: str | None = None
+    editado_en: datetime | None = None
     created_at: datetime | None = None
 
     @classmethod
@@ -418,12 +473,16 @@ class MermaResponse(BaseModel):
             motivo=str(m.motivo),
             observacion=m.observacion,
             estado=str(m.estado),
+            registrado_por=m.registrado_por,
             registrado_por_nombre=m.registrado_por_nombre,
             confirmado_por_nombre=m.confirmado_por_nombre,
             confirmado_en=m.confirmado_en,
             rechazado_por_nombre=m.rechazado_por_nombre,
             rechazado_en=m.rechazado_en,
             motivo_rechazo=m.motivo_rechazo,
+            editado_por=m.editado_por,
+            editado_por_nombre=m.editado_por_nombre,
+            editado_en=m.editado_en,
             created_at=m.created_at,
         )
 
@@ -446,6 +505,32 @@ class MermaConfirmarResponse(BaseModel):
 
 class RechazarMermaRequest(BaseModel):
     motivo_rechazo: Annotated[str, Field(min_length=5, max_length=2000)]
+
+
+# =============================================================================
+# sdd/modulo-b-aprobaciones-detalle-editar: PATCH /mermas/{id}
+# =============================================================================
+
+
+class MermaUpdateRequest(BaseModel):
+    """PATCH /mermas/{id}. Allowlist cerrada (NFR-4). At least 1 field required."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    motivo: str | None = Field(default=None, pattern="^(vencimiento|rotura|otro)$")
+    observacion: str | None = Field(default=None, max_length=1000)
+    proveedor_id: int | None = None
+    producto_id: int | None = Field(default=None, gt=0)
+    cantidad: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _at_least_one_field(self) -> "MermaUpdateRequest":
+        if all(
+            getattr(self, f) is None
+            for f in ("motivo", "observacion", "proveedor_id", "producto_id", "cantidad")
+        ):
+            raise ValueError("Debes enviar al menos un campo para editar.")
+        return self
 
 
 # =============================================================================

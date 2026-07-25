@@ -7,6 +7,7 @@ import type {
   PaginadosResponse,
   RechazoIngreso,
   SolicitudIngreso,
+  SolicitudIngresoUpdateBody,
 } from "../types";
 
 export interface IngresosPort {
@@ -14,10 +15,14 @@ export interface IngresosPort {
   listar(filtros?: FiltrosIngresos): Promise<PaginadosResponse<SolicitudIngreso>>;
   /** `GET /ingresos/{id}`. */
   obtener(id: number): Promise<SolicitudIngreso>;
+  /** Alias de `obtener` (sdd/modulo-b-aprobaciones-detalle-editar). */
+  obtenerPorId(id: number): Promise<SolicitudIngreso>;
   /** `POST /ingresos`. Body: proveedor opcional + foto obligatoria + líneas. */
   solicitar(datos: NuevaSolicitudIngreso): Promise<SolicitudIngreso>;
   /** `POST /ingresos/{id}/aprobar`. Devuelve `AprobacionIngreso` (no la solicitud). */
   aprobar(id: number): Promise<AprobacionIngreso>;
   /** `POST /ingresos/{id}/rechazar`. Body: `{ motivo_rechazo }`. */
   rechazar(id: number, datos: RechazoIngreso): Promise<SolicitudIngreso>;
+  /** sdd/modulo-b-aprobaciones-detalle-editar: `PATCH /ingresos/{id}`. */
+  editar(id: number, body: SolicitudIngresoUpdateBody): Promise<SolicitudIngreso>;
 }

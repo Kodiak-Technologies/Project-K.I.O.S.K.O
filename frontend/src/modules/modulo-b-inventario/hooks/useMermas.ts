@@ -6,6 +6,7 @@ import type {
   ConfirmacionMerma,
   FiltrosMermas,
   Merma,
+  MermaUpdateBody,
   NuevaMerma,
   PaginadosResponse,
   RechazoMerma,
@@ -18,9 +19,11 @@ interface EstadoHook {
   error: string | null;
   noDisponible: boolean;
   recargar: (filtros?: FiltrosMermas) => Promise<void>;
+  obtener: (id: number) => Promise<Merma>;
   registrar: (datos: NuevaMerma) => Promise<Merma>;
   confirmar: (id: number) => Promise<ConfirmacionMerma>;
   rechazar: (id: number, datos: RechazoMerma) => Promise<Merma>;
+  editar: (id: number, body: MermaUpdateBody) => Promise<Merma>;
 }
 
 export function useMermas(filtrosIniciales?: FiltrosMermas): EstadoHook {
@@ -47,6 +50,10 @@ export function useMermas(filtrosIniciales?: FiltrosMermas): EstadoHook {
   useEffect(() => {
     void recargar(filtrosIniciales);
   }, [recargar, filtrosIniciales]);
+
+  const obtener = useCallback(async (id: number) => {
+    return mermasHttpAdapter.obtener(id);
+  }, []);
 
   const registrar = useCallback(
     async (datos: NuevaMerma) => {
@@ -75,5 +82,26 @@ export function useMermas(filtrosIniciales?: FiltrosMermas): EstadoHook {
     [recargar, filtrosIniciales]
   );
 
-  return { mermas, paginados, cargando, error, noDisponible, recargar, registrar, confirmar, rechazar };
+  const editar = useCallback(
+    async (id: number, body: MermaUpdateBody) => {
+      const actualizada = await mermasHttpAdapter.editar(id, body);
+      await recargar(filtrosIniciales);
+      return actualizada;
+    },
+    [recargar, filtrosIniciales]
+  );
+
+  return {
+    mermas,
+    paginados,
+    cargando,
+    error,
+    noDisponible,
+    recargar,
+    obtener,
+    registrar,
+    confirmar,
+    rechazar,
+    editar,
+  };
 }

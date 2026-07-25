@@ -44,8 +44,17 @@ class RechazarMermaUseCase:
         merma = await self._mermas.find_by_id_for_update(merma_id)
         if merma is None:
             raise NoEncontradoError("La merma no existe.")
+        # EC-17 / FR-5.4: differentiate "already rejected" from "already confirmed"
+        # so the frontend can show a precise error message.
+        from app.modules.modulo_b_inventario.domain.value_objects import EstadoMerma
+        if str(merma.estado) == str(EstadoMerma("Rechazada")):
+            raise ConflictoError(
+                "La merma ya fue rechazada.", code="ALREADY_REJECTED"
+            )
         if not merma.puede_ser_rechazada():
-            raise ConflictoError("La merma ya fue revisada.")
+            raise ConflictoError(
+                "La merma ya fue confirmada o rechazada.", code="ALREADY_REJECTED"
+            )
         merma.rechazar(usuario_id, usuario_nombre, motivo_limpio)
         await self._mermas.actualizar(merma)
         await self._auditoria.ejecutar(

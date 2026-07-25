@@ -25,6 +25,7 @@ from app.modules.modulo_b_inventario.infrastructure.http.schemas import (
     RechazarIngresoRequest,
     SolicitudIngresoCreate,
     SolicitudIngresoResponse,
+    SolicitudIngresoUpdateRequest,
 )
 from app.shared.database.session import get_db
 
@@ -171,3 +172,64 @@ async def rechazar(
         user_agent=user_agent,
     )
     return SolicitudIngresoResponse.desde_entidad(rechazada)
+
+
+# sdd/modulo-b-aprobaciones-detalle-editar
+@router.patch(
+    "/{solicitud_id}",
+    response_model=SolicitudIngresoResponse,
+    responses={
+        403: {"description": "Sin permiso para editar"},
+        404: {"description": "Solicitud no existe o fue eliminada"},
+        409: {"description": "La solicitud ya no se puede editar (cambió de estado)"},
+        422: {"description": "Body inválido (allowlist, motivo, cantidad)"},
+    },
+    summary="Edita una solicitud de ingreso en estado Pendiente (FR-3)",
+)
+async def editar(
+    solicitud_id: int,
+    body: SolicitudIngresoUpdateRequest,
+    request: Request,
+    usuario: Usuario = Depends(require_permission("inventario.solicitar_ingreso")),
+    db: AsyncSession = Depends(get_db),
+    auditoria=Depends(get_auditoria),
+):
+    from decimal import Decimal as _Dec
+
+    ip, user_agent = contexto_request(request)
+    es_admin = usuario.rol_nombre == "ADMIN"
+
+    # Pydantic v2 ya parsea y valida el body. Acá pasamos los kwargs al use case
+    # con `...` (Ellipsis) como sentinel para "no presente".
+    resultado = await contenedor.editar_ingreso_usecase(db).ejecutar(
+        ingreso_id=solicitud_id,
+        editor_id=usuario.id,  # type: ignore[union-attr]
+        editor_nombre=usuario.nombre,
+        es_admin=es_admin,
+        motivo=body.motivo,
+        foto_boleta_url=...,  # no expuesto en esta versión (decisión §10)
+        proveedor_id=body.proveedor_id,
+        lineas=(
+            [
+                {
+                    "producto_id": l.producto_id,
+                    "cantidad": l.cantidad,
+                    "precio_unitario": _Dec(str(l.precio_unitario)),
+                }
+                for l in body.lineas
+            ]
+            if body.lineas is not None
+            else ...
+        ),
+        ip=ip,
+        user_agent=user_agent,
+    )
+    # Recalcular monto_total y cantidad_productos server-side
+    cantidad = sum(l.cantidad for l in resultado.lineas)
+    monto = sum(
+        (l.cantidad * l.precio_compra_unitario for l in resultado.lineas),
+        start=_Dec("0"),
+    )
+    return SolicitudIngresoResponse.desde_entidad(
+        resultado, cantidad_productos=cantidad, monto_total=float(monto)
+    )

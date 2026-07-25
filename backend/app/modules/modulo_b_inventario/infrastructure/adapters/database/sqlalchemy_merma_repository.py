@@ -35,6 +35,9 @@ def _a_entidad(fila: MermaModel) -> Merma:
         rechazado_por=fila.rechazado_por,
         rechazado_por_nombre=fila.rechazado_por_nombre,
         rechazado_en=fila.rechazado_en,
+        editado_por=fila.editado_por,
+        editado_por_nombre=fila.editado_por_nombre,
+        editado_en=fila.editado_en,
         created_at=fila.created_at,
         deleted_at=fila.deleted_at,
         deleted_by=fila.deleted_by,
@@ -97,6 +100,25 @@ class SqlAlchemyMermaRepository(MermaRepositoryPort):
         fila.rechazado_por_nombre = merma.rechazado_por_nombre
         fila.rechazado_en = merma.rechazado_en
         await self._db.flush()
+        return _a_entidad(fila)
+
+    async def actualizar_cabecera(self, merma_id: int, cambios: dict) -> Merma:
+        """sdd/modulo-b-aprobaciones-detalle-editar: PATCH parcial sobre la cabecera."""
+        # Nota: la entidad Merma no tiene `updated_at`, pero la BD sí (o lo tendrá
+        # tras la migración). Enviamos el campo solo si existe; confiamos en
+        # que la entidad está en estado Registrada, así que el CHECK
+        # chk_mermas_estado_consistente sigue satisfecho.
+        await self._db.execute(
+            MermaModel.__table__.update()
+            .where(MermaModel.id == merma_id)
+            .values(**cambios)
+        )
+        await self._db.flush()
+        fila = (
+            await self._db.execute(
+                select(MermaModel).where(MermaModel.id == merma_id)
+            )
+        ).scalar_one()
         return _a_entidad(fila)
 
     async def listar_paginado(

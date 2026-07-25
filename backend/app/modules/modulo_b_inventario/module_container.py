@@ -32,6 +32,12 @@ from app.modules.modulo_b_inventario.application.crear_proveedor_usecase import 
 from app.modules.modulo_b_inventario.application.editar_categoria_usecase import (
     EditarCategoriaUseCase,
 )
+from app.modules.modulo_b_inventario.application.editar_ingreso_usecase import (
+    EditarIngresoUseCase,
+)
+from app.modules.modulo_b_inventario.application.editar_merma_usecase import (
+    EditarMermaUseCase,
+)
 from app.modules.modulo_b_inventario.application.editar_producto_usecase import (
     EditarProductoUseCase,
 )
@@ -274,6 +280,15 @@ def rechazar_ingreso_usecase(db: AsyncSession) -> RechazarIngresoUseCase:
     )
 
 
+# sdd/modulo-b-aprobaciones-detalle-editar
+def editar_ingreso_usecase(db: AsyncSession) -> EditarIngresoUseCase:
+    return EditarIngresoUseCase(
+        solicitud_ingreso_repository(db),
+        detalle_solicitud_repository(db),
+        contenedor_a.auditoria_usecase(db),
+    )
+
+
 def listar_ingresos_usecase(db: AsyncSession) -> ListarIngresosUseCase:
     return ListarIngresosUseCase(
         solicitud_ingreso_repository(db), detalle_solicitud_repository(db)
@@ -299,6 +314,13 @@ def confirmar_merma_usecase(db: AsyncSession) -> ConfirmarMermaUseCase:
 
 def rechazar_merma_usecase(db: AsyncSession) -> RechazarMermaUseCase:
     return RechazarMermaUseCase(
+        merma_repository(db), contenedor_a.auditoria_usecase(db)
+    )
+
+
+# sdd/modulo-b-aprobaciones-detalle-editar
+def editar_merma_usecase(db: AsyncSession) -> EditarMermaUseCase:
+    return EditarMermaUseCase(
         merma_repository(db), contenedor_a.auditoria_usecase(db)
     )
 

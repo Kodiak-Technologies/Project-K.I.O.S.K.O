@@ -191,14 +191,50 @@ export interface SolicitudIngreso {
   estado: EstadoIngreso | string;
   foto_boleta_url: string;
   motivo_rechazo: string | null;
+  motivo: string | null; // sdd/modulo-b-aprobaciones-detalle-editar
   lineas: DetalleSolicitud[];
+  solicitado_por: number; // sdd/modulo-b-aprobaciones-detalle-editar (id del creador, para gate)
   solicitado_por_nombre: string;
   revisado_por_nombre: string | null;
   revisado_en: string | null;
+  editado_por: number | null;
+  editado_por_nombre: string | null;
+  editado_en: string | null;
   created_at: string | null;
+  updated_at: string | null;
   cantidad_productos: number | null;
   monto_total: number | null;
 }
+
+/** sdd/modulo-b-aprobaciones-detalle-editar: body para `PATCH /ingresos/{id}`. */
+export interface SolicitudIngresoUpdateBody {
+  proveedor_id?: number | null;
+  motivo?: string | null;
+  lineas?: LineaIngresoUpdate[] | null; // null = no tocar; [] = borrar todas
+}
+
+export interface LineaIngresoUpdate {
+  producto_id: number;
+  cantidad: number;
+  precio_unitario: number;
+}
+
+/** Códigos de error estructurados del backend (NFR-5). */
+export type ErrorCodeBackend =
+  | "EMPTY_PATCH"
+  | "NOT_EDITABLE_STATE"
+  | "FORBIDDEN"
+  | "PRODUCT_NOT_FOUND"
+  | "PROVEEDOR_NOT_FOUND"
+  | "INVALID_LINE_VALUES"
+  | "INVALID_CANTIDAD"
+  | "INVALID_MOTIVO"
+  | "UNKNOWN_FIELD"
+  | "CONCURRENT_EDIT"
+  | "INGRESO_NOT_FOUND"
+  | "MERMA_NOT_FOUND"
+  | "ALREADY_REJECTED"
+  | "MOTIVO_RECHAZO_TOO_SHORT";
 
 /** Body para `POST /ingresos/{id}/rechazar`. */
 export interface RechazoIngreso {
@@ -248,13 +284,27 @@ export interface Merma {
   motivo: MotivoMerma | string;
   observacion: string | null;
   estado: EstadoMerma | string;
+  registrado_por: number; // sdd/modulo-b-aprobaciones-detalle-editar (id del creador, para gate)
   registrado_por_nombre: string;
+  proveedor_id: number | null; // sdd/modulo-b-aprobaciones-detalle-editar
   confirmado_por_nombre: string | null;
   confirmado_en: string | null;
   rechazado_por_nombre: string | null;
   rechazado_en: string | null;
   motivo_rechazo: string | null;
+  editado_por: number | null;
+  editado_por_nombre: string | null;
+  editado_en: string | null;
   created_at: string | null;
+}
+
+/** sdd/modulo-b-aprobaciones-detalle-editar: body para `PATCH /mermas/{id}`. */
+export interface MermaUpdateBody {
+  motivo?: "vencimiento" | "rotura" | "otro";
+  observacion?: string | null;
+  proveedor_id?: number | null;
+  producto_id?: number;
+  cantidad?: number;
 }
 
 /** Body para `POST /mermas/{id}/rechazar`. */

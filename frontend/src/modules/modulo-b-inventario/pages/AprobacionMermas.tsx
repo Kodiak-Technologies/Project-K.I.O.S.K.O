@@ -14,11 +14,18 @@ import {
   Table,
   type Columna,
 } from "../../../shared/components/ui";
+import { useAuth } from "../../modulo-a-seguridad/hooks/useAuth";
+import { codigoDeError, mensajeDeError } from "../../../shared/lib/http-client";
+import { FormularioMermaEditable } from "../components/FormularioMermaEditable";
+import { MermaDetalleContent } from "../components/MermaDetalleContent";
 import { ModalConfirmacion } from "../components/ModalConfirmacion";
 import { PaginacionControles } from "../components/PaginacionControles";
+import { mapErrorCodeToMessage } from "../lib/mapErrorCodeToMessage";
 import { useMermas } from "../hooks/useMermas";
 import { useProductos } from "../hooks/useProductos";
-import type { Merma } from "../types";
+import type { Merma, MermaUpdateBody } from "../types";
+
+type ModoModal = "ver" | "editar" | null;
 
 const MOTIVO_LABELS: Record<string, string> = {
   vencimiento: "Vencimiento",
@@ -27,10 +34,17 @@ const MOTIVO_LABELS: Record<string, string> = {
 };
 
 export default function AprobacionMermas() {
-  const { mermas, paginados, cargando, error, noDisponible, recargar, confirmar, rechazar } =
+  const { mermas, paginados, cargando, error, noDisponible, recargar, confirmar, rechazar, editar, obtener } =
     useMermas();
   const { productos } = useProductos({ page_size: 200 });
+  const { usuario } = useAuth();
 
+  const [detalle, setDetalle] = useState<Merma | null>(null);
+  const [modo, setModo] = useState<ModoModal>(null);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [errorDetalle, setErrorDetalle] = useState<string | null>(null);
+  const [editando, setEditando] = useState(false);
+  const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
   const [paraConfirmar, setParaConfirmar] = useState<Merma | null>(null);
   const [paraRechazar, setParaRechazar] = useState<Merma | null>(null);
   const [motivo, setMotivo] = useState("");
@@ -48,6 +62,43 @@ export default function AprobacionMermas() {
 
   function nombreProducto(id: number): string {
     return productos.find((p) => p.id === id)?.nombre ?? `#${id}`;
+  }
+
+  async function abrirDetalle(m: Merma) {
+    setModo("ver");
+    setDetalle(m);
+    setErrorDetalle(null);
+    setCargandoDetalle(true);
+    try {
+      const fresca = await obtener(m.id);
+      setDetalle(fresca);
+    } catch (e) {
+      setErrorDetalle(mensajeDeError(e));
+    } finally {
+      setCargandoDetalle(false);
+    }
+  }
+
+  function cerrarDetalle() {
+    setModo(null);
+    setDetalle(null);
+    setErrorEdicion(null);
+  }
+
+  async function manejarEditar(body: MermaUpdateBody) {
+    if (!detalle) return;
+    setEditando(true);
+    setErrorEdicion(null);
+    try {
+      const actualizada = await editar(detalle.id, body);
+      setDetalle(actualizada);
+      setModo("ver");
+    } catch (e) {
+      const code = codigoDeError(e);
+      setErrorEdicion(code ? mapErrorCodeToMessage(code) : mensajeDeError(e));
+    } finally {
+      setEditando(false);
+    }
   }
 
   async function manejarConfirmar() {
@@ -133,6 +184,9 @@ export default function AprobacionMermas() {
       titulo: "Acciones",
       render: (m) => (
         <div className="flex gap-1">
+          <Button compacto variante="secundario" onClick={() => void abrirDetalle(m)}>
+            Ver detalle
+          </Button>
           <Button
             compacto
             onClick={() => setParaConfirmar(m)}
@@ -203,6 +257,88 @@ export default function AprobacionMermas() {
             etiqueta="pendientes"
           />
         </Card>
+      )}
+
+      {/* Modal: detalle / edición (sdd/modulo-b-aprobaciones-detalle-editar) */}
+      {detalle && modo && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4"
+          onClick={cerrarDetalle}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={modo === "editar" ? "Editar merma" : "Detalle de la merma"}
+            className="max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-lg sm:max-w-lg sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
+              <h3 className="font-semibold text-zinc-900">
+                Merma #{detalle.id}{" "}
+                {modo === "editar" && (
+                  <span className="text-sm font-normal text-zinc-500">(editando)</span>
+                )}
+              </h3>
+              <button
+                onClick={cerrarDetalle}
+                aria-label="Cerrar"
+                className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="space-y-4 px-5 py-4">
+              {cargandoDetalle && modo === "ver" ? (
+                <PageSpinner texto="Cargando detalle…" />
+              ) : errorDetalle && modo === "ver" ? (
+                <Alert tono="peligro">{errorDetalle}</Alert>
+              ) : modo === "ver" ? (
+                <MermaDetalleContent
+                  merma={detalle}
+                  currentUser={usuario}
+                  productos={productos}
+                  onEditarClick={() => setModo("editar")}
+                />
+              ) : (
+                <FormularioMermaEditable
+                  inicial={detalle}
+                  onSubmit={manejarEditar}
+                  onCancel={() => setModo("ver")}
+                  procesando={editando}
+                  error={errorEdicion}
+                />
+              )}
+            </div>
+            {modo === "ver" && (
+              <footer className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
+                <Button variante="secundario" onClick={cerrarDetalle}>
+                  Cerrar
+                </Button>
+                <Button
+                  onClick={() => {
+                    setParaConfirmar(detalle);
+                    cerrarDetalle();
+                  }}
+                  icono={<Check className="h-4 w-4" aria-hidden />}
+                >
+                  Confirmar
+                </Button>
+                <Button
+                  variante="secundario"
+                  className="text-peligro"
+                  onClick={() => {
+                    setParaRechazar(detalle);
+                    setMotivo("");
+                    cerrarDetalle();
+                  }}
+                  icono={<X className="h-4 w-4" aria-hidden />}
+                >
+                  Rechazar
+                </Button>
+              </footer>
+            )}
+          </div>
+        </div>
       )}
 
       <ModalConfirmacion

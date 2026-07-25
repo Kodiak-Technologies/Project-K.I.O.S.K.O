@@ -21,6 +21,12 @@ class MermaRepositoryPort(ABC):
         """Persiste transición de estado + snapshots del confirmador/rechazador."""
 
     @abstractmethod
+    async def actualizar_cabecera(self, merma_id: int, cambios: dict) -> Merma:
+        """sdd/modulo-b-aprobaciones-detalle-editar: PATCH parcial sobre la
+        cabecera (motivo, observacion, proveedor, producto, cantidad, audit
+        triple). Devuelve la entidad refrescada."""
+
+    @abstractmethod
     async def listar_paginado(
         self,
         *,

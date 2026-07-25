@@ -22,6 +22,14 @@ class SolicitudIngresoRepositoryPort(ABC):
         """Persiste cambios de estado y snapshots del revisor."""
 
     @abstractmethod
+    async def actualizar_cabecera(
+        self, solicitud_id: int, cambios: dict
+    ) -> SolicitudIngreso:
+        """sdd/modulo-b-aprobaciones-detalle-editar: PATCH parcial sobre la
+        cabecera (proveedor, motivo, foto, audit triple). NO toca lineas.
+        Devuelve la entidad refrescada."""
+
+    @abstractmethod
     async def listar_paginado(
         self,
         *,

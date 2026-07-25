@@ -36,7 +36,12 @@ def registrar_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ErrorDeDominio)
     async def _manejar_error_dominio(request: Request, exc: ErrorDeDominio) -> JSONResponse:
         status = next((codigo for tipo, codigo in _CODIGOS if isinstance(exc, tipo)), 400)
-        return JSONResponse(status_code=status, content={"detail": exc.mensaje})
+        # NFR-5: include the `code` field when set so the frontend can map
+        # it to a user-friendly message via mapErrorCodeToMessage.
+        body: dict = {"detail": exc.mensaje}
+        if exc.code is not None:
+            body["code"] = exc.code
+        return JSONResponse(status_code=status, content=body)
 
     # Pydantic / FastAPI 422: payload del request mal formado.
     @app.exception_handler(RequestValidationError)

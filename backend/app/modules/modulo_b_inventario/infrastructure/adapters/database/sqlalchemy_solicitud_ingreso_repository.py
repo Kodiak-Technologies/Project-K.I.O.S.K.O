@@ -42,6 +42,10 @@ def _a_entidad(
         lineas=lineas or [],
         created_at=fila.created_at,
         updated_at=fila.updated_at,
+        motivo=fila.motivo,
+        editado_por=fila.editado_por,
+        editado_por_nombre=fila.editado_por_nombre,
+        editado_en=fila.editado_en,
         deleted_at=fila.deleted_at,
         deleted_by=fila.deleted_by,
     )
@@ -140,6 +144,28 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         fila.revisado_en = solicitud.revisado_en
         await self._db.flush()
         return await self.find_by_id(solicitud.id)  # type: ignore[arg-type, return-value]
+
+    async def actualizar_cabecera(
+        self, solicitud_id: int, cambios: dict
+    ) -> SolicitudIngreso:
+        """sdd/modulo-b-aprobaciones-detalle-editar: PATCH parcial sobre la cabecera.
+
+        Escribe SOLO los campos provistos en `cambios` (no toca lineas, estado,
+        ni los snapshots del revisor). Devuelve la entidad refrescada con sus
+        lineas actuales.
+        """
+        from datetime import datetime, timezone
+
+        # Defensa en profundidad: el server-side siempre pone updated_at.
+        payload = dict(cambios)
+        payload.setdefault("updated_at", datetime.now(timezone.utc))
+        await self._db.execute(
+            SolicitudIngresoModel.__table__.update()
+            .where(SolicitudIngresoModel.id == solicitud_id)
+            .values(**payload)
+        )
+        await self._db.flush()
+        return await self.find_by_id(solicitud_id)  # type: ignore[return-value]
 
     async def listar_paginado(
         self,

@@ -16,6 +16,7 @@ from app.modules.modulo_b_inventario.infrastructure.http.schemas import (
     MermaConfirmarResponse,
     MermaCreate,
     MermaResponse,
+    MermaUpdateRequest,
     MermasPaginadosResponse,
     RechazarMermaRequest,
 )
@@ -138,3 +139,42 @@ async def rechazar(
         user_agent=user_agent,
     )
     return MermaResponse.desde_entidad(rechazada)
+
+
+# sdd/modulo-b-aprobaciones-detalle-editar
+@router.patch(
+    "/{merma_id}",
+    response_model=MermaResponse,
+    responses={
+        403: {"description": "Sin permiso para editar"},
+        404: {"description": "Merma no existe o fue eliminada"},
+        409: {"description": "La merma ya no se puede editar (cambió de estado)"},
+        422: {"description": "Body inválido (allowlist, motivo, cantidad)"},
+    },
+    summary="Edita una merma en estado Registrada (FR-4)",
+)
+async def editar(
+    merma_id: int,
+    body: MermaUpdateRequest,
+    request: Request,
+    usuario: Usuario = Depends(require_permission("mermas.registrar")),
+    db: AsyncSession = Depends(get_db),
+    auditoria=Depends(get_auditoria),
+):
+    ip, user_agent = contexto_request(request)
+    es_admin = usuario.rol_nombre == "ADMIN"
+    resultado = await contenedor.editar_merma_usecase(db).ejecutar(
+        merma_id=merma_id,
+        editor_id=usuario.id,  # type: ignore[union-attr]
+        editor_nombre=usuario.nombre,
+        es_admin=es_admin,
+        motivo=body.motivo,
+        observacion=body.observacion,
+        foto_url=...,  # no expuesto (decisión §10)
+        proveedor_id=body.proveedor_id,
+        producto_id=body.producto_id,
+        cantidad=body.cantidad,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    return MermaResponse.desde_entidad(resultado)

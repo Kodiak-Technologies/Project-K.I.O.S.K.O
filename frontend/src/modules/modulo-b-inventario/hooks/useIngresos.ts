@@ -13,6 +13,7 @@ import type {
   PaginadosResponse,
   RechazoIngreso,
   SolicitudIngreso,
+  SolicitudIngresoUpdateBody,
 } from "../types";
 
 interface EstadoHook {
@@ -22,9 +23,11 @@ interface EstadoHook {
   error: string | null;
   noDisponible: boolean;
   recargar: (filtros?: FiltrosIngresos) => Promise<void>;
+  obtener: (id: number) => Promise<SolicitudIngreso>;
   solicitar: (datos: NuevaSolicitudIngreso) => Promise<SolicitudIngreso>;
   aprobar: (id: number) => Promise<AprobacionIngreso>;
   rechazar: (id: number, datos: RechazoIngreso) => Promise<SolicitudIngreso>;
+  editar: (id: number, body: SolicitudIngresoUpdateBody) => Promise<SolicitudIngreso>;
 }
 
 export function useIngresos(filtrosIniciales?: FiltrosIngresos): EstadoHook {
@@ -51,6 +54,10 @@ export function useIngresos(filtrosIniciales?: FiltrosIngresos): EstadoHook {
   useEffect(() => {
     void recargar(filtrosIniciales);
   }, [recargar, filtrosIniciales]);
+
+  const obtener = useCallback(async (id: number) => {
+    return ingresosHttpAdapter.obtener(id);
+  }, []);
 
   const solicitar = useCallback(
     async (datos: NuevaSolicitudIngreso) => {
@@ -79,5 +86,26 @@ export function useIngresos(filtrosIniciales?: FiltrosIngresos): EstadoHook {
     [recargar, filtrosIniciales]
   );
 
-  return { ingresos, paginados, cargando, error, noDisponible, recargar, solicitar, aprobar, rechazar };
+  const editar = useCallback(
+    async (id: number, body: SolicitudIngresoUpdateBody) => {
+      const actualizada = await ingresosHttpAdapter.editar(id, body);
+      await recargar(filtrosIniciales);
+      return actualizada;
+    },
+    [recargar, filtrosIniciales]
+  );
+
+  return {
+    ingresos,
+    paginados,
+    cargando,
+    error,
+    noDisponible,
+    recargar,
+    obtener,
+    solicitar,
+    aprobar,
+    rechazar,
+    editar,
+  };
 }

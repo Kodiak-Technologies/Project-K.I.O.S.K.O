@@ -43,8 +43,17 @@ class RechazarIngresoUseCase:
         solicitud = await self._solicitudes.find_by_id_for_update(solicitud_id)
         if solicitud is None:
             raise NoEncontradoError("La solicitud no existe.")
+        # FR-5.4 (symmetric to mermas): differentiate "already rejected" vs
+        # "already approved" so the frontend can show a precise error code.
+        from app.modules.modulo_b_inventario.domain.value_objects import EstadoSolicitud
+        if str(solicitud.estado) == str(EstadoSolicitud("Rechazada")):
+            raise ConflictoError(
+                "La solicitud ya fue rechazada.", code="ALREADY_REJECTED"
+            )
         if not solicitud.puede_ser_rechazada():
-            raise ConflictoError("La solicitud ya fue revisada.")
+            raise ConflictoError(
+                "La solicitud ya fue aprobada o rechazada.", code="ALREADY_REJECTED"
+            )
         solicitud.rechazar(usuario_id, usuario_nombre, motivo_limpio)
         await self._solicitudes.actualizar(solicitud)
         await self._auditoria.ejecutar(

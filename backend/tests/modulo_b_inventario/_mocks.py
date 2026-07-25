@@ -221,6 +221,15 @@ class MockSolicitudIngresoRepository:
         self._solicitudes[solicitud.id] = solicitud
         return solicitud
 
+    async def actualizar_cabecera(self, solicitud_id: int, cambios: dict) -> SolicitudIngreso:
+        s = self._solicitudes.get(solicitud_id)
+        if s is None:
+            return None  # type: ignore[return-value]
+        for k, v in cambios.items():
+            if hasattr(s, k):
+                setattr(s, k, v)
+        return s
+
     async def listar_paginado(self, **_kwargs: Any) -> tuple[list[SolicitudIngreso], int]:  # pragma: no cover
         raise NotImplementedError("Mock no configurado para listar_paginado — drift de Port")
 
@@ -242,6 +251,7 @@ class MockDetalleSolicitudRepository:
         self._detalles: list[DetalleSolicitud] = []
         self._contador = 0
         self.crear_bulk_call_count = 0
+        self.eliminar_por_solicitud_call_count = 0
         self.crear_bulk_last_lista: list[DetalleSolicitud] | None = None
 
     async def crear_bulk(self, detalles: list[DetalleSolicitud]) -> list[DetalleSolicitud]:
@@ -256,8 +266,9 @@ class MockDetalleSolicitudRepository:
     async def listar_por_solicitud(self, solicitud_id: int) -> list[DetalleSolicitud]:  # pragma: no cover
         raise NotImplementedError("Mock no configurado para listar_por_solicitud — drift de Port")
 
-    async def eliminar_por_solicitud(self, solicitud_id: int) -> None:  # pragma: no cover
-        raise NotImplementedError("Mock no configurado para eliminar_por_solicitud — drift de Port")
+    async def eliminar_por_solicitud(self, solicitud_id: int) -> None:
+        self.eliminar_por_solicitud_call_count += 1
+        self._detalles = [d for d in self._detalles if d.solicitud_id != solicitud_id]
 
 
 # =============================================================================
@@ -383,6 +394,15 @@ class MockMermaRepository:
         self.actualizar_last_merma = merma
         self._mermas[merma.id] = merma
         return merma
+
+    async def actualizar_cabecera(self, merma_id: int, cambios: dict) -> Merma:
+        m = self._mermas.get(merma_id)
+        if m is None:
+            return None  # type: ignore[return-value]
+        for k, v in cambios.items():
+            if hasattr(m, k):
+                setattr(m, k, v)
+        return m
 
     async def listar_paginado(self, **_kwargs: Any) -> tuple[list[Merma], int]:  # pragma: no cover
         raise NotImplementedError("Mock no configurado para listar_paginado — drift de Port")

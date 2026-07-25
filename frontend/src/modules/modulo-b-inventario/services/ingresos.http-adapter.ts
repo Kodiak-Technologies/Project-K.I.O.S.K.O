@@ -7,6 +7,7 @@ import type {
   PaginadosResponse,
   RechazoIngreso,
   SolicitudIngreso,
+  SolicitudIngresoUpdateBody,
 } from "../types";
 import type { IngresosPort } from "./ingresos.port";
 
@@ -30,6 +31,10 @@ export const ingresosHttpAdapter: IngresosPort = {
     const { data } = await httpClient.get<SolicitudIngreso>(`/ingresos/${id}`);
     return data;
   },
+  async obtenerPorId(id) {
+    const { data } = await httpClient.get<SolicitudIngreso>(`/ingresos/${id}`);
+    return data;
+  },
   async solicitar(datos: NuevaSolicitudIngreso) {
     const { data } = await httpClient.post<SolicitudIngreso>("/ingresos", datos);
     return data;
@@ -40,6 +45,10 @@ export const ingresosHttpAdapter: IngresosPort = {
   },
   async rechazar(id, datos: RechazoIngreso) {
     const { data } = await httpClient.post<SolicitudIngreso>(`/ingresos/${id}/rechazar`, datos);
+    return data;
+  },
+  async editar(id, body) {
+    const { data } = await httpClient.patch<SolicitudIngreso>(`/ingresos/${id}`, body);
     return data;
   },
 };

@@ -6,8 +6,13 @@
 class ErrorDeDominio(Exception):
     """Base de todas las excepciones de negocio."""
 
-    def __init__(self, mensaje: str):
+    def __init__(self, mensaje: str, code: str | None = None):
         self.mensaje = mensaje
+        # NFR-5 (sdd/modulo-b-aprobaciones-detalle-editar): machine-readable
+        # error code surfaced in the JSON response. Optional — when None the
+        # response shape keeps the old `{ "detail": "..." }` contract for
+        # backward compat with existing clients.
+        self.code = code
         super().__init__(mensaje)
 
 

@@ -104,6 +104,11 @@ class SolicitudIngreso(EntidadConBorradoLogico):
     lineas: list["DetalleSolicitud"] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    # sdd/modulo-b-aprobaciones-detalle-editar: free-text edit justification + audit triple.
+    motivo: str | None = None
+    editado_por: int | None = None
+    editado_por_nombre: str | None = None
+    editado_en: datetime | None = None
 
     def puede_ser_aprobada(self) -> bool:
         return self.estado == EstadoSolicitud("Pendiente") and not self.eliminado
@@ -141,6 +146,100 @@ class SolicitudIngreso(EntidadConBorradoLogico):
         # D-09 + chk_solicitudes_revisado_consistente: same as aprobar() —
         # the reject path was a latent twin of the bug, fixed preemptively.
         self.revisado_en = datetime.now(timezone.utc)
+
+    # ====================================================================
+    # sdd/modulo-b-aprobaciones-detalle-editar: editable cabecera + lineas
+    # ====================================================================
+
+    def puede_ser_editada_por(self, usuario_id: int, es_admin: bool) -> bool:
+        """FR-3.1 + FR-3.2: editable only in Pendiente + (ADMIN or creator)."""
+        return (
+            self.estado == EstadoSolicitud("Pendiente")
+            and not self.eliminado
+            and (es_admin or self.solicitado_por == usuario_id)
+        )
+
+    def editar(
+        self,
+        *,
+        editor_id: int,
+        editor_nombre: str,
+        es_admin: bool,
+        proveedor_id: int | None = ...,
+        motivo: str | None = ...,
+        foto_boleta_url: str | None = ...,
+        lineas_payload: list[tuple[int, int, "Decimal"]] | None = ...,
+    ) -> tuple[dict, list["DetalleSolicitud"] | None]:
+        """In-place mutation (FR-3.6). Returns (cabecera_changes, new_lineas_or_None).
+
+        `cabecera_changes` is the dict of fields that actually changed (for
+        the audit diff and the port's `actualizar_cabecera`). `lineas_or_None`
+        is the full replacement list — None means "don't touch lineas" (per
+        FR-3.4: only the array in the body, even `[]`, means "replace all").
+        Use `...` (Ellipsis) as the sentinel for "not in body" (skipped).
+        """
+        from app.shared.kernel.exceptions import (
+            ConflictoError,
+            ProhibidoError,
+            ValidacionError,
+        )
+
+        if not self.puede_ser_editada_por(editor_id, es_admin):
+            if self.estado != EstadoSolicitud("Pendiente") or self.eliminado:
+                raise ConflictoError(
+                    "Esta solicitud ya no se puede editar.",
+                    code="NOT_EDITABLE_STATE",
+                )
+            raise ProhibidoError(
+                "No tenés permiso para editar esta solicitud.",
+                code="FORBIDDEN",
+            )
+
+        cambios: dict = {}
+        if proveedor_id is not ... and proveedor_id != self.proveedor_id:
+            cambios["proveedor_id"] = proveedor_id
+            self.proveedor_id = proveedor_id
+        if motivo is not ... and motivo != self.motivo:
+            cambios["motivo"] = motivo
+            self.motivo = motivo
+        if foto_boleta_url is not ... and foto_boleta_url != self.foto_boleta_url:
+            cambios["foto_boleta_url"] = foto_boleta_url
+            self.foto_boleta_url = foto_boleta_url
+
+        # Replace-all semantics for lineas (FR-3.4). None = "no tocar".
+        nuevas_lineas: list[DetalleSolicitud] | None = None
+        if lineas_payload is not ... and lineas_payload is not None:
+            for (pid, cant, precio) in lineas_payload:
+                if cant <= 0:
+                    raise ValidacionError(
+                        "La cantidad debe ser mayor a 0.",
+                        code="INVALID_LINE_VALUES",
+                    )
+                if precio < 0:
+                    raise ValidacionError(
+                        "El precio unitario debe ser mayor o igual a 0.",
+                        code="INVALID_LINE_VALUES",
+                    )
+            nuevas_lineas = [
+                DetalleSolicitud(
+                    id=None,
+                    solicitud_id=self.id or 0,  # filled in by repo
+                    producto_id=pid,
+                    cantidad=cant,
+                    precio_compra_unitario=precio,
+                )
+                for (pid, cant, precio) in lineas_payload
+            ]
+
+        # Always set audit fields (FR-3.6.3: even no-op PATCH sets the editor).
+        cambios["editado_por"] = editor_id
+        cambios["editado_por_nombre"] = editor_nombre
+        cambios["editado_en"] = datetime.now(timezone.utc)
+        self.editado_por = editor_id
+        self.editado_por_nombre = editor_nombre
+        self.editado_en = cambios["editado_en"]
+
+        return cambios, nuevas_lineas
 
 
 @dataclass(kw_only=True)
@@ -193,12 +292,94 @@ class Merma(EntidadConBorradoLogico):
     rechazado_por_nombre: str | None = None
     rechazado_en: datetime | None = None
     created_at: datetime | None = None
+    # sdd/modulo-b-aprobaciones-detalle-editar: edit audit triple.
+    editado_por: int | None = None
+    editado_por_nombre: str | None = None
+    editado_en: datetime | None = None
 
     def puede_ser_confirmada(self) -> bool:
         return self.estado == EstadoMerma("Registrada") and not self.eliminado
 
     def puede_ser_rechazada(self) -> bool:
         return self.estado == EstadoMerma("Registrada") and not self.eliminado
+
+    def puede_ser_editada_por(self, usuario_id: int, es_admin: bool) -> bool:
+        """FR-4.1 + FR-4.2: editable only in Registrada + (ADMIN or creator)."""
+        return (
+            self.estado == EstadoMerma("Registrada")
+            and not self.eliminado
+            and (es_admin or self.registrado_por == usuario_id)
+        )
+
+    def editar(
+        self,
+        *,
+        editor_id: int,
+        editor_nombre: str,
+        es_admin: bool,
+        motivo: str | None = ...,
+        observacion: str | None = ...,
+        proveedor_id: int | None = ...,
+        producto_id: int | None = ...,
+        cantidad: int | None = ...,
+    ) -> dict:
+        """In-place mutation (FR-4.5). Returns the dict of cabecera changes for the audit diff."""
+        from app.shared.kernel.exceptions import (
+            ConflictoError,
+            ProhibidoError,
+            ValidacionError,
+        )
+        from app.modules.modulo_b_inventario.domain.value_objects import MotivoMerma
+
+        if not self.puede_ser_editada_por(editor_id, es_admin):
+            if self.estado != EstadoMerma("Registrada") or self.eliminado:
+                raise ConflictoError(
+                    "Esta merma ya no se puede editar.",
+                    code="NOT_EDITABLE_STATE",
+                )
+            raise ProhibidoError(
+                "No tenés permiso para editar esta merma.",
+                code="FORBIDDEN",
+            )
+
+        cambios: dict = {}
+        if motivo is not ... and motivo != str(self.motivo):
+            try:
+                nuevo_motivo = MotivoMerma(motivo)  # type: ignore[arg-type]
+            except (ValueError, Exception):  # noqa: BLE001
+                raise ValidacionError(
+                    "El motivo debe ser: vencimiento, rotura u otro.",
+                    code="INVALID_MOTIVO",
+                )
+            cambios["motivo"] = motivo
+            self.motivo = nuevo_motivo
+        if observacion is not ... and observacion != self.observacion:
+            cambios["observacion"] = observacion
+            self.observacion = observacion
+        if proveedor_id is not ... and proveedor_id != self.proveedor_id:
+            cambios["proveedor_id"] = proveedor_id
+            self.proveedor_id = proveedor_id
+        if producto_id is not ... and producto_id != self.producto_id:
+            cambios["producto_id"] = producto_id
+            self.producto_id = producto_id  # type: ignore[assignment]
+        if cantidad is not ... and cantidad != self.cantidad:
+            if cantidad <= 0:
+                raise ValidacionError(
+                    "La cantidad debe ser mayor a 0.",
+                    code="INVALID_CANTIDAD",
+                )
+            cambios["cantidad"] = cantidad
+            self.cantidad = cantidad
+
+        # Always set audit fields (FR-4.5.1: even no-op PATCH sets the editor).
+        cambios["editado_por"] = editor_id
+        cambios["editado_por_nombre"] = editor_nombre
+        cambios["editado_en"] = datetime.now(timezone.utc)
+        self.editado_por = editor_id
+        self.editado_por_nombre = editor_nombre
+        self.editado_en = cambios["editado_en"]
+
+        return cambios
 
     def confirmar(self, usuario_id: int, nombre: str) -> None:
         from app.shared.kernel.exceptions import ConflictoError
@@ -221,6 +402,10 @@ class Merma(EntidadConBorradoLogico):
         self.motivo_rechazo = motivo_limpio
         self.rechazado_por = usuario_id
         self.rechazado_por_nombre = nombre
+        # D-14 + chk_mermas_estado_consistente: a rejected merma MUST have a
+        # rejection timestamp. Setting it here so the DB CHECK constraint is
+        # satisfied (was the root cause of POST /mermas/{id}/rechazar returning 500).
+        self.rechazado_en = datetime.now(timezone.utc)
 
 
 # =============================================================================

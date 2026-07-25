@@ -4,6 +4,7 @@ import type {
   ConfirmacionMerma,
   FiltrosMermas,
   Merma,
+  MermaUpdateBody,
   NuevaMerma,
   PaginadosResponse,
   RechazoMerma,
@@ -14,10 +15,14 @@ export interface MermasPort {
   listar(filtros?: FiltrosMermas): Promise<PaginadosResponse<Merma>>;
   /** `GET /mermas/{id}`. */
   obtener(id: number): Promise<Merma>;
+  /** Alias de `obtener` (sdd/modulo-b-aprobaciones-detalle-editar). */
+  obtenerPorId(id: number): Promise<Merma>;
   /** `POST /mermas`. */
   crear(datos: NuevaMerma): Promise<Merma>;
   /** `POST /mermas/{id}/confirmar`. */
   confirmar(id: number): Promise<ConfirmacionMerma>;
   /** `POST /mermas/{id}/rechazar`. */
   rechazar(id: number, datos: RechazoMerma): Promise<Merma>;
+  /** sdd/modulo-b-aprobaciones-detalle-editar: `PATCH /mermas/{id}`. */
+  editar(id: number, body: MermaUpdateBody): Promise<Merma>;
 }
