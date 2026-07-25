@@ -8,20 +8,12 @@ from app.modules.modulo_c_ventas.application.editar_turno_usecase import EditarT
 from app.modules.modulo_c_ventas.application.cerrar_caja_usecase import CerrarCajaUseCase
 from app.modules.modulo_c_ventas.application.consultar_caja_usecase import ConsultarCajaUseCase
 from app.modules.modulo_c_ventas.application.consultar_ventas_usecase import ConsultarVentasUseCase
-from app.modules.modulo_c_ventas.application.gestionar_fiados_usecase import (
-    ConsultarFiadosUseCase,
-    GestionarClientesUseCase,
-    RegistrarAbonoUseCase,
-)
 from app.modules.modulo_c_ventas.application.gestionar_metodos_pago_usecase import (
     GestionarMetodosPagoUseCase,
 )
 from app.modules.modulo_c_ventas.application.registrar_venta_usecase import RegistrarVentaUseCase
 from app.modules.modulo_c_ventas.infrastructure.adapters.database.sqlalchemy_caja_repository import (
     SqlAlchemyCajaRepository,
-)
-from app.modules.modulo_c_ventas.infrastructure.adapters.database.sqlalchemy_fiado_repository import (
-    SqlAlchemyFiadoRepository,
 )
 from app.modules.modulo_c_ventas.infrastructure.adapters.database.sqlalchemy_metodo_pago_repository import (
     SqlAlchemyMetodoPagoRepository,
@@ -50,7 +42,6 @@ def consultar_caja_usecase(db: AsyncSession) -> ConsultarCajaUseCase:
     return ConsultarCajaUseCase(
         SqlAlchemyCajaRepository(db),
         SqlAlchemyVentaRepository(db),
-        SqlAlchemyFiadoRepository(db),
     )
 
 
@@ -60,7 +51,6 @@ def registrar_venta_usecase(db: AsyncSession) -> RegistrarVentaUseCase:
         SqlAlchemyCajaRepository(db),
         SqlAlchemyStockAdapter(db),
         SqlAlchemyMetodoPagoRepository(db),
-        SqlAlchemyFiadoRepository(db),
         contenedor_a.auditoria_usecase(db),
     )
 
@@ -80,22 +70,5 @@ def anular_venta_usecase(db: AsyncSession) -> AnularVentaUseCase:
         SqlAlchemyVentaRepository(db),
         SqlAlchemyCajaRepository(db),
         SqlAlchemyStockAdapter(db),
-        contenedor_a.auditoria_usecase(db),
-    )
-
-
-def gestionar_clientes_usecase(db: AsyncSession) -> GestionarClientesUseCase:
-    return GestionarClientesUseCase(SqlAlchemyFiadoRepository(db), contenedor_a.auditoria_usecase(db))
-
-
-def consultar_fiados_usecase(db: AsyncSession) -> ConsultarFiadosUseCase:
-    return ConsultarFiadosUseCase(SqlAlchemyFiadoRepository(db))
-
-
-def registrar_abono_usecase(db: AsyncSession) -> RegistrarAbonoUseCase:
-    return RegistrarAbonoUseCase(
-        SqlAlchemyFiadoRepository(db),
-        SqlAlchemyCajaRepository(db),
-        SqlAlchemyMetodoPagoRepository(db),
         contenedor_a.auditoria_usecase(db),
     )

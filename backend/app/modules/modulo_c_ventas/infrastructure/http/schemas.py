@@ -5,11 +5,8 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.modules.modulo_c_ventas.domain.entities import (
-    Abono,
     Anulacion,
     ArqueoCaja,
-    Cliente,
-    Fiado,
     MetodoPago,
     ResumenCaja,
     TurnoCaja,
@@ -85,7 +82,7 @@ class TurnoCajaResponse(BaseModel):
 class ResumenCajaResponse(BaseModel):
     turno: TurnoCajaResponse
     efectivo_esperado: float
-    desglose: dict[str, float]  # monto_inicial, ventas_efectivo, abonos_efectivo, devoluciones_efectivo
+    desglose: dict[str, float]  # monto_inicial, ventas_efectivo, devoluciones_efectivo
     totales_por_metodo: dict[str, float]
     total_vendido: float
     numero_ventas: int
@@ -98,7 +95,6 @@ class ResumenCajaResponse(BaseModel):
             desglose={
                 "monto_inicial": float(r.monto_inicial),
                 "ventas_efectivo": float(r.ventas_efectivo),
-                "abonos_efectivo": float(r.abonos_efectivo),
                 "devoluciones_efectivo": float(r.devoluciones_efectivo),
             },
             totales_por_metodo=r.totales_por_metodo,
@@ -191,8 +187,6 @@ class RegistrarVentaRequest(BaseModel):
     pagos: list[PagoRequest] | None = None
     # Retrocompatibilidad con el contrato original: un solo método por el total.
     metodo_pago: str | None = None
-    # Obligatorio cuando el pago es FIADO (RF-28).
-    cliente_id: int | None = None
     # Modo offline (RF-26): uuid del POS (idempotente) y momento real de la venta.
     client_uuid: str | None = Field(default=None, max_length=36)
     registrada_offline: bool = False
@@ -232,7 +226,6 @@ class VentaResponse(BaseModel):
     pagos: list[PagoVentaResponse]
     vuelto: float
     vendedor: str
-    cliente_id: int | None = None
     anulada: bool
     estado: str
     turno_id: int
@@ -269,7 +262,6 @@ class VentaResponse(BaseModel):
             ],
             vuelto=float(v.vuelto),
             vendedor=v.vendedor,
-            cliente_id=v.cliente_id,
             anulada=v.anulada,
             estado=v.estado,
             turno_id=v.turno_id,
@@ -279,86 +271,9 @@ class VentaResponse(BaseModel):
         )
 
 
-# ---------- Clientes y fiados (RF-28) ----------
-class ClienteResponse(BaseModel):
-    id: int
-    nombre: str
-    alias: str | None
-    telefono: str | None
-    limite_credito: float
-    activo: bool
-
-    @classmethod
-    def desde_entidad(cls, c: Cliente) -> "ClienteResponse":
-        return cls(
-            id=c.id, nombre=c.nombre, alias=c.alias, telefono=c.telefono,
-            limite_credito=float(c.limite_credito), activo=c.activo,
-        )
-
-
-class CrearClienteRequest(BaseModel):
-    nombre: str = Field(min_length=1, max_length=120)
-    alias: str | None = Field(default=None, max_length=60)
-    telefono: str | None = Field(default=None, max_length=20)
-
-
-class ActualizarClienteRequest(BaseModel):
-    nombre: str | None = Field(default=None, min_length=1, max_length=120)
-    alias: str | None = Field(default=None, max_length=60)
-    telefono: str | None = Field(default=None, max_length=20)
-    activo: bool | None = None
-
-
-class LimiteCreditoRequest(BaseModel):
-    limite_credito: float = Field(ge=0)  # 0 = sin límite
-
-
-class FiadoResponse(BaseModel):
-    id: int
-    venta_id: int
-    cliente_id: int
-    cliente: str
-    monto_total: float
-    saldo_pendiente: float
-    estado: str
-    created_at: datetime | None
-
-    @classmethod
-    def desde_entidad(cls, f: Fiado) -> "FiadoResponse":
-        return cls(
-            id=f.id, venta_id=f.venta_id, cliente_id=f.cliente_id, cliente=f.cliente_nombre,
-            monto_total=float(f.monto_total), saldo_pendiente=float(f.saldo_pendiente),
-            estado=f.estado, created_at=f.created_at,
-        )
-
-
-class RegistrarAbonoRequest(BaseModel):
-    monto: float = Field(gt=0)
-    metodo: str = Field(min_length=1, max_length=20)
-
-
-class AbonoResponse(BaseModel):
-    id: int
-    fiado_id: int
-    monto: float
-    metodo: str
-    es_efectivo: bool
-    registrado_por: str
-    created_at: datetime | None
-
-    @classmethod
-    def desde_entidad(cls, a: Abono) -> "AbonoResponse":
-        return cls(
-            id=a.id, fiado_id=a.fiado_id, monto=float(a.monto), metodo=a.codigo_metodo,
-            es_efectivo=a.es_efectivo, registrado_por=a.registrado_por, created_at=a.created_at,
-        )
-
-
 # ---------- Movimientos del turno (rastro del panel de caja, HU-C08) ----------
 class MovimientosTurnoResponse(BaseModel):
     """El rastro completo de un turno (modal del panel de caja del ADMIN)."""
 
     ventas: list[VentaResponse]
     reversos: list[AnulacionResponse]
-    # Abonos de fiado cobrados durante el turno (HU-C09).
-    abonos: list[dict] = []

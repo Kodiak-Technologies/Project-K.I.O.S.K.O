@@ -16,10 +16,9 @@ flowchart LR
     CU4[CU-C04 Imprimir ticket opcional]
     CU5[CU-C05 Cerrar caja con arqueo sugerido]
     CU6[CU-C06 Anular o devolver una venta]
-    CU7[CU-C07 Vender al fiado y registrar abonos]
-    CU8[CU-C08 Vender sin conexion y sincronizar]
-    CU9[CU-C09 Supervisar movimientos del turno]
-    CU10[CU-C10 Gestionar metodos de pago]
+    CU7[CU-C07 Vender sin conexion y sincronizar]
+    CU8[CU-C08 Supervisar movimientos del turno]
+    CU9[CU-C09 Gestionar metodos de pago]
 
     CAJERO --> CU1
     CAJERO --> CU2
@@ -27,12 +26,11 @@ flowchart LR
     CAJERO --> CU4
     CAJERO --> CU5
     CAJERO --> CU6
-    CAJERO --> CU7
-    SISTEMA --> CU8
+    SISTEMA --> CU7
     ADMIN --> CU1
     ADMIN --> CU5
+    ADMIN --> CU8
     ADMIN --> CU9
-    ADMIN --> CU10
 ```
 
 ---
@@ -83,7 +81,7 @@ flowchart LR
 |---|---|
 | **Actor** | CAJERO o ADMIN |
 | **Precondiciones** | Turno abierto (permiso `caja.cerrar_turno`). |
-| **Flujo principal** | 1. El sistema calcula y SUGIERE el efectivo esperado: inicial + ventas en efectivo + abonos en efectivo − devoluciones en efectivo. 2. Muestra aparte lo cobrado por medios digitales ("existe pero NO está en el cajón") y el total vendido del turno. 3. El cajero cuenta el dinero físico; el campo viene prellenado con la sugerencia. 4. Si coincide, cierra directo: la sugerencia no se puede descuadrar. 5. El cierre guarda el arqueo (esperado, contado, diferencia, desglose) y `caja_cerrada` en bitácora. |
+| **Flujo principal** | 1. El sistema calcula y SUGIERE el efectivo esperado: inicial + ventas en efectivo − devoluciones en efectivo. 2. Muestra aparte lo cobrado por medios digitales ("existe pero NO está en el cajón") y el total vendido del turno. 3. El cajero cuenta el dinero físico; el campo viene prellenado con la sugerencia. 4. Si coincide, cierra directo: la sugerencia no se puede descuadrar. 5. El cierre guarda el arqueo (esperado, contado, diferencia, desglose) y `caja_cerrada` en bitácora. |
 | **Flujos alternativos** | **A1 — Monto distinto a la sugerencia:** el comentario es OBLIGATORIO (422 sin él); se registra además `caja_descuadre` y la administradora ve diferencia y comentario en el historial de turnos. **A2 — Cierra otro cajero (cambio de turno):** válido; queda `cerrado_por` con su nombre. |
 | **Postcondiciones** | Turno CERRADO con arqueo único e inmutable; historial visible para todos. |
 
@@ -97,42 +95,32 @@ flowchart LR
 | **Flujos alternativos** | **A1 — Ya anulada:** 409. **A2 — Devolver más de lo vendido:** 422 con lo que queda por devolver. **A3 — Cambio de producto:** devolución + nueva venta; ambas dejan rastro. |
 | **Postcondiciones** | El rastro queda en `anulaciones`, en bitácora (`venta_anulada`/`venta_devuelta`) y en el modal de movimientos del panel de caja de la administradora; el arqueo del turno descuenta el efectivo devuelto. |
 
-## CU-C07 — Vender al fiado y registrar abonos (HU-C09, RF-28)
-
-| | |
-|---|---|
-| **Actor** | CAJERO |
-| **Precondiciones** | Turno abierto; cliente identificado (o alta rápida desde el cobro). |
-| **Flujo principal** | 1. En el cobro elige FIADO y el cliente. 2. La venta descuenta stock pero NO suma dinero a la caja: nace la deuda con su saldo. 3. Cuando el cliente paga, el cajero registra el abono (total o parcial) en Fiados: el saldo baja y ESE dinero sí entra a la caja del turno actual (el efectivo cuenta en el arqueo). 4. La pantalla Fiados muestra las deudas agrupadas por cliente. |
-| **Flujos alternativos** | **A1 — Fiado sin cliente:** 422. **A2 — Límite de crédito superado:** 409 (el límite lo fija solo el ADMIN). **A3 — Abono mayor al saldo:** 422. **A4 — Fiado mezclado con otro método:** 422; si paga una parte, se registra como abono. |
-| **Postcondiciones** | `venta_fiada` y `abono_registrado` en bitácora; abonos visibles en los movimientos del turno; deuda saldada pasa a PAGADO. |
-
-## CU-C08 — Vender sin conexión y sincronizar (HU-C10, RF-26)
+## CU-C07 — Vender sin conexión y sincronizar (HU-C10, RF-26)
 
 | | |
 |---|---|
 | **Actor** | CAJERO / Sistema (sincronización automática) |
 | **Precondiciones** | El POS operó al menos una vez con conexión (catálogo y turno cacheados). |
 | **Flujo principal** | 1. El sistema detecta la caída (ping a /health) y muestra "Sin conexión — modo local". 2. El POS sigue vendiendo con el catálogo cacheado; cada venta se guarda en el navegador con un UUID único y descuenta el stock del caché. 3. El ticket se imprime igual (marcado "pendiente de sincronizar"). 4. Al volver la conexión, las ventas se envían solas; el UUID único hace la sincronización IDEMPOTENTE: reintentar jamás duplica. 5. El servidor guarda la hora REAL de la venta (`vendida_en`). |
-| **Flujos alternativos** | **A1 — El servidor rechaza una venta al sincronizar (ej. otro cajero agotó el stock):** queda marcada con su motivo para revisarla con la administradora; nunca se descarta en silencio. **A2 — Fiado offline:** no disponible (necesita validar cliente/límite en servidor). |
+| **Flujos alternativos** | **A1 — El servidor rechaza una venta al sincronizar (ej. otro cajero agotó el stock):** queda marcada con su motivo para revisarla con la administradora; nunca se descarta en silencio. |
 | **Postcondiciones** | Ninguna venta se pierde; las sincronizadas quedan con `registrada_offline = true`. |
 
-## CU-C09 — Supervisar movimientos del turno (HU-C06/C07/C08, RNF-12)
+## CU-C08 — Supervisar movimientos del turno (HU-C06/C07/C08, RNF-12)
 
 | | |
 |---|---|
 | **Actor** | ADMIN |
 | **Precondiciones** | Rol ADMIN. |
-| **Flujo principal** | 1. En su panel de Caja ve el historial completo de turnos: quién abrió y con cuánto, quién cerró, diferencia del arqueo y comentario. 2. Con "Ver" abre el modal de RASTRO del turno: todas las ventas, las anulaciones/devoluciones (con motivo y efectivo devuelto) y los abonos de fiado cobrados. 3. Los descuadres se filtran también en la Bitácora (`caja_descuadre`). |
+| **Flujo principal** | 1. En su panel de Caja ve el historial completo de turnos: quién abrió y con cuánto, quién cerró, diferencia del arqueo y comentario. 2. Con "Ver" abre el modal de RASTRO del turno: todas las ventas y las anulaciones/devoluciones (con motivo y efectivo devuelto). 3. Los descuadres se filtran también en la Bitácora (`caja_descuadre`). |
 | **Flujos alternativos** | **A1 — Cajero:** ve el historial de turnos (aperturas/cierres) pero el modal de movimientos es del panel del ADMIN. |
 | **Postcondiciones** | Ninguna (solo lectura). |
 
-## CU-C10 — Gestionar métodos de pago (RF-20)
+## CU-C09 — Gestionar métodos de pago (RF-20)
 
 | | |
 |---|---|
 | **Actor** | ADMIN (permiso `metodos_pago.gestionar`) |
 | **Precondiciones** | Sesión de ADMIN. |
 | **Flujo principal** | 1. Consulta el catálogo (`GET /metodos-pago?todos=true`). 2. Agrega un método nuevo (ej. una nueva billetera) indicando si es dinero físico (`es_efectivo`). 3. Desactiva los que ya no se usen. 4. Los cambios aplican al instante en el POS, sin redeploy. |
-| **Flujos alternativos** | **A1 — Desactivar EFECTIVO o FIADO:** 422, están protegidos (la caja y el fiado dependen de ellos). **A2 — Código duplicado:** 409. |
+| **Flujos alternativos** | **A1 — Desactivar EFECTIVO:** 422, está protegido (la caja depende de él). **A2 — Código duplicado:** 409. |
 | **Postcondiciones** | Catálogo actualizado; el historial no cambia (los pagos guardan snapshot del método). |

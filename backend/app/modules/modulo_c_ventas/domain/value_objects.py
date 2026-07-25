@@ -20,7 +20,6 @@ REVERSO_DEVOLUCION = "DEVOLUCION"
 
 # Códigos de método de pago con significado especial para la caja
 METODO_EFECTIVO = "EFECTIVO"
-METODO_FIADO = "FIADO"  # descuenta stock pero NO ingresa dinero (RF-28)
 
 
 def monto_dinero(valor, minimo: Decimal | None = Decimal("0")) -> Decimal:

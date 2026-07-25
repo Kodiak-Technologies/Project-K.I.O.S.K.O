@@ -5,7 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.shared.config.settings import settings
 
-engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+engine = create_async_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    # El pooler de Supabase corta conexiones inactivas y en Windows asyncpg no
+    # siempre lo detecta (falla con AttributeError en el transporte SSL, que el
+    # pre_ping no reconoce como desconexión). Renovar cada 4 min las descarta
+    # antes de que mueran y evita los 500 intermitentes tras un rato sin uso.
+    pool_recycle=240,
+)
 
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
