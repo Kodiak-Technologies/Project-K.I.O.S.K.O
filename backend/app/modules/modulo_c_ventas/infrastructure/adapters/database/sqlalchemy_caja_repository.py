@@ -143,7 +143,6 @@ class SqlAlchemyCajaRepository(CajaRepositoryPort):
         #  + entra al vender (aunque la venta se anule después, el reverso registra
         #    su propia salida en el turno en que ocurre — HU-C08)
         #  - sale con devoluciones/anulaciones hechas durante este turno
-        #  + entra con abonos de fiado cobrados durante este turno (HU-C09)
         por_metodo = (
             await self._db.execute(
                 text(
@@ -170,19 +169,13 @@ class SqlAlchemyCajaRepository(CajaRepositoryPort):
             )
         ).one()
 
-        # Reversos (HU-C08) y abonos (HU-C09) del turno; las tablas se crean en
-        # sus propias migraciones, por eso se consultan solo si ya existen.
+        # Reversos (HU-C08) del turno; la tabla se crea en su propia migración,
+        # por eso se consulta solo si ya existe.
         devoluciones_efectivo = await self._suma_si_existe(
             "SELECT COALESCE(SUM(efectivo_devuelto), 0) FROM anulaciones "
             "WHERE turno_id = :turno_id",
             turno_id,
             "anulaciones",
-        )
-        abonos_efectivo = await self._suma_si_existe(
-            "SELECT COALESCE(SUM(monto), 0) FROM abonos "
-            "WHERE turno_id = :turno_id AND es_efectivo",
-            turno_id,
-            "abonos",
         )
 
         return {
@@ -191,7 +184,6 @@ class SqlAlchemyCajaRepository(CajaRepositoryPort):
             "total_vendido": resumen_ventas.total,
             "numero_ventas": resumen_ventas.numero,
             "devoluciones_efectivo": devoluciones_efectivo,
-            "abonos_efectivo": abonos_efectivo,
         }
 
     async def _suma_si_existe(self, sql: str, turno_id: int, tabla: str) -> Decimal:

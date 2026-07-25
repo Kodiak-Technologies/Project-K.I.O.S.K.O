@@ -56,18 +56,17 @@ Cuerpo: `{ motivo }` → pasa a `RECHAZADO` sin tocar stock. Registrar en bitác
 ## Módulo C — Ventas (Clever)
 
 > **Implementado y AMPLIADO** (HU-C01…C10). El contrato original de abajo sigue vigente y
-> funcionando; el contrato completo (pagos mixtos, arqueo, devoluciones, fiados, offline) está
+> funcionando; el contrato completo (pagos mixtos, arqueo, devoluciones, offline) está
 > documentado en `docs/CAMBIOS-CLEVER/API_MODULO_C.md`. Resumen de lo nuevo:
 >
 > - `GET /caja/resumen` (sugerencia de cierre), `GET /caja/turnos` (historial con arqueo),
->   `GET /caja/turnos/{id}/movimientos` (rastro: ventas, reversos, abonos).
+>   `GET /caja/turnos/{id}/movimientos` (rastro: ventas y reversos).
 > - `POST /caja/cerrar` acepta `{monto_final, comentario?}`; el comentario es obligatorio si
 >   el monto difiere de la sugerencia y devuelve el turno con su `arqueo`.
 > - `POST /ventas` acepta además `pagos: [{metodo, monto?, monto_recibido?}]` (pago mixto y
->   vuelto), `cliente_id` (fiado) y `client_uuid`/`registrada_offline`/`vendida_en` (offline
->   idempotente). La respuesta incluye `pagos`, `vuelto`, `estado`, `turno_id`.
-> - `POST /ventas/{id}/devolver` (devolución parcial), `GET/POST/PATCH /metodos-pago`,
->   `GET/POST/PATCH /clientes`, `GET /fiados`, `POST /fiados/{id}/abonos`.
+>   vuelto) y `client_uuid`/`registrada_offline`/`vendida_en` (offline idempotente). La
+>   respuesta incluye `pagos`, `vuelto`, `estado`, `turno_id`.
+> - `POST /ventas/{id}/devolver` (devolución parcial), `GET/POST/PATCH /metodos-pago`.
 > - `ventas.anular` ya no es solo ADMIN: el cajero anula/devuelve dejando rastro (HU-C08).
 
 ### `GET /caja/turno-actual`
@@ -84,7 +83,7 @@ Cuerpo: `{ monto_inicial }` → responde el turno creado. Rechaza (409) si ya ha
 
 ### `POST /caja/cerrar` (permiso `caja.cerrar_turno`)
 Cuerpo: `{ monto_final, comentario? }` → cierra el turno con su arqueo y registra en bitácora
-la diferencia contra lo esperado (inicial + ventas en efectivo + abonos − devoluciones).
+la diferencia contra lo esperado (inicial + ventas en efectivo − devoluciones).
 
 ### `POST /ventas` (permiso `ventas.registrar`)
 Cuerpo mínimo (retrocompatible): `{ "items": [{ "producto_id": 1, "cantidad": 2 }], "metodo_pago": "EFECTIVO" }`.
@@ -99,7 +98,7 @@ Respuesta (y elemento de `GET /ventas`):
   "total": 37.0, "metodo_pago": "EFECTIVO",
   "pagos": [{ "metodo": "EFECTIVO", "monto": 37.0, "es_efectivo": true,
               "monto_recibido": 40.0, "vuelto": 3.0 }],
-  "vuelto": 3.0, "vendedor": "vendedor1", "cliente_id": null,
+  "vuelto": 3.0, "vendedor": "vendedor1",
   "anulada": false, "estado": "COMPLETADA", "turno_id": 3,
   "registrada_offline": false, "vendida_en": null,
   "created_at": "2026-07-12T10:15:00Z" }

@@ -1,6 +1,6 @@
 // Cierre de caja (HU-C07, RF-17): el sistema SUGIERE el efectivo esperado
-// (inicial + ventas en efectivo + abonos − devoluciones) y el cajero registra lo
-// que contó. Lo vendido por Yape/tarjeta se muestra aparte: ese dinero existe
+// (inicial + ventas en efectivo − devoluciones) y el cajero registra lo que
+// contó. Lo vendido por Yape/tarjeta se muestra aparte: ese dinero existe
 // pero NO está físicamente en el cajón. Si el contado difiere de la sugerencia,
 // el comentario es obligatorio y la administradora lo ve en su panel.
 import { useEffect, useState, type FormEvent } from "react";
@@ -122,12 +122,6 @@ export default function CierreCaja() {
                   <dt className="text-zinc-500">+ Ventas en efectivo</dt>
                   <dd className="tabular-nums">S/ {resumen.desglose.ventas_efectivo.toFixed(2)}</dd>
                 </div>
-                {resumen.desglose.abonos_efectivo > 0 && (
-                  <div className="flex justify-between">
-                    <dt className="text-zinc-500">+ Abonos de fiado en efectivo</dt>
-                    <dd className="tabular-nums">S/ {resumen.desglose.abonos_efectivo.toFixed(2)}</dd>
-                  </div>
-                )}
                 {resumen.desglose.devoluciones_efectivo > 0 && (
                   <div className="flex justify-between">
                     <dt className="text-zinc-500">− Devoluciones en efectivo</dt>

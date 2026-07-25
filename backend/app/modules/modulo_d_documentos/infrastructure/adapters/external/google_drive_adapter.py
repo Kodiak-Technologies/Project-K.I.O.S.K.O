@@ -1,5 +1,7 @@
+import asyncio
 import io
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 
 import httpx
 from google.oauth2.credentials import Credentials
@@ -37,7 +39,7 @@ class GoogleDriveAdapter(DriveStoragePort):
             "access_type": "offline",
             "prompt": "consent",
         }
-        query = "&".join(f"{k}={v}" for k, v in params.items())
+        query = urlencode(params)
         return f"{GOOGLE_AUTH_URL}?{query}"
 
     async def intercambiar_code_por_tokens(self, code: str) -> OAuthToken:
@@ -59,7 +61,7 @@ class GoogleDriveAdapter(DriveStoragePort):
         if "expires_in" in data:
             token_expiry = datetime.now(timezone.utc).replace(
                 microsecond=0
-            ) + __import__("datetime").timedelta(seconds=data["expires_in"])
+            ) + timedelta(seconds=data["expires_in"])
 
         return OAuthToken(
             id=None,
@@ -77,16 +79,21 @@ class GoogleDriveAdapter(DriveStoragePort):
         if token_entity is None:
             raise RuntimeError("Google Drive no está autorizado. Ejecuta GET /drive/auth-url primero.")
 
+        token_expiry = token_entity.token_expiry
+        if token_expiry is not None and token_expiry.tzinfo is not None:
+            token_expiry = token_expiry.replace(tzinfo=None)
+
         creds = Credentials(
             token=token_entity.access_token,
             refresh_token=token_entity.refresh_token,
             token_uri=GOOGLE_TOKEN_URL,
             client_id=self.client_id,
             client_secret=self.client_secret,
+            expiry=token_expiry,
         )
 
         if creds.expired or not creds.valid:
-            creds.refresh(Request())
+            await asyncio.to_thread(creds.refresh, Request())
             token_entity.access_token = creds.token
             if creds.expiry:
                 token_entity.token_expiry = creds.expiry.replace(tzinfo=timezone.utc)
@@ -96,7 +103,7 @@ class GoogleDriveAdapter(DriveStoragePort):
 
     async def subir(self, archivo_bytes: bytes, nombre: str, carpeta: str) -> str:
         creds = await self._obtener_credenciales()
-        service = build("drive", "v3", credentials=creds)
+        service = await asyncio.to_thread(build, "drive", "v3", credentials=creds)
 
         folder_id = await self._asegurar_carpeta(service, carpeta)
 
@@ -111,19 +118,23 @@ class GoogleDriveAdapter(DriveStoragePort):
             "parents": [folder_id],
         }
 
-        file = service.files().create(
-            body=file_metadata, media_body=media, fields="id"
-        ).execute()
+        file = await asyncio.to_thread(
+            service.files().create(
+                body=file_metadata, media_body=media, fields="id"
+            ).execute
+        )
 
         return file["id"]
 
     async def obtener_url(self, file_id: str) -> str:
         creds = await self._obtener_credenciales()
-        service = build("drive", "v3", credentials=creds)
+        service = await asyncio.to_thread(build, "drive", "v3", credentials=creds)
 
-        file = service.files().get(
-            fileId=file_id, fields="webViewLink"
-        ).execute()
+        file = await asyncio.to_thread(
+            service.files().get(
+                fileId=file_id, fields="webViewLink"
+            ).execute
+        )
 
         return file.get("webViewLink", "")
 
@@ -139,7 +150,9 @@ class GoogleDriveAdapter(DriveStoragePort):
                 f"trashed=false"
             )
 
-            results = service.files().list(q=query, fields="files(id)").execute()
+            results = await asyncio.to_thread(
+                service.files().list(q=query, fields="files(id)").execute
+            )
             items = results.get("files", [])
 
             if items:
@@ -150,9 +163,11 @@ class GoogleDriveAdapter(DriveStoragePort):
                     "mimeType": "application/vnd.google-apps.folder",
                     "parents": [parent_id],
                 }
-                file = service.files().create(
-                    body=file_metadata, fields="id"
-                ).execute()
+                file = await asyncio.to_thread(
+                    service.files().create(
+                        body=file_metadata, fields="id"
+                    ).execute
+                )
                 parent_id = file["id"]
 
         return parent_id

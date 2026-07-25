@@ -1,13 +1,12 @@
-// Tipos/DTOs del módulo de documentos (contrato esperado del backend de Fabrizio).
+// Tipos/DTOs del módulo de documentos.
 
-export interface Boleta {
-  id: number;
+export interface NotaVenta {
   venta_id: number;
-  numero: string;
+  identificacion: string;
+  fecha: string;
   total: number;
-  emitida_en: string | null;
-  url_pdf: string | null;
-  cliente_nombre: string | null;
+  metodo_pago: string;
+  estado: string;
 }
 
 export interface ResumenReporte {
@@ -27,7 +26,7 @@ export interface TopProducto {
   total: number;
 }
 
-export type TipoNotificacion = "STOCK_BAJO" | "CIERRE_CAJA" | "SOLICITUD_INGRESO" | "SISTEMA";
+export type TipoNotificacion = "STOCK_BAJO" | "APERTURA_CAJA" | "CIERRE_CAJA" | "SOLICITUD_INGRESO" | "SISTEMA";
 
 export interface Notificacion {
   id: number;
@@ -35,12 +34,12 @@ export interface Notificacion {
   titulo: string;
   mensaje: string;
   leida: boolean;
+  usuario_id: number | null;
+  producto_id: number | null;
   created_at: string | null;
 }
 
 export interface ConfigNotificaciones {
-  canal_telegram_activo: boolean;
-  canal_correo_activo: boolean;
   nivel_detalle: "BAJO" | "ALTO";
 }
 

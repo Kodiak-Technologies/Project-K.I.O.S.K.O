@@ -27,6 +27,37 @@ BEGIN
 END $$;
 
 -- ----------------------------------------------------------------------------
+-- 0.b Eliminación del fiado: el módulo de cuentas por cobrar (clientes/fiados/
+--     abonos) se retiró por completo. Este bloque limpia una BD ya aprovisionada
+--     que aún tenga esas tablas, la columna ventas.cliente_id y el método FIADO.
+--     Idempotente: si ya no existen, no hace nada.
+-- ----------------------------------------------------------------------------
+DROP TABLE IF EXISTS abonos CASCADE;
+DROP TABLE IF EXISTS fiados CASCADE;
+ALTER TABLE IF EXISTS ventas DROP COLUMN IF EXISTS cliente_id;
+DROP TABLE IF EXISTS clientes CASCADE;
+-- El método FIADO: si NINGUNA venta histórica lo usó, se borra; si hay ventas al
+-- fiado ya registradas (historial inmutable, RF-22, con su fila en pagos_venta
+-- por la FK RESTRICT), no se puede borrar sin destruir esas ventas, así que se
+-- DESACTIVA para que no vuelva a usarse. metodos_pago se crea en la sección 3:
+-- por eso solo se toca si ya existe.
+DO $$
+BEGIN
+    IF to_regclass('metodos_pago') IS NULL THEN
+        RETURN;
+    END IF;
+    IF to_regclass('pagos_venta') IS NOT NULL AND EXISTS (
+        SELECT 1 FROM pagos_venta pv
+        JOIN metodos_pago mp ON mp.id = pv.metodo_pago_id
+        WHERE mp.codigo = 'FIADO'
+    ) THEN
+        UPDATE metodos_pago SET activo = FALSE WHERE codigo = 'FIADO';
+    ELSE
+        DELETE FROM metodos_pago WHERE codigo = 'FIADO';
+    END IF;
+END $$;
+
+-- ----------------------------------------------------------------------------
 -- 1. TURNOS_CAJA (HU-C06): apertura manual con el efectivo inicial contado.
 --    Apertura y cierre visibles para todos los usuarios (cambio de turno).
 -- ----------------------------------------------------------------------------
@@ -117,7 +148,7 @@ CREATE INDEX IF NOT EXISTS ix_pagos_venta_venta_id ON pagos_venta (venta_id);
 
 -- ----------------------------------------------------------------------------
 -- 4. ARQUEOS (HU-C07, RF-17): cierre de caja con sugerencia automática.
---    efectivo_esperado = inicial + ventas en efectivo + abonos - devoluciones.
+--    efectivo_esperado = inicial + ventas en efectivo - devoluciones.
 --    Si contado != esperado, el comentario es obligatorio y el descuadre queda
 --    en bitácora para que la administradora lo revise. El cierre no se elimina.
 -- ----------------------------------------------------------------------------
@@ -159,62 +190,7 @@ CREATE INDEX IF NOT EXISTS ix_anulaciones_venta_id ON anulaciones (venta_id);
 CREATE INDEX IF NOT EXISTS ix_anulaciones_turno_id ON anulaciones (turno_id);
 
 -- ----------------------------------------------------------------------------
--- 6. CLIENTES, FIADOS y ABONOS (HU-C09, RF-28): cuentas por cobrar.
---    El fiado descuenta stock pero NO suma dinero a la caja; el abono sí entra
---    (si es efectivo, al arqueo del turno en el que se cobró).
--- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS clientes (
-    id              BIGSERIAL PRIMARY KEY,
-    nombre          VARCHAR(120)  NOT NULL,
-    alias           VARCHAR(60),
-    telefono        VARCHAR(20),
-    limite_credito  NUMERIC(10,2) NOT NULL DEFAULT 0,   -- 0 = sin límite; lo fija el ADMIN
-    activo          BOOLEAN       NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ   NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS ix_clientes_nombre ON clientes (nombre);
-
-CREATE TABLE IF NOT EXISTS fiados (
-    id               BIGSERIAL PRIMARY KEY,
-    venta_id         BIGINT        NOT NULL UNIQUE REFERENCES ventas(id) ON DELETE RESTRICT,
-    cliente_id       BIGINT        NOT NULL REFERENCES clientes(id) ON DELETE RESTRICT,
-    monto_total      NUMERIC(10,2) NOT NULL,
-    saldo_pendiente  NUMERIC(10,2) NOT NULL,
-    estado           VARCHAR(12)   NOT NULL DEFAULT 'PENDIENTE',  -- PENDIENTE | PAGADO | ANULADO
-    created_at       TIMESTAMPTZ   NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS ix_fiados_cliente_id ON fiados (cliente_id);
-
-CREATE TABLE IF NOT EXISTS abonos (
-    id              BIGSERIAL PRIMARY KEY,
-    fiado_id        BIGINT        NOT NULL REFERENCES fiados(id) ON DELETE RESTRICT,
-    turno_id        BIGINT        NOT NULL REFERENCES turnos_caja(id) ON DELETE RESTRICT,
-    usuario_id      BIGINT        NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
-    registrado_por  VARCHAR(100)  NOT NULL,
-    metodo_pago_id  INTEGER       REFERENCES metodos_pago(id) ON DELETE RESTRICT,
-    codigo_metodo   VARCHAR(20)   NOT NULL,
-    es_efectivo     BOOLEAN       NOT NULL DEFAULT FALSE,
-    monto           NUMERIC(10,2) NOT NULL,
-    created_at      TIMESTAMPTZ   NOT NULL DEFAULT now(),
-    CONSTRAINT ck_abonos_monto_positivo CHECK (monto > 0)
-);
-
-CREATE INDEX IF NOT EXISTS ix_abonos_fiado_id ON abonos (fiado_id);
-CREATE INDEX IF NOT EXISTS ix_abonos_turno_id ON abonos (turno_id);
-
--- La venta fiada queda asociada a su cliente.
-ALTER TABLE ventas ADD COLUMN IF NOT EXISTS
-    cliente_id BIGINT REFERENCES clientes(id) ON DELETE RESTRICT;
-
--- El FIADO es un método de pago diferenciado (RF-28).
-INSERT INTO metodos_pago (codigo, nombre, es_efectivo, activo)
-VALUES ('FIADO', 'Fiado (a crédito)', FALSE, TRUE)
-ON CONFLICT (codigo) DO NOTHING;
-
--- ----------------------------------------------------------------------------
--- 7. MODO OFFLINE (HU-C10, RF-26): el POS guarda las ventas localmente sin
+-- 6. MODO OFFLINE (HU-C10, RF-26): el POS guarda las ventas localmente sin
 --    internet y las sincroniza al volver. client_uuid (único) hace la
 --    sincronización IDEMPOTENTE: reintentar nunca duplica una venta.
 -- ----------------------------------------------------------------------------

@@ -1,12 +1,12 @@
-import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 
 from app.shared.database.session import SessionLocal
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_archivo_drive_repository import (
-    SqlAlchemyArchivoDriveRepository,
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_venta_data_provider import (
+    HttpVentaDataProvider,
 )
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_boleta_repository import (
-    SqlAlchemyBoletaRepository,
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_configuracion_provider import (
+    HttpConfiguracionProvider,
 )
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_drive_adapter import (
     GoogleDriveAdapter,
@@ -14,71 +14,79 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_dri
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_oauth_token_repository import (
     SqlAlchemyOAuthTokenRepository,
 )
-from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.boleta_png_generator import (
-    BoletaPngGenerator,
+from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.nota_venta_png_generator import (
+    NotaVentaPngGenerator,
 )
-from app.modules.modulo_d_documentos.domain.value_objects import EstadoArchivoDrive
+from app.modules.modulo_d_documentos.application.generar_nota_venta_usecase import (
+    GenerarNotaVentaUseCase,
+)
 
 logger = logging.getLogger(__name__)
 
-MAX_INTENTOS = 3
-
 
 async def reintentar_subidas_pendientes() -> None:
-    logger.info("Iniciando reintento de subidas pendientes a Drive...")
-    async with SessionLocal() as db:
-        token_repo = SqlAlchemyOAuthTokenRepository(db)
-        drive_adapter = GoogleDriveAdapter(token_repository=token_repo)
-        archivo_repo = SqlAlchemyArchivoDriveRepository(db)
-        boleta_repo = SqlAlchemyBoletaRepository(db)
-        png_gen = BoletaPngGenerator()
+    """Reintenta subir notas de venta a Google Drive para ventas recientes.
 
-        pendientes = await archivo_repo.listar_pendientes()
-        reintentados = 0
+    Esta tarea se ejecuta periodicamente para asegurar que todas las notas
+    de venta sean subidas a Drive, incluso si hubo errores temporales.
+    """
+    logger.info("Iniciando reintento de subidas a Google Drive...")
 
-        for archivo in pendientes:
-            if archivo.intentos >= MAX_INTENTOS:
-                logger.warning(
-                    "Archivo %s alcanzó el máximo de %d intentos. Marcando como FALLIDO.",
-                    archivo.archivo_nombre,
-                    MAX_INTENTOS,
-                )
-                archivo.estado = EstadoArchivoDrive.FALLIDO.value
-                await archivo_repo.actualizar_estado(archivo)
-                continue
+    try:
+        venta_data = HttpVentaDataProvider()
+        configuracion = HttpConfiguracionProvider()
+        png_generator = NotaVentaPngGenerator()
 
-            boleta = await boleta_repo.buscar_por_id(archivo.boleta_id)
-            if boleta is None:
-                logger.warning("Boleta #%s no encontrada para archivo %s.", archivo.boleta_id, archivo.archivo_nombre)
-                continue
+        async with SessionLocal() as db:
+            token_repo = SqlAlchemyOAuthTokenRepository(db)
+            drive_adapter = GoogleDriveAdapter(token_repository=token_repo)
+
+            generar_nota = GenerarNotaVentaUseCase(
+                venta_data=venta_data,
+                config_data=configuracion,
+                png_generator=png_generator,
+            )
 
             try:
-                fecha = boleta.emitida_en.strftime("%Y-%m-%d %H:%M") if boleta.emitida_en else ""
-                png_bytes = await png_gen.generar(
-                    numero=boleta.numero,
-                    total=boleta.total,
-                    fecha=fecha,
-                    productos=[],
-                    nombre_negocio="Mi Tienda",
+                desde = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+                hasta = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+                ventas = await venta_data.listar_ventas(desde=desde, hasta=hasta)
+
+                if not ventas:
+                    logger.info("No hay ventas recientes para subir.")
+                    return
+
+                subidos = 0
+                errores = 0
+
+                for venta in ventas:
+                    venta_id = venta["id"]
+                    try:
+                        png_bytes = await generar_nota.ejecutar(venta_id)
+                        fecha = venta.get("fecha", "")
+                        if hasattr(fecha, "strftime"):
+                            fecha = fecha.strftime("%Y-%m-%d")
+                        nombre = f"{str(fecha)[:10]}_VENTA-{venta_id}.png"
+                        await drive_adapter.subir(
+                            archivo_bytes=png_bytes,
+                            nombre=nombre,
+                            carpeta="Notas de Venta",
+                        )
+                        subidos += 1
+                    except Exception as e:
+                        errores += 1
+                        logger.debug("Error subiendo venta %d: %s", venta_id, str(e))
+
+                logger.info(
+                    "Reintento completado: %d subidos, %d errores de %d totales.",
+                    subidos,
+                    errores,
+                    len(ventas),
                 )
 
-                drive_file_id = await drive_adapter.subir(png_bytes, archivo.archivo_nombre, archivo.carpeta)
-
-                archivo.estado = EstadoArchivoDrive.SUBIDO.value
-                archivo.drive_file_id = drive_file_id
-                archivo.intentos += 1
-                await archivo_repo.actualizar_estado(archivo)
-
-                reintentados += 1
-                logger.info("Reintento exitoso para %s.", archivo.archivo_nombre)
-
             except Exception as e:
-                archivo.estado = EstadoArchivoDrive.FALLIDO.value
-                archivo.error_mensaje = str(e)
-                archivo.intentos += 1
-                await archivo_repo.actualizar_estado(archivo)
-                logger.warning("Reintento fallido para %s: %s", archivo.archivo_nombre, str(e))
+                logger.error("Error durante el reintento de subidas: %s", str(e))
 
-        await db.commit()
-
-    logger.info("Reintento de subidas pendientes completado. %d reintentados.", reintentados)
+    except Exception as e:
+        logger.error("Error inicializando reintento de subidas: %s", str(e))

@@ -35,7 +35,6 @@ export interface ResumenCaja {
   desglose: {
     monto_inicial: number;
     ventas_efectivo: number;
-    abonos_efectivo: number;
     devoluciones_efectivo: number;
   };
   totales_por_metodo: Record<string, number>;
@@ -71,7 +70,6 @@ export interface Anulacion {
 export interface MovimientosTurno {
   ventas: Venta[];
   reversos: Anulacion[];
-  abonos: Record<string, unknown>[];
 }
 
 /** Código de método de pago: los del catálogo (el ADMIN puede agregar más) o MIXTO. */
@@ -104,8 +102,6 @@ export interface Venta {
   pagos: PagoVenta[];
   vuelto: number;
   vendedor: string;
-  /** Cliente asociado (siempre presente en ventas al fiado). */
-  cliente_id: number | null;
   anulada: boolean;
   estado: "COMPLETADA" | "ANULADA" | "DEVUELTA_PARCIAL";
   turno_id: number;
@@ -127,8 +123,6 @@ export interface NuevoPago {
 export interface NuevaVenta {
   items: { producto_id: number; cantidad: number }[];
   pagos: NuevoPago[];
-  /** Obligatorio cuando el pago es FIADO. */
-  cliente_id?: number;
   /** Modo offline (HU-C10): uuid idempotente y momento real de la venta. */
   client_uuid?: string;
   registrada_offline?: boolean;
@@ -147,37 +141,4 @@ export interface VentaPendiente {
   vendida_en: string;
   /** Mensaje si el backend la rechazó al sincronizar (ej. sin stock). */
   error?: string;
-}
-
-/** Cliente del barrio al que se le puede fiar (RF-28). */
-export interface Cliente {
-  id: number;
-  nombre: string;
-  alias: string | null;
-  telefono: string | null;
-  /** 0 = sin límite; lo fija solo la administradora. */
-  limite_credito: number;
-  activo: boolean;
-}
-
-/** Una deuda: venta al fiado con su saldo pendiente. */
-export interface Fiado {
-  id: number;
-  venta_id: number;
-  cliente_id: number;
-  cliente: string;
-  monto_total: number;
-  saldo_pendiente: number;
-  estado: "PENDIENTE" | "PAGADO" | "ANULADO";
-  created_at: string | null;
-}
-
-export interface AbonoFiado {
-  id: number;
-  fiado_id: number;
-  monto: number;
-  metodo: string;
-  es_efectivo: boolean;
-  registrado_por: string;
-  created_at: string | null;
 }

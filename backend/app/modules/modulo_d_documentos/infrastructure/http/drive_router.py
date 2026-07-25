@@ -33,10 +33,16 @@ async def obtener_auth_url(
 
 @router.get("/callback")
 async def drive_callback(
-    code: str = Query(...),
+    code: str | None = Query(None),
+    error: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     token_repository: SqlAlchemyOAuthTokenRepository = Depends(_get_token_repository),
 ):
+    if error:
+        return {"error": f"Google rechazó la autorización: {error}"}
+    if not code:
+        return {"error": "No se recibió código de autorización. Intenta de nuevo desde GET /drive/auth-url"}
+
     adapter = GoogleDriveAdapter(token_repository=token_repository)
     token_entity = await adapter.intercambiar_code_por_tokens(code)
 
