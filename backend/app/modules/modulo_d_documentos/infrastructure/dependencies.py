@@ -1,12 +1,6 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_boleta_repository import (
-    SqlAlchemyBoletaRepository,
-)
-from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_archivo_drive_repository import (
-    SqlAlchemyArchivoDriveRepository,
-)
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_notificacion_repository import (
     SqlAlchemyNotificacionRepository,
 )
@@ -18,6 +12,12 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy
 )
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_oauth_token_repository import (
     SqlAlchemyOAuthTokenRepository,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_venta_data_provider import (
+    HttpVentaDataProvider,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_configuracion_provider import (
+    HttpConfiguracionProvider,
 )
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_drive_adapter import (
     GoogleDriveAdapter,
@@ -34,8 +34,8 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.composite_
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.excel_generator import (
     ExcelGenerator,
 )
-from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.boleta_png_generator import (
-    BoletaPngGenerator,
+from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.nota_venta_png_generator import (
+    NotaVentaPngGenerator,
 )
 from app.shared.database.session import get_db
 
@@ -44,15 +44,9 @@ _notificacion_sender = CompositeNotificationSender([
     CorreoNotificationAdapter(),
 ])
 _reporte_generator = ExcelGenerator()
-_png_generator = BoletaPngGenerator()
-
-
-async def get_boleta_repository(db: AsyncSession = Depends(get_db)):
-    return SqlAlchemyBoletaRepository(db)
-
-
-async def get_archivo_drive_repository(db: AsyncSession = Depends(get_db)):
-    return SqlAlchemyArchivoDriveRepository(db)
+_png_generator = NotaVentaPngGenerator()
+_venta_data_provider = HttpVentaDataProvider()
+_configuracion_provider = HttpConfiguracionProvider()
 
 
 async def get_notificacion_repository(db: AsyncSession = Depends(get_db)):
@@ -89,42 +83,12 @@ def get_png_generator():
     return _png_generator
 
 
-class MockVentaDataProvider:
-    async def obtener_venta(self, venta_id: int) -> dict | None:
-        mock_ventas = {
-            1: {"id": 1, "total": 150.00, "metodo_pago": "EFECTIVO", "fecha": "2026-07-15T10:30:00Z"},
-            2: {"id": 2, "total": 85.50, "metodo_pago": "TARJETA", "fecha": "2026-07-14T15:45:00Z"},
-            3: {"id": 3, "total": 320.00, "metodo_pago": "EFECTIVO", "fecha": "2026-07-13T09:00:00Z"},
-        }
-        return mock_ventas.get(venta_id)
-
-    async def listar_ventas(self, desde: str | None = None, hasta: str | None = None) -> list[dict]:
-        return [
-            {"id": 1, "total": 150.00, "fecha": "2026-07-15", "cliente_nombre": "Cliente 1"},
-            {"id": 2, "total": 85.50, "fecha": "2026-07-14", "cliente_nombre": "Cliente 2"},
-            {"id": 3, "total": 320.00, "fecha": "2026-07-13", "cliente_nombre": "Cliente 1"},
-        ]
-
-    async def obtener_detalle_venta(self, venta_id: int) -> list[dict]:
-        mock_detalles = {
-            1: [
-                {"nombre": "Arroz 1kg", "cantidad": 2, "precio_unitario": 25.00, "subtotal": 50.00},
-                {"nombre": "Aceite 1L", "cantidad": 1, "precio_unitario": 100.00, "subtotal": 100.00},
-            ],
-            2: [
-                {"nombre": "Leche 1L", "cantidad": 3, "precio_unitario": 5.50, "subtotal": 16.50},
-                {"nombre": "Pan tajado", "cantidad": 2, "precio_unitario": 8.50, "subtotal": 17.00},
-            ],
-            3: [
-                {"nombre": "Pollo entero", "cantidad": 1, "precio_unitario": 320.00, "subtotal": 320.00},
-            ],
-        }
-        return mock_detalles.get(venta_id, [])
+def get_venta_data_provider():
+    return _venta_data_provider
 
 
-class MockConfiguracionProvider:
-    async def obtener(self) -> dict:
-        return {"nombre_negocio": "Mi Tienda", "logo_url": ""}
+def get_configuracion_provider():
+    return _configuracion_provider
 
 
 class MockEgresosDataProvider:
@@ -145,18 +109,8 @@ class MockMetodoPagoProvider:
         return {"EFECTIVO": 850.00, "YAPE": 320.00, "PLIN": 180.00, "TARJETA": 200.00}
 
 
-_venta_data_provider = MockVentaDataProvider()
-_configuracion_provider = MockConfiguracionProvider()
 _egresos_data_provider = MockEgresosDataProvider()
 _metodo_pago_provider = MockMetodoPagoProvider()
-
-
-def get_venta_data_provider():
-    return _venta_data_provider
-
-
-def get_configuracion_provider():
-    return _configuracion_provider
 
 
 def get_egresos_data_provider():

@@ -1,6 +1,6 @@
-// Página de historial de notificaciones (stock bajo, cierres de caja, sistema).
-import { useState } from "react";
-import { Bell, BellOff, Settings } from "lucide-react";
+// Página de historial de notificaciones (stock bajo, apertura/cierre de caja, sistema).
+import { useEffect, useState } from "react";
+import { Bell, BellOff, CheckCheck, Settings } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -15,10 +15,12 @@ import {
 } from "../../../shared/components/ui";
 import { useNotificaciones } from "../hooks/useNotificaciones";
 import { useAuthContext } from "../../../shared/lib/auth-context";
+import { notificacionesHttpAdapter } from "../services/notificaciones.http-adapter";
 import type { TipoNotificacion } from "../types";
 
 const TONO_TIPO: Record<TipoNotificacion, Tono> = {
   STOCK_BAJO: "alerta",
+  APERTURA_CAJA: "info",
   CIERRE_CAJA: "info",
   SOLICITUD_INGRESO: "alerta",
   SISTEMA: "neutro",
@@ -27,14 +29,26 @@ const TONO_TIPO: Record<TipoNotificacion, Tono> = {
 export default function Notificaciones() {
   const { usuario } = useAuthContext();
   const esAdmin = usuario?.rol === "ADMIN";
-  const { notificaciones, config, cargando, error, noDisponible, marcarLeida, actualizarConfig } =
+  const { notificaciones, config, cargando, error, noDisponible, recargar, marcarLeida, actualizarConfig } =
     useNotificaciones();
   const [mostrarConfig, setMostrarConfig] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState<TipoNotificacion | "TODOS">("TODOS");
 
+  // Auto-marcar todas como leídas al entrar a la página.
+  useEffect(() => {
+    if (!cargando && !noDisponible && notificaciones.some((n) => !n.leida)) {
+      void notificacionesHttpAdapter.marcarTodasLeidas().then(() => void recargar());
+    }
+  }, [cargando, noDisponible]);
+
   const notificacionesFiltradas = filtroTipo === "TODOS"
     ? notificaciones
     : notificaciones.filter((n) => n.tipo === filtroTipo);
+
+  const marcarTodasLeidas = async () => {
+    await notificacionesHttpAdapter.marcarTodasLeidas();
+    window.location.reload();
+  };
 
   if (noDisponible) {
     return (
@@ -53,47 +67,34 @@ export default function Notificaciones() {
     <div className="max-w-2xl">
       <PageHeader
         titulo="Notificaciones"
-        descripcion="Avisos del sistema: stock bajo, cierres de caja y más."
+        descripcion="Avisos del sistema: stock bajo, apertura y cierre de caja y más."
         acciones={
-          esAdmin ? (
-            <Button
-              variante="secundario"
-              icono={<Settings className="h-4 w-4" aria-hidden />}
-              onClick={() => setMostrarConfig(!mostrarConfig)}
-            >
-              Configuración
-            </Button>
-          ) : undefined
+          <div className="flex gap-2">
+            {notificaciones.some((n) => !n.leida) && (
+              <Button
+                variante="secundario"
+                icono={<CheckCheck className="h-4 w-4" aria-hidden />}
+                onClick={() => void marcarTodasLeidas()}
+              >
+                Marcar todas leídas
+              </Button>
+            )}
+            {esAdmin && (
+              <Button
+                variante="secundario"
+                icono={<Settings className="h-4 w-4" aria-hidden />}
+                onClick={() => setMostrarConfig(!mostrarConfig)}
+              >
+                Configuración
+              </Button>
+            )}
+          </div>
         }
       />
 
       {mostrarConfig && config && (
         <Card titulo="Configuración de notificaciones" className="mb-4">
           <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="telegram"
-                checked={config.canal_telegram_activo}
-                onChange={(e) => void actualizarConfig({ canal_telegram_activo: e.target.checked })}
-                className="h-4 w-4 rounded border-zinc-300"
-              />
-              <label htmlFor="telegram" className="text-sm text-zinc-700">
-                Telegram
-              </label>
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="correo"
-                checked={config.canal_correo_activo}
-                onChange={(e) => void actualizarConfig({ canal_correo_activo: e.target.checked })}
-                className="h-4 w-4 rounded border-zinc-300"
-              />
-              <label htmlFor="correo" className="text-sm text-zinc-700">
-                Correo electrónico
-              </label>
-            </div>
             <Select
               label="Nivel de detalle"
               value={config.nivel_detalle}
@@ -104,6 +105,9 @@ export default function Notificaciones() {
               <option value="BAJO">Bajo — Solo aviso</option>
               <option value="ALTO">Alto — Detalle completo</option>
             </Select>
+            <p className="text-xs text-zinc-400">
+              La configuración de Telegram y correo se realiza en el archivo .env del servidor.
+            </p>
           </div>
         </Card>
       )}
@@ -117,6 +121,7 @@ export default function Notificaciones() {
           >
             <option value="TODOS">Todos</option>
             <option value="STOCK_BAJO">Stock bajo</option>
+            <option value="APERTURA_CAJA">Apertura de caja</option>
             <option value="CIERRE_CAJA">Cierre de caja</option>
             <option value="SOLICITUD_INGRESO">Solicitud de ingreso</option>
             <option value="SISTEMA">Sistema</option>

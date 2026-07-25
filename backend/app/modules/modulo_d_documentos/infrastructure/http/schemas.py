@@ -3,25 +3,29 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
-class BoletaResponse(BaseModel):
-    id: int
+class NotaVentaResponse(BaseModel):
     venta_id: int
-    numero: str
+    identificacion: str
+    fecha: str
     total: float
-    emitida_en: datetime | None
-    url_pdf: str | None
-    cliente_nombre: str | None
+    metodo_pago: str
+    estado: str
 
     @classmethod
-    def desde_entidad(cls, b) -> "BoletaResponse":
+    def desde_venta(cls, venta: dict) -> "NotaVentaResponse":
+        fecha = venta.get("fecha", "")
+        if hasattr(fecha, "strftime"):
+            fecha_str = fecha.strftime("%Y-%m-%d %H:%M")
+        else:
+            fecha_str = str(fecha)
+        identificacion = f"{fecha_str[:10]}_VENTA-{venta['id']}"
         return cls(
-            id=b.id,
-            venta_id=b.venta_id,
-            numero=b.numero,
-            total=b.total,
-            emitida_en=b.emitida_en,
-            url_pdf=b.url_pdf,
-            cliente_nombre=b.cliente_nombre,
+            venta_id=venta["id"],
+            identificacion=identificacion,
+            fecha=fecha_str,
+            total=float(venta.get("total", 0)),
+            metodo_pago=venta.get("metodo_pago", ""),
+            estado=venta.get("estado", ""),
         )
 
 
@@ -65,6 +69,8 @@ class NotificacionResponse(BaseModel):
     titulo: str
     mensaje: str
     leida: bool
+    usuario_id: int | None
+    producto_id: int | None
     created_at: datetime | None
 
     @classmethod
@@ -75,6 +81,8 @@ class NotificacionResponse(BaseModel):
             titulo=n.titulo,
             mensaje=n.mensaje,
             leida=n.leida,
+            usuario_id=n.usuario_id,
+            producto_id=n.producto_id,
             created_at=n.created_at,
         )
 
@@ -103,51 +111,15 @@ class RespaldoResponse(BaseModel):
         )
 
 
-class ArchivoDriveResponse(BaseModel):
-    id: int
-    boleta_id: int
-    archivo_nombre: str
-    carpeta: str
-    estado: str
-    intentos: int
-    drive_file_id: str | None
-    error_mensaje: str | None
-    creado_en: datetime | None
-    actualizado_en: datetime | None
-
-    @classmethod
-    def desde_entidad(cls, a) -> "ArchivoDriveResponse":
-        return cls(
-            id=a.id,
-            boleta_id=a.boleta_id,
-            archivo_nombre=a.archivo_nombre,
-            carpeta=a.carpeta,
-            estado=a.estado,
-            intentos=a.intentos,
-            drive_file_id=a.drive_file_id,
-            error_mensaje=a.error_mensaje,
-            creado_en=a.creado_en,
-            actualizado_en=a.actualizado_en,
-        )
-
-
 class ConfigNotificacionesResponse(BaseModel):
-    canal_telegram_activo: bool
-    canal_correo_activo: bool
     nivel_detalle: str
 
     @classmethod
     def desde_entidad(cls, c) -> "ConfigNotificacionesResponse":
-        return cls(
-            canal_telegram_activo=c.canal_telegram_activo,
-            canal_correo_activo=c.canal_correo_activo,
-            nivel_detalle=c.nivel_detalle,
-        )
+        return cls(nivel_detalle=c.nivel_detalle)
 
 
 class ConfigNotificacionesRequest(BaseModel):
-    canal_telegram_activo: bool | None = None
-    canal_correo_activo: bool | None = None
     nivel_detalle: str | None = None
 
 
@@ -158,3 +130,15 @@ class CrearNotificacionRequest(BaseModel):
     entidad_origen: str | None = None
     entidad_id: str | None = None
     usuario_id: int | None = None
+    producto_id: int | None = None
+
+
+class DescargarNotasRequest(BaseModel):
+    desde: str | None = None
+    hasta: str | None = None
+
+
+class SubirNotasDriveRequest(BaseModel):
+    desde: str | None = None
+    hasta: str | None = None
+    carpeta: str = "Notas de Venta"

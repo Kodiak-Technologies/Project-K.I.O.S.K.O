@@ -13,3 +13,7 @@ class VentaDataProviderPort(Protocol):
     async def obtener_detalle_venta(self, venta_id: int) -> list[dict]:
         """Retorna los items/productos de una venta específica."""
         ...
+
+    async def obtener_pagos_venta(self, venta_id: int) -> list[dict]:
+        """Retorna los pagos de una venta específica."""
+        ...
