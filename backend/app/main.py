@@ -41,20 +41,7 @@ from app.shared.http.middlewares import registrar_middlewares
 
 logger = logging.getLogger(__name__)
 
-TAREA_REINTENTO_INTERVALO = 300  # 5 minutos
 TAREA_RESPALDO_INTERVALO = 86400  # 24 horas
-
-
-async def _ejecutar_tarea_reintentar() -> None:
-    from app.modules.modulo_d_documentos.infrastructure.tasks.reintentar_subidas import (
-        reintentar_subidas_pendientes,
-    )
-    while True:
-        try:
-            await reintentar_subidas_pendientes()
-        except Exception as e:
-            logger.error("Error en tarea de reintento: %s", str(e))
-        await asyncio.sleep(TAREA_REINTENTO_INTERVALO)
 
 
 async def _ejecutar_tarea_respaldos() -> None:
@@ -87,11 +74,9 @@ async def lifespan(app: FastAPI):
             logger.error("Fallo en cierre automático al arrancar: %s", exc, exc_info=True)
 
     logger.info("Iniciando tareas en segundo plano...")
-    task_reintentar = asyncio.create_task(_ejecutar_tarea_reintentar())
     task_respaldos = asyncio.create_task(_ejecutar_tarea_respaldos())
     yield
     logger.info("Deteniendo tareas en segundo plano...")
-    task_reintentar.cancel()
     task_respaldos.cancel()
 
 
