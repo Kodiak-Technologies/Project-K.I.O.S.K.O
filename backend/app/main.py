@@ -2,9 +2,16 @@
 # y monta los routers de cada módulo.
 import asyncio
 import logging
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+
+if sys.platform == "win32":
+    # El ProactorEventLoop (default en Windows) rompe asyncpg sobre SSL: una
+    # conexión caída lanza AttributeError en vez de un error de desconexión y
+    # el pool no puede recuperarla. El SelectorEventLoop las cierra limpio.
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from app.modules.modulo_a_seguridad.infrastructure.http.auth_router import router as auth_router
 from app.modules.modulo_a_seguridad.infrastructure.http.bitacora_router import (
@@ -30,7 +37,6 @@ from app.modules.modulo_c_ventas.infrastructure.adapters.database.sqlalchemy_caj
     SqlAlchemyCajaRepository,
 )
 from app.modules.modulo_c_ventas.infrastructure.http.caja_router import router as caja_router
-from app.modules.modulo_c_ventas.infrastructure.http.fiados_router import router as fiados_router
 from app.modules.modulo_c_ventas.infrastructure.http.metodos_pago_router import (
     router as metodos_pago_router,
 )
@@ -112,7 +118,6 @@ app.include_router(categorias_router)
 app.include_router(caja_router)
 app.include_router(ventas_router)
 app.include_router(metodos_pago_router)
-app.include_router(fiados_router)
 
 # --- Módulo D (Fabrizio): Documentos ---
 from app.modules.modulo_d_documentos.infrastructure.http.boletas_router import router as boletas_router

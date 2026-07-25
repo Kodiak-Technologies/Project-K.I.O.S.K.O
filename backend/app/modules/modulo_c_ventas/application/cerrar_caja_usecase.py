@@ -1,8 +1,8 @@
 # Caso de uso: cerrar caja al final de un turno y cuadrar el efectivo (RF-17).
 #
 # El cierre es "automático como sugerencia": el sistema calcula el efectivo
-# esperado (inicial + ventas en efectivo + abonos - devoluciones) y el cajero
-# solo confirma o corrige con lo que contó físicamente. Lo vendido por Yape,
+# esperado (inicial + ventas en efectivo - devoluciones) y el cajero solo
+# confirma o corrige con lo que contó físicamente. Lo vendido por Yape,
 # tarjeta, etc. se muestra aparte: ese dinero existe pero NO está en el cajón.
 # Si el monto contado difiere de la sugerencia, el comentario es OBLIGATORIO y
 # el descuadre queda registrado para que la administradora lo revise.
@@ -23,7 +23,6 @@ async def calcular_resumen(caja_repo: CajaRepositoryPort, turno: TurnoCaja) -> R
     esperado = monto_dinero(
         turno.monto_inicial
         + totales["ventas_efectivo"]
-        + totales["abonos_efectivo"]
         - totales["devoluciones_efectivo"]
     )
     return ResumenCaja(
@@ -31,7 +30,6 @@ async def calcular_resumen(caja_repo: CajaRepositoryPort, turno: TurnoCaja) -> R
         efectivo_esperado=esperado,
         monto_inicial=turno.monto_inicial,
         ventas_efectivo=monto_dinero(totales["ventas_efectivo"]),
-        abonos_efectivo=monto_dinero(totales["abonos_efectivo"]),
         devoluciones_efectivo=monto_dinero(totales["devoluciones_efectivo"]),
         totales_por_metodo=totales["totales_por_metodo"],
         total_vendido=monto_dinero(totales["total_vendido"]),

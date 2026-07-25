@@ -98,10 +98,6 @@ class VentaModel(Base):
         ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False
     )
     vendedor: Mapped[str] = mapped_column(String(100), nullable=False)  # snapshot del nombre
-    # Cliente asociado (obligatorio en ventas al fiado, RF-28).
-    cliente_id: Mapped[int | None] = mapped_column(
-        ForeignKey("clientes.id", ondelete="RESTRICT")
-    )
     total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     metodo_pago: Mapped[str] = mapped_column(String(20), nullable=False)  # resumen (MIXTO si >1)
     estado: Mapped[str] = mapped_column(String(20), default="COMPLETADA", nullable=False)
@@ -146,72 +142,6 @@ class DetalleVentaModel(Base):
     cantidad_devuelta: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     venta: Mapped[VentaModel] = relationship(back_populates="detalles")
-
-
-class ClienteModel(Base):
-    __tablename__ = "clientes"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    nombre: Mapped[str] = mapped_column(String(120), index=True, nullable=False)
-    alias: Mapped[str | None] = mapped_column(String(60))
-    telefono: Mapped[str | None] = mapped_column(String(20))
-    # 0 = sin límite definido; > 0 = tope de deuda (solo el ADMIN lo fija).
-    limite_credito: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
-    activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-class FiadoModel(Base):
-    __tablename__ = "fiados"
-    __table_args__ = (Index("ix_fiados_cliente_id", "cliente_id"),)
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    # Un fiado nace de UNA venta (la venta fiada no suma efectivo a la caja).
-    venta_id: Mapped[int] = mapped_column(
-        ForeignKey("ventas.id", ondelete="RESTRICT"), unique=True, nullable=False
-    )
-    cliente_id: Mapped[int] = mapped_column(
-        ForeignKey("clientes.id", ondelete="RESTRICT"), nullable=False
-    )
-    monto_total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    saldo_pendiente: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    estado: Mapped[str] = mapped_column(String(12), default="PENDIENTE", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-class AbonoModel(Base):
-    __tablename__ = "abonos"
-    __table_args__ = (
-        CheckConstraint("monto > 0", name="ck_abonos_monto_positivo"),
-        Index("ix_abonos_fiado_id", "fiado_id"),
-        Index("ix_abonos_turno_id", "turno_id"),
-    )
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    fiado_id: Mapped[int] = mapped_column(
-        ForeignKey("fiados.id", ondelete="RESTRICT"), nullable=False
-    )
-    # Turno en el que se cobró: si es efectivo, entra a ESE arqueo (RF-17).
-    turno_id: Mapped[int] = mapped_column(
-        ForeignKey("turnos_caja.id", ondelete="RESTRICT"), nullable=False
-    )
-    usuario_id: Mapped[int] = mapped_column(
-        ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False
-    )
-    registrado_por: Mapped[str] = mapped_column(String(100), nullable=False)
-    metodo_pago_id: Mapped[int | None] = mapped_column(
-        ForeignKey("metodos_pago.id", ondelete="RESTRICT")
-    )
-    codigo_metodo: Mapped[str] = mapped_column(String(20), nullable=False)
-    es_efectivo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    monto: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
 
 
 class AnulacionModel(Base):

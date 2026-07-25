@@ -267,7 +267,6 @@ export default function PuntoDeVenta() {
       pagos: [],
       vuelto,
       vendedor: usuario?.nombre ?? "",
-      cliente_id: null,
       anulada: false,
       estado: "COMPLETADA",
       turno_id: turno?.id ?? 0,
@@ -275,7 +274,7 @@ export default function PuntoDeVenta() {
     });
   }
 
-  async function manejarCobrar(pagos: NuevoPago[], clienteId?: number) {
+  async function manejarCobrar(pagos: NuevoPago[]) {
     if (!online) {
       cobrarOffline(pagos);
       return;
@@ -286,7 +285,6 @@ export default function PuntoDeVenta() {
       const venta = await registrar({
         items: armarItemsVenta(),
         pagos,
-        cliente_id: clienteId,
       });
       const conVuelto = venta.vuelto > 0 ? ` · Vuelto: S/ ${venta.vuelto.toFixed(2)}` : "";
       setMensaje(
@@ -531,19 +529,17 @@ export default function PuntoDeVenta() {
         </Card>
       </div>
 
-      {/* Confirmación de cobro (HU-C04): método de pago, pago mixto y vuelto.
-          Sin conexión no se ofrece FIADO (necesita validar cliente en servidor). */}
+      {/* Confirmación de cobro (HU-C04): método de pago, pago mixto y vuelto. */}
       <ModalCobro
         abierto={modalCobro}
         total={total}
         procesando={procesando}
         error={errorAccion}
-        permitirFiado={online}
         alCerrar={() => {
           setModalCobro(false);
           setErrorAccion(null);
         }}
-        alConfirmar={(pagos, clienteId) => void manejarCobrar(pagos, clienteId)}
+        alConfirmar={(pagos) => void manejarCobrar(pagos)}
       />
 
       {/* Post-venta (HU-C05): vuelto en grande + ticket térmico opcional */}

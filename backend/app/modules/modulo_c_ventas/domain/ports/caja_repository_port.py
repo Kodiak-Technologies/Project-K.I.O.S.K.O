@@ -46,5 +46,4 @@ class CajaRepositoryPort(ABC):
         - totales_por_metodo: lo vendido desglosado por método (informativo)
         - total_vendido / numero_ventas
         - devoluciones_efectivo: dinero que salió del cajón por reversos (HU-C08)
-        - abonos_efectivo: fiados cobrados en efectivo durante el turno (HU-C09)
         """

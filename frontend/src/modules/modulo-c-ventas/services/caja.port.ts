@@ -12,6 +12,6 @@ export interface CajaPort {
   turnos(limite?: number): Promise<TurnoCaja[]>;
   /** Edita los detalles del turno (ej. usuario asignado o monto inicial). */
   editar(turnoId: number, datos: { asignado_a_id?: number | null; monto_inicial?: number }): Promise<TurnoCaja>;
-  /** El rastro de un turno: ventas, anulaciones/devoluciones y abonos. */
+  /** El rastro de un turno: ventas y anulaciones/devoluciones. */
   movimientos(turnoId: number): Promise<MovimientosTurno>;
 }
