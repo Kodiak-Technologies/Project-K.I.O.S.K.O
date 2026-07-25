@@ -57,11 +57,13 @@ erDiagram
 
     respaldos {
         BIGINT id PK
-        VARCHAR(255) archivo_nombre "ej: tienda_sistema_20260714_020000.dump"
+        VARCHAR(255) archivo_nombre "ej: tienda_sistema_20260727_030000.sql"
         BIGINT tamano_bytes "tamaño del archivo"
         VARCHAR(20) estado "PENDIENTE | COMPLETADO | FALLIDO"
         TIMESTAMPTZ generado_en "DEFAULT NOW()"
-        TIMESTAMPTZ expira_en "DEFAULT now() + 30 días"
+        TIMESTAMPTZ expira_en "DEFAULT now() + 21 días"
+        BIGINT usuario_id FK "nullable → usuarios.id (NULL si automático)"
+        VARCHAR(255) drive_file_id "nullable — ID en Google Drive"
     }
 
     oauth_tokens {
@@ -79,6 +81,7 @@ erDiagram
     ventas ||--o| boletas_clientes : "tiene una boleta"
     usuarios ||--o| notificaciones : "puede recibir"
     usuarios ||--o| oauth_tokens : "autoriza Drive"
+    usuarios ||--o| respaldos : "crea respaldos manuales"
 
     %% Relaciones internas de Module D
     boletas_clientes ||--o| archivos_drive : "se sube a Drive"
@@ -95,7 +98,7 @@ erDiagram
 | `archivos_drive` | `id` (BIGINT) | `boleta_id` → `boletas_clientes.id` | Control de subida a Google Drive |
 | `notificaciones` | `id` (BIGINT) | `usuario_id` → `usuarios.id` (Module A) | Notificaciones del sistema |
 | `config_notificaciones` | `id` (INT, siempre 1) | — | Configuración de canales |
-| `respaldos` | `id` (BIGINT) | — | Registro de copias de seguridad |
+| `respaldos` | `id` (BIGINT) | `usuario_id` → `usuarios.id` (Module A) | Registro de copias de seguridad (Google Drive) |
 | `oauth_tokens` | `id` (BIGINT) | `usuario_id` → `usuarios.id` (Module A) | Tokens OAuth para Google Drive |
 
 ---
@@ -119,5 +122,5 @@ erDiagram
 - `boletas_clientes` tiene `venta_id UNIQUE` porque una venta solo genera una boleta.
 - `boletas_clientes` incluye `cliente_nombre` (VARCHAR 120) para identificar al cliente. Default: "Cliente 1".
 - `notificaciones` no tiene borrado lógico; se purgan después de 30 días (RNF-14).
-- `respaldos` expiran después de 30 días; los scripts de limpieza los eliminan.
+- `respaldos` almacena archivos `.sql` en Google Drive (carpeta `respaldos/YYYY/MM/`). Retención: 21 días. `usuario_id` es NULL para respaldos automáticos (cada domingo).
 - `oauth_tokens` almacena tokens OAuth para Google Drive. Un solo registro por proveedor (google_drive). El `refresh_token` nunca expira; el `access_token` se renueva automáticamente.

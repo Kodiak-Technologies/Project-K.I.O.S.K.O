@@ -252,47 +252,80 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Actor** | Admin / Sistema (cron) |
-| **HU** | HU-D12 |
-| **Precondiciones** | El usuario tiene permiso ADMIN |
-| **Postcondiciones** | Existe un archivo .dump en `backups/` y registro en `respaldos` |
+| **Actor** | Admin (manual) / Sistema (automático, cada domingo) |
+| **HU** | HU-D12, RF-29 |
+| **Precondiciones** | El usuario tiene rol ADMIN (manual) / Google Drive autorizado (automático) |
+| **Postcondiciones** | Existe un archivo .sql en Google Drive y registro en `respaldos` |
 
-### Flujo principal
-1. El Admin ejecuta "Generar respaldo" o el cron se activa a las 2:00 AM
-2. Module D ejecuta `pg_dump` de `tienda_sistema`
-3. Module D guarda el archivo con timestamp: `backups/tienda_sistema_YYYYMMDD_HHMMSS.dump`
-4. Module D registra en `respaldos` con estado `COMPLETADO`
+### Flujo principal (manual)
+1. El Admin hace clic en "Crear respaldo"
+2. Module D conecta a PostgreSQL con `asyncpg`
+3. Module D genera un archivo `.sql` con la estructura y datos de todas las tablas
+4. Module D sube el archivo a Google Drive en `respaldos/YYYY/MM/`
+5. Module D registra en `respaldos` con estado `COMPLETADO`, `usuario_id` y `drive_file_id`
+
+### Flujo principal (automático)
+1. Cada domingo, el sistema verifica si es día de respaldo
+2. Module D ejecuta los mismos pasos 2-5 del flujo manual
+3. `usuario_id` queda `NULL` (creado por el sistema)
 
 ### Flujos alternativos
-- **2a.** Si falla el pg_dump → se registra con estado `FALLIDO`
-- **4a.** Si hay respaldos con más de 30 días → se eliminan automáticamente
+- **3a.** Si falla la generación del .sql → se registra con estado `FALLIDO`
+- **4a.** Si falla la subida a Drive → se registra con estado `FALLIDO`
+- **5a.** Los respaldos expiran después de 21 días; se eliminan de Drive y de la BD
 
 ### Criterios de aceptación
-- El respaldo es un archivo .dump válido
-- Se registra tamaño, fecha y estado
-- Los respaldos expiran después de 30 días
+- El respaldo es un archivo `.sql` válido (no requiere `pg_dump`)
+- Se registra tamaño, fecha, estado, `usuario_id` y `drive_file_id`
+- Los respaldos expiran después de 21 días (3 semanas)
+- Respaldo automático: solo los domingos
+- Respaldo manual: cuando el Admin lo solicite
+- La eliminación de respaldos expirados también elimina el archivo de Drive
 
 ---
 
-## CU-D11: Reintentar Subidas Pendientes
+## CU-D11: Descargar Respaldo
 
 | Campo | Valor |
 |-------|-------|
-| **Actor** | Sistema (cron) |
-| **HU** | HU-D04, RNF-01 |
-| **Precondiciones** | Hay archivos con estado `PENDIENTE` o `FALLIDO` |
-| **Postcondiciones** | Los archivos se reintantan subir a Google Drive |
+| **Actor** | Admin |
+| **HU** | HU-D12, RF-29 |
+| **Precondiciones** | El respaldo existe y tiene `drive_file_id` |
+| **Postcondiciones** | Se descarga el archivo .sql desde Google Drive |
 
 ### Flujo principal
-1. El cron se activa cada 5 minutos
-2. Module D consulta archivos con estado `PENDIENTE` o `FALLIDO` y menos de 3 intentos
-3. Module D reintenta subir cada archivo a Google Drive
-4. Si tiene éxito → estado `SUBIDO`; si falla → incrementa `intentos`
+1. El Admin hace clic en "Descargar" en la lista de respaldos
+2. Module D obtiene el `drive_file_id` del registro
+3. Module D descarga el archivo desde Google Drive
+4. Module D retorna el archivo como `FileResponse`
 
 ### Criterios de aceptación
-- Máximo 3 reintentos por archivo
-- Backoff exponencial entre reintentos
-- Si alcanza el máximo, el archivo queda en estado `FALLIDO`
+- El endpoint es `GET /respaldos/{id}/descargar`
+- El archivo se descarga con nombre descriptivo
+- Requiere rol ADMIN
+
+---
+
+## CU-D12: Restaurar Respaldo
+
+| Campo | Valor |
+|-------|-------|
+| **Actor** | Admin |
+| **HU** | HU-D12, RF-29 |
+| **Precondiciones** | El respaldo existe en Drive y la BD está operativa |
+| **Postcondiciones** | La BD se restaura al estado del respaldo |
+
+### Flujo principal
+1. El Admin hace clic en "Restaurar" en la lista de respaldos
+2. Module D descarga el `.sql` desde Google Drive
+3. Module D deshabilita foreign keys (`SET session_replication_role = 'replica'`)
+4. Module D ejecuta cada sentencia del `.sql`
+5. Module D reactiva foreign keys y resetea secuencias
+
+### Criterios de aceptación
+- El endpoint es `POST /respaldos/{id}/restaurar`
+- La restauración es atómica: se aplica todo o nada
+- Requiere rol ADMIN
 
 ---
 
@@ -422,9 +455,9 @@
 | CU-D07 | Enviar Notificación | Sistema | HU-D09, HU-D10 | — |
 | CU-D08 | Consultar Notificaciones | Admin/Cajero | HU-D09 | — |
 | CU-D09 | Config Notificaciones | Admin | HU-D10 | — |
-| CU-D10 | Generar Respaldo | Admin/Cron | HU-D12 | — |
-| CU-D11 | Reintentar Subidas | Cron | HU-D04, RNF-01 | — |
-| CU-D12 | Purgar Notificaciones | Cron | RNF-14 | — |
+| CU-D10 | Generar Respaldo | Admin/Sistema | HU-D12, RF-29 | — |
+| CU-D11 | Descargar Respaldo | Admin | HU-D12, RF-29 | — |
+| CU-D12 | Restaurar Respaldo | Admin | HU-D12, RF-29 | — |
 | CU-D13 | Autorizar Google Drive | Admin | HU-D02, HU-D04 | — |
 | CU-D14 | Descargar Boleta PNG | Admin/Cajero | HU-D03 | — |
 | CU-D15 | Crear Notificación API | Sistema | HU-D09, HU-D10 | — |
