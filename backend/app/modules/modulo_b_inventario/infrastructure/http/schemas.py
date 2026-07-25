@@ -454,8 +454,14 @@ class MermaResponse(BaseModel):
     estado: str
     registrado_por: int  # sdd/modulo-b-aprobaciones-detalle-editar: id (gate)
     registrado_por_nombre: str
+    # sdd/modulo-b-aprobaciones-detalle-editar (verify fix #5): id fields for
+    # confirmado_por / rechazado_por per spec FR-2.3 / FR-2.4. The *_nombre
+    # snapshots were already here; the int FKs were missing — the entity and
+    # the DB column both had them, only the response DTO was inconsistent.
+    confirmado_por: int | None = None
     confirmado_por_nombre: str | None = None
     confirmado_en: datetime | None = None
+    rechazado_por: int | None = None
     rechazado_por_nombre: str | None = None
     rechazado_en: datetime | None = None
     motivo_rechazo: str | None = None
@@ -475,8 +481,10 @@ class MermaResponse(BaseModel):
             estado=str(m.estado),
             registrado_por=m.registrado_por,
             registrado_por_nombre=m.registrado_por_nombre,
+            confirmado_por=m.confirmado_por,
             confirmado_por_nombre=m.confirmado_por_nombre,
             confirmado_en=m.confirmado_en,
+            rechazado_por=m.rechazado_por,
             rechazado_por_nombre=m.rechazado_por_nombre,
             rechazado_en=m.rechazado_en,
             motivo_rechazo=m.motivo_rechazo,

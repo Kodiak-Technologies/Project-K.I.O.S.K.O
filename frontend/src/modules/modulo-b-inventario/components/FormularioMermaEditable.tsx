@@ -1,7 +1,8 @@
 // sdd/modulo-b-aprobaciones-detalle-editar: editable form for Merma.
-// Single-product, motivo select, observacion textarea. No lineas.
+// Single-product, motivo select, observacion textarea, proveedor select. No lineas.
 import { useEffect, useState } from "react";
 import { Alert, Button, Input, Select } from "../../../shared/components/ui";
+import { useProveedores } from "../hooks/useProveedores";
 import { SelectorProducto } from "./SelectorProducto";
 import type { Merma, MermaUpdateBody, MotivoMerma } from "../types";
 
@@ -20,16 +21,25 @@ export function FormularioMermaEditable({
   procesando,
   error,
 }: Props) {
+  // sdd/modulo-b-aprobaciones-detalle-editar (verify fix #6): el form ahora
+  // expone `proveedor_id` para que el usuario pueda editar la asociación con
+  // proveedor (la Pydantic schema `MermaUpdateRequest` ya lo aceptaba; antes
+  // la UI no lo enviaba, gap UI vs backend cerrado).
+  const { proveedores } = useProveedores({ page_size: 100 });
   const [motivo, setMotivo] = useState<MotivoMerma>(inicial.motivo as MotivoMerma);
   const [observacion, setObservacion] = useState(inicial.observacion ?? "");
   const [productoId, setProductoId] = useState<number | null>(inicial.producto_id);
   const [cantidad, setCantidad] = useState<number>(inicial.cantidad);
+  const [proveedorId, setProveedorId] = useState<number | null>(
+    inicial.proveedor_id ?? null,
+  );
 
   useEffect(() => {
     setMotivo(inicial.motivo as MotivoMerma);
     setObservacion(inicial.observacion ?? "");
     setProductoId(inicial.producto_id);
     setCantidad(inicial.cantidad);
+    setProveedorId(inicial.proveedor_id ?? null);
   }, [inicial]);
 
   async function manejarSubmit(e: React.FormEvent) {
@@ -41,6 +51,11 @@ export function FormularioMermaEditable({
       observacion: observacion.trim() === "" ? null : observacion.trim(),
       producto_id: productoId,
       cantidad,
+      // sdd/modulo-b-aprobaciones-detalle-editar (verify fix #6): enviar siempre
+      // `proveedor_id` (incluso null) para que el backend lo persista; si no
+      // lo incluimos, la Pydantic schema con extra="forbid" lo interpretaría
+      // como null y la entidad trataría el campo como "no tocar".
+      proveedor_id: proveedorId,
     };
     await onSubmit(body);
   }
@@ -70,6 +85,20 @@ export function FormularioMermaEditable({
         <option value="vencimiento">Vencimiento</option>
         <option value="rotura">Rotura</option>
         <option value="otro">Otro</option>
+      </Select>
+      <Select
+        label="Proveedor (opcional)"
+        value={proveedorId ?? ""}
+        onChange={(e) =>
+          setProveedorId(e.target.value ? Number(e.target.value) : null)
+        }
+      >
+        <option value="">Sin proveedor</option>
+        {proveedores.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.razon_social}
+          </option>
+        ))}
       </Select>
       <label className="block">
         <span className="mb-1 block text-sm font-medium text-zinc-700">Observación</span>
