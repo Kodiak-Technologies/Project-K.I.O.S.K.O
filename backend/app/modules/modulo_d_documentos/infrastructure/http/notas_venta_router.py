@@ -3,21 +3,18 @@ import io
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.modules.modulo_a_seguridad.infrastructure.dependencies import get_current_user, require_role
+from app.modules.modulo_a_seguridad.infrastructure.dependencies import get_current_user
 from app.modules.modulo_a_seguridad.domain.entities import Usuario
 from app.modules.modulo_d_documentos.application.generar_nota_venta_usecase import GenerarNotaVentaUseCase
 from app.modules.modulo_d_documentos.application.descargar_notas_venta_usecase import DescargarNotasVentaUseCase
-from app.modules.modulo_d_documentos.application.subir_notas_drive_usecase import SubirNotasDriveUseCase
 from app.modules.modulo_d_documentos.infrastructure.dependencies import (
     get_venta_data_provider,
     get_configuracion_provider,
     get_png_generator,
-    get_drive_storage,
 )
 from app.modules.modulo_d_documentos.infrastructure.http.schemas import (
     NotaVentaResponse,
     DescargarNotasRequest,
-    SubirNotasDriveRequest,
 )
 from app.modules.modulo_d_documentos.domain.ports.venta_data_provider_port import VentaDataProviderPort
 
@@ -81,18 +78,3 @@ async def descargar_notas_venta_batch(
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=notas-venta.zip"},
     )
-
-
-@router.post("/subir-drive")
-async def subir_notas_drive_batch(
-    body: SubirNotasDriveRequest,
-    usuario: Usuario = Depends(require_role("ADMIN")),
-    venta_data: VentaDataProviderPort = Depends(get_venta_data_provider),
-    config_data=Depends(get_configuracion_provider),
-    png_generator=Depends(get_png_generator),
-    drive_storage=Depends(get_drive_storage),
-):
-    generar_nota = GenerarNotaVentaUseCase(venta_data, config_data, png_generator)
-    usecase = SubirNotasDriveUseCase(venta_data, generar_nota, drive_storage)
-    resultado = await usecase.ejecutar(desde=body.desde, hasta=body.hasta, carpeta=body.carpeta)
-    return resultado

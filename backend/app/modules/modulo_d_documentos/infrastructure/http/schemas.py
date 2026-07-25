@@ -140,9 +140,3 @@ class CrearNotificacionRequest(BaseModel):
 class DescargarNotasRequest(BaseModel):
     desde: str | None = None
     hasta: str | None = None
-
-
-class SubirNotasDriveRequest(BaseModel):
-    desde: str | None = None
-    hasta: str | None = None
-    carpeta: str = "Notas de Venta"

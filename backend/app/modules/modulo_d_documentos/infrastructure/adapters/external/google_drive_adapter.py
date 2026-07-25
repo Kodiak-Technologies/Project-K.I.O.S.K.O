@@ -169,7 +169,7 @@ class GoogleDriveAdapter(DriveStoragePort):
 
     async def _asegurar_carpeta(self, service, carpeta: str) -> str:
         partes = carpeta.split("/")
-        parent_id = self.folder_id
+        parent_id = self.folder_id if self.folder_id else "root"
 
         for parte in partes:
             query = (

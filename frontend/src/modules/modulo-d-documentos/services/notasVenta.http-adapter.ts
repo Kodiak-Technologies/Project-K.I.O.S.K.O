@@ -23,13 +23,4 @@ export const notasVentaHttpAdapter: NotasVentaPort = {
     );
     return data;
   },
-
-  async subirDriveBatch(desde, hasta, carpeta) {
-    const { data } = await httpClient.post("/notas-venta/subir-drive", {
-      desde,
-      hasta,
-      carpeta: carpeta ?? "Notas de Venta",
-    });
-    return data;
-  },
 };

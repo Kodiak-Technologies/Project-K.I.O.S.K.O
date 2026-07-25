@@ -64,7 +64,7 @@ async def drive_status(
 ):
     token = await token_repository.obtener_por_proveedor("google_drive")
     if token is None:
-        return {"autorizado": False, "mensaje": "Google Drive no está autorizado"}
+        return {"autorizado": False, "mensaje": "Google Drive no está autorizado. Ejecuta GET /drive/auth-url."}
     return {
         "autorizado": True,
         "expirado": token.esta_expirado,

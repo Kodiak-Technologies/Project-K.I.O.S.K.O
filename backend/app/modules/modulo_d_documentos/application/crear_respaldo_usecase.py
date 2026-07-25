@@ -128,12 +128,19 @@ async def _generar_dump_sql(db_params: dict) -> bytes:
         # Resetear secuencias
         buffer.write("-- Resetear secuencias\n")
         for tabla in tablas_a_volcar:
+            tiene_id = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name='id')",
+                tabla,
+            )
+            if not tiene_id:
+                continue
             seq = await conn.fetchval(
                 "SELECT pg_get_serial_sequence($1, 'id')", tabla
             )
             if seq:
                 max_id = await conn.fetchval(f'SELECT COALESCE(MAX(id), 0) FROM "{tabla}"')
-                buffer.write(f"SELECT setval('{seq}', {max_id});\n")
+                if max_id is not None:
+                    buffer.write(f"SELECT setval('{seq}', {max_id});\n")
 
     finally:
         await conn.close()
@@ -250,7 +257,6 @@ class RestaurarRespaldoUseCase:
         try:
             await conn.execute("SET session_replication_role = 'replica'")
 
-            # Ejecutar cada sentencia SQL
             for linea in sql_content.split("\n"):
                 linea = linea.strip()
                 if not linea or linea.startswith("--"):

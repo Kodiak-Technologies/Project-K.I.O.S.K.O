@@ -1,6 +1,6 @@
 // Página de consulta/descarga de notas de venta.
 import { useState, useMemo } from "react";
-import { Download, FileText, Upload, X } from "lucide-react";
+import { Download, FileText, X } from "lucide-react";
 import {
   Alert,
   Button,
@@ -26,7 +26,6 @@ export default function NotasDeVenta() {
   const [hasta, setHasta] = useState("");
   const [descargandoId, setDescargandoId] = useState<number | null>(null);
   const [descargandoBatch, setDescargandoBatch] = useState(false);
-  const [subiendoBatch, setSubiendoBatch] = useState(false);
   const [paginaActual, setPaginaActual] = useState(1);
 
   const totalPaginas = Math.max(1, Math.ceil(notas.length / POR_PAGINA));
@@ -90,17 +89,6 @@ export default function NotasDeVenta() {
     }
   };
 
-  const subirDriveBatch = async () => {
-    setSubiendoBatch(true);
-    try {
-      await notasVentaHttpAdapter.subirDriveBatch(desde || undefined, hasta || undefined);
-      void recargar(desde || undefined, hasta || undefined);
-    } catch {
-    } finally {
-      setSubiendoBatch(false);
-    }
-  };
-
   if (noDisponible) {
     return (
       <div>
@@ -160,14 +148,6 @@ export default function NotasDeVenta() {
               disabled={descargandoBatch}
             >
               {descargandoBatch ? "Descargando…" : "Descargar ZIP"}
-            </Button>
-            <Button
-              variante="primario"
-              icono={<Upload className="h-4 w-4" aria-hidden />}
-              onClick={() => void subirDriveBatch()}
-              disabled={subiendoBatch}
-            >
-              {subiendoBatch ? "Subiendo…" : "Subir a Drive"}
             </Button>
           </div>
         }
