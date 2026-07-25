@@ -35,12 +35,19 @@ class SubirNotasDriveUseCase:
                 png_bytes = await self._generar_nota.ejecutar(venta_id)
                 fecha = venta.get("fecha", "")
                 if hasattr(fecha, "strftime"):
-                    fecha = fecha.strftime("%Y-%m-%d")
-                nombre = f"{str(fecha)[:10]}_VENTA-{venta_id}.png"
+                    fecha_str = fecha.strftime("%Y-%m-%d")
+                    anio = fecha.strftime("%Y")
+                    mes = fecha.strftime("%m")
+                else:
+                    fecha_str = str(fecha)[:10]
+                    anio = fecha_str[:4]
+                    mes = fecha_str[5:7]
+                nombre = f"{fecha_str}_VENTA-{venta_id}.png"
+                carpeta_con_fecha = f"{carpeta}/{anio}/{mes}"
                 await self._drive_storage.subir(
                     archivo_bytes=png_bytes,
                     nombre=nombre,
-                    carpeta=carpeta,
+                    carpeta=carpeta_con_fecha,
                 )
                 subidos += 1
             except Exception as e:
