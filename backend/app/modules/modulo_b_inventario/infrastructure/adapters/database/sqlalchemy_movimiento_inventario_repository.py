@@ -33,7 +33,6 @@ def _a_entidad(
         registrado_por_nombre=fila.registrado_por_nombre,
         motivo=fila.motivo,
         solicitud_ingreso_id=fila.solicitud_ingreso_id,
-        merma_id=fila.merma_id,
         created_at=fila.created_at,
         producto_nombre=producto_nombre,
         producto_codigo=producto_codigo,
@@ -51,7 +50,6 @@ class SqlAlchemyMovimientoInventarioRepository(MovimientoInventarioRepositoryPor
             tipo=str(movimiento.tipo),
             motivo=movimiento.motivo,
             solicitud_ingreso_id=movimiento.solicitud_ingreso_id,
-            merma_id=movimiento.merma_id,
             registrado_por=movimiento.registrado_por,
             registrado_por_nombre=movimiento.registrado_por_nombre,
         )

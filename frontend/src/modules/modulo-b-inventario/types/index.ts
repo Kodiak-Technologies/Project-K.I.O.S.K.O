@@ -382,7 +382,7 @@ export interface FiltrosPagosProveedor extends FiltrosPaginacion {
 // Movimientos de inventario (bitácora append-only)
 // =============================================================================
 
-export type TipoMovimiento = "ingreso" | "merma" | "venta" | "devolucion" | "ajuste";
+export type TipoMovimiento = "ingreso" | "venta" | "devolucion" | "ajuste";
 
 /** `GET /inventario/movimientos` (cada item). */
 export interface MovimientoInventario {
@@ -394,7 +394,6 @@ export interface MovimientoInventario {
   tipo: TipoMovimiento | string;
   motivo: string | null;
   solicitud_ingreso_id: number | null;
-  merma_id: number | null;
   registrado_por_nombre: string;
   created_at: string | null;
 }

@@ -76,11 +76,10 @@ class TipoMovimiento:
 
     valor: str
     INGRESO: ClassVar[str] = "ingreso"
-    MERMA: ClassVar[str] = "merma"
     AJUSTE: ClassVar[str] = "ajuste"
     VENTA: ClassVar[str] = "venta"
     DEVOLUCION: ClassVar[str] = "devolucion"
-    VALORES: ClassVar[tuple[str, ...]] = (INGRESO, MERMA, AJUSTE, VENTA, DEVOLUCION)
+    VALORES: ClassVar[tuple[str, ...]] = (INGRESO, AJUSTE, VENTA, DEVOLUCION)
 
     def __post_init__(self) -> None:
         _validar_pertenencia(self.valor, self.VALORES, "TipoMovimiento")

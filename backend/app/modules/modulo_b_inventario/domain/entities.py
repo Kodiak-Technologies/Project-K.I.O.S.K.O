@@ -399,7 +399,6 @@ class MovimientoInventario:
     registrado_por_nombre: str
     motivo: str | None = None
     solicitud_ingreso_id: int | None = None
-    merma_id: int | None = None
     created_at: datetime | None = None
     # Resueltos por JOIN al leer (ver DetalleSolicitud).
     producto_nombre: str | None = None
@@ -420,27 +419,6 @@ class MovimientoInventario:
             cantidad=cantidad,
             tipo=TipoMovimiento("ingreso"),
             solicitud_ingreso_id=solicitud_ingreso_id,
-            registrado_por=usuario_id,
-            registrado_por_nombre=usuario_nombre,
-        )
-
-    @classmethod
-    def merma(
-        cls,
-        producto_id: int,
-        cantidad: int,
-        merma_id: int,
-        motivo: str,
-        usuario_id: int,
-        usuario_nombre: str,
-    ) -> "MovimientoInventario":
-        return cls(
-            id=None,
-            producto_id=producto_id,
-            cantidad=-cantidad,  # signo negativo porque es salida
-            tipo=TipoMovimiento("merma"),
-            motivo=motivo,
-            merma_id=merma_id,
             registrado_por=usuario_id,
             registrado_por_nombre=usuario_nombre,
         )

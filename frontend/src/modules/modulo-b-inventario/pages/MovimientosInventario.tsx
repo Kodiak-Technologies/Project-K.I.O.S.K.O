@@ -1,5 +1,5 @@
 // Bitácora de movimientos de inventario (ADMIN y CAJERO).
-// Append-only: ingresos, mermas, ventas, devoluciones, ajustes.
+// Append-only: ingresos, ventas, devoluciones y ajustes de stock.
 import { useEffect, useState } from "react";
 import { History as HistoryIcon } from "lucide-react";
 import {
@@ -23,7 +23,6 @@ import type { FiltrosMovimientos, MovimientoInventario, TipoMovimiento } from ".
 
 const TONO_TIPO: Record<string, Tono> = {
   ingreso: "exito",
-  merma: "peligro",
   venta: "info",
   devolucion: "alerta",
   ajuste: "neutro",
@@ -31,7 +30,6 @@ const TONO_TIPO: Record<string, Tono> = {
 
 const TIPO_LABELS: Record<string, string> = {
   ingreso: "Ingreso",
-  merma: "Merma",
   venta: "Venta",
   devolucion: "Devolución",
   ajuste: "Ajuste",
@@ -122,7 +120,6 @@ export default function MovimientosInventario() {
       soloEscritorio: true,
       render: (m) => {
         if (m.solicitud_ingreso_id) return `Ingreso #${m.solicitud_ingreso_id}`;
-        if (m.merma_id) return `Merma #${m.merma_id}`;
         return "—";
       },
     },
@@ -133,11 +130,11 @@ export default function MovimientosInventario() {
     <div>
       <PageHeader
         titulo="Movimientos de inventario"
-        descripcion="Bitácora append-only de ingresos, mermas, ventas, devoluciones y ajustes."
+        descripcion="Bitácora append-only de ingresos, ventas, devoluciones y ajustes de stock."
       />
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Búsqueda contra el servidor: ver nota en Mermas.tsx. */}
+        {/* Búsqueda contra el servidor: no carga el catálogo entero. */}
         <SelectorProducto
           label="Producto"
           value={filtroProducto === "" ? null : filtroProducto}
@@ -155,7 +152,6 @@ export default function MovimientosInventario() {
         >
           <option value="">Todos</option>
           <option value="ingreso">Ingreso</option>
-          <option value="merma">Merma</option>
           <option value="venta">Venta</option>
           <option value="devolucion">Devolución</option>
           <option value="ajuste">Ajuste</option>
@@ -202,7 +198,7 @@ export default function MovimientosInventario() {
               <EmptyState
                 icono={HistoryIcon}
                 titulo="Sin movimientos"
-                descripcion="Cuando registres ingresos, mermas o ventas, aparecerán acá."
+                descripcion="Cuando registres ingresos, ventas o ajustes, aparecerán acá."
               />
             }
           />
