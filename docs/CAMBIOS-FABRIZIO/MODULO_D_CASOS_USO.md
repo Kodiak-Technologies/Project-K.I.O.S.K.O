@@ -1,431 +1,349 @@
-# Casos de Uso — Módulo D (Documentos)
+# Casos de Uso — Modulo D (Documentos)
 
-**Módulo**: Documentos (Boletas/Drive), Reportes, Notificaciones e Infraestructura
+**Modulo**: Notas de Venta, Reportes, Notificaciones, Respaldos e Infraestructura
 **Responsable**: Fabrizio
-**Total HU**: 12 | **Total puntos**: 82
 
 ---
 
-## CU-D01: Generar Boleta PNG
-
-| Campo | Valor |
-|-------|-------|
-| **Actor** | Sistema (automático) |
-| **HU** | HU-D01 |
-| **Precondiciones** | La venta está confirmada en Module C |
-| **Postcondiciones** | La boleta existe en `boletas_clientes` con PNG generado |
-
-### Flujo principal
-1. Module C confirma una venta y notifica a Module D
-2. Module D consulta los datos de la venta vía `VentaDataProviderPort`
-3. Module D consulta la configuración del negocio (logo, nombre) vía `ConfiguracionProviderPort`
-4. Module D genera imagen PNG con Pillow (logo, correlativo, detalle, total, método de pago, fecha)
-5. Module D guarda la boleta en `boletas_clientes` con `url_pdf` temporal (PNG local) y `cliente_nombre`
-
-### Flujos alternativos
-- **3a.** Si la venta no existe → se registra error y se aborta
-- **4a.** Si falla la generación del PNG → se guarda la boleta con `url_pdf = null` y se notifica el error
-
-### Criterios de aceptación
-- La boleta tiene un correlativo único formato `B001-NNNNNN`
-- El PNG contiene: logo del negocio, nombre, número de boleta, fecha, detalle de productos, total, método de pago
-- El `total` de la boleta coincide con el total de la venta
-- `cliente_nombre` se guarda con el nombre del cliente (default: "Cliente 1" si no se proporciona)
-
----
-
-## CU-D02: Subir Boleta a Google Drive
-
-| Campo | Valor |
-|-------|-------|
-| **Actor** | Sistema (automático, post-generación) |
-| **HU** | HU-D02, HU-D04 |
-| **Precondiciones** | La boleta fue generada (CU-D01) |
-| **Postcondiciones** | El archivo está en Google Drive y `url_pdf` está actualizado |
-
-### Flujo principal
-1. Module D lee el PNG generado de la boleta
-2. Module D sube el archivo a Google Drive vía `DriveStoragePort` en carpeta `boletas/YYYY/MM/`
-3. Module D actualiza `url_pdf` en `boletas_clientes` con la URL de Drive
-4. Module D registra el archivo en `archivos_drive` con estado `SUBIDO`
-
-### Flujos alternativos
-- **2a.** Si Drive no está configurado (variables vacías) → se omite la subida y se deja el PNG local
-- **2b.** Si falla la subida → se registra en `archivos_drive` con estado `FALLIDO` y se reintenta después
-
-### Criterios de aceptación
-- El archivo se organiza en carpetas por periodo: `boletas/2026/07/`
-- Se registra el `drive_file_id` de Google Drive
-- Si falla, el estado queda `PENDIENTE` o `FALLIDO` (no se pierde)
-
----
-
-## CU-D03: Consultar Boletas
+## CU-D01: Generar Nota de Venta PNG
 
 | Campo | Valor |
 |-------|-------|
 | **Actor** | Admin / Cajero |
-| **HU** | HU-D03 |
-| **Precondiciones** | El usuario está autenticado |
-| **Postcondiciones** | Se retorna la lista de boletas filtrada |
+| **Precondiciones** | El usuario esta autenticado y existen ventas registradas |
+| **Postcondiciones** | Se genera un PNG con el formato de nota de venta |
 
 ### Flujo principal
-1. El usuario accede a la pantalla de boletas
-2. El frontend llama a `GET /boletas?desde=&hasta=&cliente=`
-3. El backend retorna la lista de boletas del período filtrada por cliente (opcional)
-4. El usuario puede ver el correlativo, cliente, total, fecha y enlace a Drive
+1. El usuario accede a la pantalla de Notas de Venta
+2. El frontend llama a `GET /notas-venta?desde=&hasta=`
+3. El usuario hace clic en "PNG" para descargar una nota individual
+4. El frontend llama a `GET /notas-venta/{venta_id}/png`
+5. El backend genera el PNG con Pillow (formato termico: encabezado, productos, total)
+6. Se retorna como `StreamingResponse` con `image/png`
 
-### Flujos alternativos
-- **2a.** Si no hay boletas en el período → se retorna lista vacía `[]`
-- **2b.** Si `url_pdf` es null → el frontend muestra "No disponible"
-
-### Criterios de aceptación
-- El endpoint requiere autenticación
-- Las boletas se ordenan por fecha de emisión (más reciente primero)
-- Se puede filtrar por rango de fechas y por nombre de cliente
+### Criterios de aceptacion
+- Canvas de 5000px, recortado al tamano real del contenido
+- Soporta cualquier cantidad de productos sin cortarse
+- Contenido: logo/nombre del negocio, fecha, correlativo, productos, total, metodo de pago
 
 ---
 
-## CU-D04: Generar Reporte de Ventas
+## CU-D02: Descargar Notas de Venta (ZIP)
 
 | Campo | Valor |
 |-------|-------|
 | **Actor** | Admin |
-| **HU** | HU-D06 |
+| **Precondiciones** | El usuario tiene rol ADMIN |
+| **Postcondiciones** | Se descarga un .zip con los PNGs de las notas |
+
+### Flujo principal
+1. El Admin selecciona rango de fechas y hace clic en "Descargar ZIP"
+2. El frontend llama a `POST /notas-venta/descargar` con `{desde, hasta}`
+3. El backend genera los PNGs de todas las ventas del rango
+4. Si hay 1 venta: retorna el PNG directamente. Si hay varias: las empaqueta en .zip
+5. Se retorna como `StreamingResponse`
+
+### Criterios de aceptacion
+- Si hay 1 sola venta, se descarga el PNG directo (sin zip)
+- Si hay varias, se crea un `.zip` con todas las notas
+- Nombre del archivo: `notas-venta.zip`
+
+---
+
+## CU-D03: Generar Reporte de Ventas
+
+| Campo | Valor |
+|-------|-------|
+| **Actor** | Admin |
 | **Precondiciones** | El usuario tiene permiso `reportes.ver` |
-| **Postcondiciones** | Se retorna el resumen de ventas con egresos y desglose por método de pago |
+| **Postcondiciones** | Se retorna el resumen de ventas con egresos y desglose por metodo de pago |
 
 ### Flujo principal
 1. El Admin accede a la pantalla de reportes
 2. El frontend llama a `GET /reportes/resumen?desde=&hasta=`
-3. Module D consulta las ventas del período vía `VentaDataProviderPort`
-4. Module D consulta egresos del período vía `EgresosDataProviderPort`
-5. Module D consulta desglose por método de pago vía `MetodoPagoProviderPort`
+3. Module D consulta las ventas del periodo via `VentaDataProviderPort`
+4. Module D consulta egresos del periodo via `EgresosDataProviderPort`
+5. Module D consulta desglose por metodo de pago via `MetodoPagoProviderPort`
 6. Module D calcula: total_vendido, total_egresos, numero_ventas, ticket_promedio
 7. Module D calcula top_productos (ranking por unidades y monto)
-8. Module D retorna `ResumenReporte` con `total_egresos` y `metodos_pago`
 
-### Flujos alternativos
-- **3a.** Si no hay ventas en el período → se retorna todo en ceros
-- **4a.** Si hay empate en top_productos → se ordena por monto descendente
-
-### Criterios de aceptación
+### Criterios de aceptacion
 - Solo usuarios con rol ADMIN y permiso `reportes.ver` pueden acceder
-- El ticket_promedio = total_vendido / numero_ventas
+- ticket_promedio = total_vendido / numero_ventas
 - Los top_productos incluyen nombre, cantidad y total por producto
-- `total_egresos` incluye compras de mercadería y gastos operativos (RF-12)
-- `metodos_pago` incluye desglose por EFECTIVO, YAPE, PLIN, TARJETA (RF-12)
+- `total_egresos` incluye compras de mercaderia y gastos operativos
+- `metodos_pago` incluye desglose por EFECTIVO, YAPE, PLIN, TARJETA
 
 ---
 
-## CU-D05: Generar Reporte de Más Vendidos / Menor Rotación
+## CU-D04: Generar Reporte de Mas Vendidos / Menor Rotacion
 
 | Campo | Valor |
 |-------|-------|
 | **Actor** | Admin |
-| **HU** | HU-D07, RF-14 |
 | **Precondiciones** | El usuario tiene permiso `reportes.ver` |
 | **Postcondiciones** | Se retorna el ranking de productos |
 
 ### Flujo principal
-1. El Admin selecciona "Más vendidos" o "Menor rotación" en reportes
+1. El Admin selecciona "Mas vendidos" o "Menor rotacion" en reportes
 2. El frontend llama a `GET /reportes/mas-vendidos?orden=mayor|menor&desde=&hasta=`
-3. Module D consulta el detalle de ventas del período
-4. Module D calcula ranking por unidades vendidas y por monto
-5. Module D retorna el ranking según el orden solicitado
+3. Module D calcula ranking por unidades vendidas y por monto
+4. Module D retorna el ranking segun el orden solicitado
 
-### Flujos alternativos
-- **4a.** Si se filtra por categoría → solo se incluyen productos de esa categoría
-- **4b.** Si `orden=menor` → se muestra la lista invertida (menor rotación primero)
-
-### Criterios de aceptación
+### Criterios de aceptacion
 - El ranking incluye: nombre del producto, cantidad total vendida, monto total
-- Se puede ordenar por `mayor` (default) o `menor` rotación
-- El endpoint es `GET /reportes/mas-vendidos` (separado del resumen)
+- Se puede ordenar por `mayor` (default) o `menor` rotacion
+- Endpoint separado del resumen
 
 ---
 
-## CU-D06: Exportar Reporte a Excel
+## CU-D05: Exportar Reporte a Excel
 
 | Campo | Valor |
 |-------|-------|
 | **Actor** | Admin |
-| **HU** | HU-D08 |
 | **Precondiciones** | El usuario tiene permiso `reportes.ver` |
 | **Postcondiciones** | Se descarga un archivo .xlsx |
 
 ### Flujo principal
 1. El Admin hace clic en "Exportar"
 2. El frontend llama a `GET /reportes/exportar?desde=&hasta=&tipo=resumen`
-3. Module D genera el archivo Excel vía `ReporteGeneratorPort`
-4. Module D retorna el archivo con `media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"`
+3. Module D genera el archivo Excel via `ReporteGeneratorPort`
+4. Module D retorna el archivo con `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
 
-### Flujos alternativos
-- **3a.** Si falla la generación → se retorna error 500
-
-### Criterios de aceptación
+### Criterios de aceptacion
 - El Excel contiene cabecera (nombre negocio, rango de fechas) y detalle
 - Se puede exportar tipo `resumen` o `mas_vendidos`
 - El archivo se descarga con nombre descriptivo
 
 ---
 
-## CU-D07: Enviar Notificación
+## CU-D06: Enviar Notificacion (API)
 
 | Campo | Valor |
 |-------|-------|
-| **Actor** | Sistema → Admin |
-| **HU** | HU-D09, HU-D10 |
-| **Precondiciones** | Hay un evento que notificar (stock bajo, cierre de caja, solicitud de ingreso) |
-| **Postcondiciones** | La notificación existe en `notificaciones` y se envió por los canales activos |
+| **Actor** | Sistema (otros modulos) |
+| **Precondiciones** | Hay un evento que notificar |
+| **Postcondiciones** | La notificacion existe en `notificaciones` y se envio por los canales activos |
 
 ### Flujo principal
-1. Module D (u otro módulo) detecta un evento notificable
-2. Module D lee `config_notificaciones` para saber canales activos
-3. Module D envía por cada canal activo vía `NotificacionSenderPort` (Telegram, correo)
-4. Module D registra la notificación en `notificaciones`
+1. Un modulo o servicio llama a `POST /notificaciones`
+2. Si `usuario_id` es NULL (broadcast admin): se envia por Telegram y Correo (si estan activos)
+3. Si `usuario_id` tiene valor (trabajador): solo se guarda en BD (solo sistema)
+4. Se registra la notificacion en `notificaciones`
 
-### Flujos alternativos
-- **2a.** Si no hay canales activos → solo se guarda en BD
-- **3a.** Si falla el envío → la notificación se guarda igual con `leida = false`
-
-### Criterios de aceptación
-- La notificación tiene tipo, título, mensaje
-- Se puede marcar como leída con `POST /notificaciones/{id}/leida`
-- Las notificaciones expiran después de 30 días (se purgan con script)
-- El endpoint `POST /notificaciones` permite crear notificaciones con envío automático por canales activos
+### Criterios de aceptacion
+- Body: `{ tipo, titulo, mensaje, entidad_origen?, entidad_id?, usuario_id?, producto_id? }`
+- `tipo` en `STOCK_BAJO | APERTURA_CAJA | CIERRE_CAJA | SOLICITUD_INGRESO | SISTEMA`
+- La notificacion se guarda independientemente de si el envio falla
+- Admin recibe via: sistema + Telegram + correo
+- Trabajador recibe via: solo sistema
 
 ---
 
-## CU-D08: Consultar Notificaciones
+## CU-D07: Consultar Notificaciones
 
 | Campo | Valor |
 |-------|-------|
 | **Actor** | Admin / Cajero |
-| **HU** | HU-D09 |
-| **Precondiciones** | El usuario está autenticado |
-| **Postcondiciones** | Se retorna la lista de notificaciones |
+| **Precondiciones** | El usuario esta autenticado |
+| **Postcondiciones** | Se retorna la lista de notificaciones del usuario |
 
 ### Flujo principal
-1. El usuario accede a la campana de notificaciones
+1. El usuario accede a la campana de notificaciones o a la pagina de notificaciones
 2. El frontend llama a `GET /notificaciones`
-3. El backend retorna la lista (no leídas primero)
+3. El backend retorna las notificaciones del usuario (no leidas primero)
+4. Al abrir la campana o entrar a la pagina, se marcan todas como leidas automaticamente
 
-### Flujos alternativos
-- **3a.** Si no hay notificaciones → se retorna lista vacía `[]`
-
-### Criterios de aceptación
-- Las notificaciones no leídas aparecen primero
-- El usuario puede marcar como leída con `POST /notificaciones/{id}/leida`
-- El marcado como leída retorna 200
+### Criterios de aceptacion
+- Las notificaciones no leidas aparecen primero
+- Se puede marcar individualmente con `POST /notificaciones/{id}/leida`
+- Se pueden marcar todas con `POST /notificaciones/leer-todas`
+- La campana muestra el contador de no leidas (maximo "9+")
+- Al abrir la campana, se muestran las 6 no leidas mas recientes
 
 ---
 
-## CU-D09: Consultar/Actualizar Configuración de Notificaciones
+## CU-D08: Configuracion de Notificaciones
 
 | Campo | Valor |
 |-------|-------|
 | **Actor** | Admin |
-| **HU** | HU-D10 |
 | **Precondiciones** | El usuario tiene rol ADMIN |
-| **Postcondiciones** | La configuración de notificaciones está actualizada |
+| **Postcondiciones** | La configuracion de notificaciones esta actualizada |
 
 ### Flujo principal
-1. El Admin accede a la configuración de notificaciones
+1. El Admin accede a la configuracion de notificaciones
 2. El frontend llama a `GET /notificaciones/config`
-3. El backend retorna la configuración actual (canales activos, nivel de detalle, chat_id, correo)
+3. El backend retorna la configuracion actual (nivel_detalle)
 4. El Admin modifica los campos y hace clic en "Guardar"
-5. El frontend llama a `PUT /notificaciones/config` con los campos actualizados
-6. El backend actualiza `config_notificaciones`
+5. El frontend llama a `PUT /notificaciones/config`
+
+### Criterios de aceptacion
+- Solo ADMIN puede ver y editar la configuracion
+- Campos: `nivel_detalle` (BAJO | ALTO)
+- La configuracion de Telegram y correo se realiza en el archivo `.env` del servidor
+
+---
+
+## CU-D09: Generar Respaldo de BD
+
+| Campo | Valor |
+|-------|-------|
+| **Actor** | Admin (manual) / Sistema (automatico, cada domingo) |
+| **Precondiciones** | El usuario tiene rol ADMIN (manual) / Google Drive autorizado (automatico) |
+| **Postcondiciones** | Existe un archivo .sql en Google Drive y registro en `respaldos` |
+
+### Flujo principal (manual)
+1. El Admin hace clic en "Crear respaldo"
+2. Module D conecta a PostgreSQL con `asyncpg`
+3. Module D genera un archivo `.sql` con la estructura y datos de todas las tablas
+4. Module D sube el archivo a Google Drive en `respaldos/YYYY/MM/`
+5. Module D registra en `respaldos` con estado `COMPLETADO`, `usuario_id` y `drive_file_id`
+
+### Flujo principal (automatico)
+1. Cada domingo, el sistema verifica si es dia de respaldo
+2. Module D ejecuta los mismos pasos 2-5 del flujo manual
+3. `usuario_id` queda `NULL` (creado por el sistema)
 
 ### Flujos alternativos
-- **5a.** Si falta algún campo requerido → se retorna error 422
+- **3a.** Si falla la generacion del .sql → se registra con estado `FALLIDO`
+- **4a.** Si falla la subida a Drive → se registra con estado `FALLIDO`
+- **5a.** Los respaldos expiran despues de 21 dias; se eliminan de Drive y de la BD
 
-### Criterios de aceptación
-- Solo ADMIN puede ver y editar la configuración
-- GET retorna la configuración actual
-- PUT actualiza los campos: `canal_telegram_activo`, `canal_correo_activo`, `nivel_detalle`, `telegram_chat_id`, `correo_destino`
-
----
-
-## CU-D10: Generar Respaldo de BD
-
-| Campo | Valor |
-|-------|-------|
-| **Actor** | Admin / Sistema (cron) |
-| **HU** | HU-D12 |
-| **Precondiciones** | El usuario tiene permiso ADMIN |
-| **Postcondiciones** | Existe un archivo .dump en `backups/` y registro en `respaldos` |
-
-### Flujo principal
-1. El Admin ejecuta "Generar respaldo" o el cron se activa a las 2:00 AM
-2. Module D ejecuta `pg_dump` de `tienda_sistema`
-3. Module D guarda el archivo con timestamp: `backups/tienda_sistema_YYYYMMDD_HHMMSS.dump`
-4. Module D registra en `respaldos` con estado `COMPLETADO`
-
-### Flujos alternativos
-- **2a.** Si falla el pg_dump → se registra con estado `FALLIDO`
-- **4a.** Si hay respaldos con más de 30 días → se eliminan automáticamente
-
-### Criterios de aceptación
-- El respaldo es un archivo .dump válido
-- Se registra tamaño, fecha y estado
-- Los respaldos expiran después de 30 días
+### Criterios de aceptacion
+- El respaldo es un archivo `.sql` valido (no requiere `pg_dump`, usa `asyncpg`)
+- Se genera con DELETE + INSERT (ordenado por FK) + reseteo de secuencias
+- Las tablas pivote (ej: `rol_permisos`) se verifican antes de resetear secuencias
+- Se registra tamano, fecha, estado, `usuario_id` y `drive_file_id`
+- Respaldo automatico: solo los domingos, retencion 21 dias
+- La eliminacion de respaldos expirados tambien elimina el archivo de Drive
+- La pagina de respaldos muestra "Creado por" con el nombre del usuario
+- La pagina de respaldos muestra aviso cuando Google Drive no esta autorizado
 
 ---
 
-## CU-D11: Reintentar Subidas Pendientes
-
-| Campo | Valor |
-|-------|-------|
-| **Actor** | Sistema (cron) |
-| **HU** | HU-D04, RNF-01 |
-| **Precondiciones** | Hay archivos con estado `PENDIENTE` o `FALLIDO` |
-| **Postcondiciones** | Los archivos se reintantan subir a Google Drive |
-
-### Flujo principal
-1. El cron se activa cada 5 minutos
-2. Module D consulta archivos con estado `PENDIENTE` o `FALLIDO` y menos de 3 intentos
-3. Module D reintenta subir cada archivo a Google Drive
-4. Si tiene éxito → estado `SUBIDO`; si falla → incrementa `intentos`
-
-### Criterios de aceptación
-- Máximo 3 reintentos por archivo
-- Backoff exponencial entre reintentos
-- Si alcanza el máximo, el archivo queda en estado `FALLIDO`
-
----
-
-## CU-D12: Purgar Notificaciones Antiguas
-
-| Campo | Valor |
-|-------|-------|
-| **Actor** | Sistema (cron) |
-| **HU** | RNF-14 |
-| **Precondiciones** | Hay notificaciones con más de 30 días |
-| **Postcondiciones** | Las notificaciones antiguas se eliminan |
-
-### Flujo principal
-1. El cron se ejecuta después del backup diario
-2. Se eliminan notificaciones con `created_at` mayor a 30 días
-
-### Criterios de aceptación
-- No se eliminan notificaciones de menos de 30 días
-- El script es idempotente (ejecutarlo varias veces no causa errores)
-
----
-
-## CU-D13: Autorizar Google Drive (OAuth)
+## CU-D10: Descargar Respaldo
 
 | Campo | Valor |
 |-------|-------|
 | **Actor** | Admin |
-| **HU** | HU-D02, HU-D04 |
-| **Precondiciones** | El usuario tiene rol ADMIN |
-| **Postcondiciones** | Google Drive está autorizado y los tokens se guardan en `oauth_tokens` |
+| **Precondiciones** | El respaldo existe y tiene `drive_file_id` |
+| **Postcondiciones** | Se descarga el archivo .sql desde Google Drive |
 
 ### Flujo principal
-1. El Admin ejecuta `GET /drive/auth-url` para obtener la URL de autorización
+1. El Admin hace clic en "Descargar" en la lista de respaldos
+2. Module D obtiene el `drive_file_id` del registro
+3. Module D descarga el archivo desde Google Drive
+4. Module D retorna el archivo como `Response` con `application/octet-stream`
+
+### Criterios de aceptacion
+- Endpoint: `GET /respaldos/{id}/descargar`
+- El archivo se descarga con nombre descriptivo
+- Requiere rol ADMIN
+
+---
+
+## CU-D11: Restaurar Respaldo
+
+| Campo | Valor |
+|-------|-------|
+| **Actor** | Admin |
+| **Precondiciones** | El respaldo existe en Drive y la BD esta operativa |
+| **Postcondiciones** | La BD se restaura al estado del respaldo |
+
+### Flujo principal
+1. El Admin hace clic en "Restaurar" en la lista de respaldos
+2. Module D descarga el `.sql` desde Google Drive
+3. Module D deshabilita foreign keys (`SET session_replication_role = 'replica'`)
+4. Module D ejecuta cada sentencia del `.sql`
+5. Module D reactiva foreign keys (`SET session_replication_role = 'origin'`)
+
+### Criterios de aceptacion
+- Endpoint: `POST /respaldos/{id}/restaurar`
+- Requiere rol ADMIN
+- La restauracion usa `asyncpg` directo (no `psql`)
+
+---
+
+## CU-D12: Autorizar Google Drive (OAuth)
+
+| Campo | Valor |
+|-------|-------|
+| **Actor** | Admin |
+| **Precondiciones** | El usuario tiene rol ADMIN |
+| **Postcondiciones** | Google Drive esta autorizado y los tokens se guardan en `oauth_tokens` |
+
+### Flujo principal
+1. El Admin ejecuta `GET /drive/auth-url` para obtener la URL de autorizacion
 2. El frontend redirige al usuario a la URL de Google
 3. El usuario autoriza la app en Google
 4. Google redirige a `GET /drive/callback?code=CODE`
 5. El backend intercambia el code por `access_token` + `refresh_token`
 6. Los tokens se guardan en la tabla `oauth_tokens`
-7. A partir de este momento, `POST /boletas/{id}/subir-drive` funciona
 
-### Flujos alternativos
-- **3a.** Si el usuario rechaza la autorización → se retorna error
-- **5a.** Si el code es inválido → se retorna error 400
-- **5b.** Si ya existe un token → se actualiza (re-autorización)
-
-### Criterios de aceptación
+### Criterios de aceptacion
 - Solo usuarios con rol ADMIN pueden autorizar
-- El `access_token` se renueva automáticamente cuando expira
-- El `refresh_token` persiste indefinitely (a menos que el usuario lo revoque en Google)
+- El `access_token` se renueva automaticamente cuando expira
 - Se puede verificar el estado con `GET /drive/status`
+- La pagina de respaldos muestra un enlace para autorizar cuando Drive no esta autorizado
 
 ---
 
-## CU-D14: Descargar Boleta PNG
+## CU-D13: Purgar Notificaciones Antiguas
 
 | Campo | Valor |
 |-------|-------|
-| **Actor** | Admin / Cajero |
-| **HU** | HU-D03 |
-| **Precondiciones** | El usuario está autenticado y la boleta existe |
-| **Postcondiciones** | Se descarga el archivo PNG de la boleta |
+| **Actor** | Sistema (cron) |
+| **Precondiciones** | Hay notificaciones con mas de 30 dias |
+| **Postcondiciones** | Las notificaciones antiguas se eliminan |
 
 ### Flujo principal
-1. El usuario hace clic en "Descargar" en la lista de boletas
-2. El frontend llama a `GET /boletas/{id}/png`
-3. El backend genera el PNG de la boleta (si no existe en Drive) y lo retorna como StreamingResponse
-4. El frontend descarga el archivo con nombre descriptivo
+1. El cron se ejecuta despues del backup semanal
+2. Se eliminan notificaciones con `created_at` mayor a 30 dias
 
-### Criterios de aceptación
-- El endpoint requiere autenticación
-- El archivo se descarga con nombre `BOL-{numero}_{fecha}.png`
-- El Content-Type es `image/png`
+### Criterios de aceptacion
+- No se eliminan notificaciones de menos de 30 dias
+- El script es idempotente
 
 ---
 
-## CU-D15: Crear Notificación (API)
+## CU-D14: Limpieza de Respaldos Expirados
 
 | Campo | Valor |
 |-------|-------|
-| **Actor** | Sistema |
-| **HU** | HU-D09, HU-D10 |
-| **Precondiciones** | Hay un evento que notificar |
-| **Postcondiciones** | La notificación se crea y se envía por canales activos |
+| **Actor** | Sistema (cron, cada domingo) |
+| **Precondiciones** | Hay respaldos con mas de 21 dias |
+| **Postcondiciones** | Los respaldos expirados se eliminan de Drive y de la BD |
 
 ### Flujo principal
-1. Un módulo o servicio llama a `POST /notificaciones`
-2. Se envía la notificación por Telegram (si `canal_telegram_activo`)
-3. Se registra en `notificaciones`
+1. El cron se ejecuta cada domingo junto con el respaldo automatico
+2. Se obtienen los respaldos con `expira_en < ahora`
+3. Se eliminan los archivos de Google Drive
+4. Se eliminan los registros de la BD
 
-### Criterios de aceptación
-- Body: `{ tipo, titulo, mensaje, entidad_origen?, entidad_id? }`
-- `tipo` ∈ `STOCK_BAJO | CIERRE_CAJA | SOLICITUD_INGRESO | SISTEMA`
-- La notificación se guarda independientemente de si el envío falla
-
----
-
-## CU-D16: Consultar Menor Rotación
-
-| Campo | Valor |
-|-------|-------|
-| **Actor** | Admin |
-| **HU** | HU-D07, RF-14 |
-| **Precondiciones** | El usuario tiene permiso `reportes.ver` |
-| **Postcondiciones** | Se retorna el ranking de menor rotación |
-
-### Flujo principal
-1. El Admin selecciona "Menor rotación" en reportes
-2. El frontend llama a `GET /reportes/mas-vendidos?orden=menor`
-3. Module D retorna la lista de productos ordenados por menor cantidad vendida
-
-### Criterios de aceptación
-- El mismo endpoint que "Más vendidos" con parámetro `orden=menor`
-- Se muestra como parte del mismo reporte de productos
+### Criterios de aceptacion
+- Primero se eliminan de Drive, luego de la BD
+- Si falla la eliminacion de Drive, se intenta con cada respaldo individualmente
+- Se registra en logs el resultado de la limpieza
 
 ---
 
 ## Resumen de casos de uso
 
-| CU | Nombre | Actor | HU | Puntos |
-|----|--------|-------|----|---------|
-| CU-D01 | Generar Boleta PNG | Sistema | HU-D01 | — |
-| CU-D02 | Subir Boleta a Drive | Sistema | HU-D02, HU-D04 | — |
-| CU-D03 | Consultar Boletas | Admin/Cajero | HU-D03 | — |
-| CU-D04 | Generar Reporte Ventas | Admin | HU-D06 | — |
-| CU-D05 | Generar Reporte Más/Menor | Admin | HU-D07, RF-14 | — |
-| CU-D06 | Exportar a Excel | Admin | HU-D08 | — |
-| CU-D07 | Enviar Notificación | Sistema | HU-D09, HU-D10 | — |
-| CU-D08 | Consultar Notificaciones | Admin/Cajero | HU-D09 | — |
-| CU-D09 | Config Notificaciones | Admin | HU-D10 | — |
-| CU-D10 | Generar Respaldo | Admin/Cron | HU-D12 | — |
-| CU-D11 | Reintentar Subidas | Cron | HU-D04, RNF-01 | — |
-| CU-D12 | Purgar Notificaciones | Cron | RNF-14 | — |
-| CU-D13 | Autorizar Google Drive | Admin | HU-D02, HU-D04 | — |
-| CU-D14 | Descargar Boleta PNG | Admin/Cajero | HU-D03 | — |
-| CU-D15 | Crear Notificación API | Sistema | HU-D09, HU-D10 | — |
-| CU-D16 | Consultar Menor Rotación | Admin | HU-D07, RF-14 | — |
+| CU | Nombre | Actor |
+|----|--------|-------|
+| CU-D01 | Generar Nota de Venta PNG | Admin/Cajero |
+| CU-D02 | Descargar Notas de Venta (ZIP) | Admin |
+| CU-D03 | Generar Reporte Ventas | Admin |
+| CU-D04 | Generar Reporte Mas/Menor | Admin |
+| CU-D05 | Exportar a Excel | Admin |
+| CU-D06 | Enviar Notificacion (API) | Sistema |
+| CU-D07 | Consultar Notificaciones | Admin/Cajero |
+| CU-D08 | Config Notificaciones | Admin |
+| CU-D09 | Generar Respaldo | Admin/Sistema |
+| CU-D10 | Descargar Respaldo | Admin |
+| CU-D11 | Restaurar Respaldo | Admin |
+| CU-D12 | Autorizar Google Drive | Admin |
+| CU-D13 | Purgar Notificaciones | Sistema |
+| CU-D14 | Limpieza Respaldos Expirados | Sistema |

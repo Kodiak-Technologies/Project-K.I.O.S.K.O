@@ -1,4 +1,5 @@
-import { Database, Download, Plus, RotateCcw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertTriangle, Database, Download, ExternalLink, Plus, RotateCcw } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -12,6 +13,7 @@ import {
   type Columna,
 } from "../../../shared/components/ui";
 import { useRespaldos } from "../hooks/useRespaldos";
+import { httpClient } from "../../../shared/lib/http-client";
 import type { EstadoRespaldo, Respaldo } from "../types";
 
 const TONO_ESTADO: Record<EstadoRespaldo, "exito" | "alerta" | "info"> = {
@@ -28,6 +30,26 @@ function formatearTamano(bytes: number): string {
 
 export default function Respaldos() {
   const { respaldos, cargando, error, noDisponible, crear, descargar, restaurar } = useRespaldos();
+  const [driveAutorizado, setDriveAutorizado] = useState<boolean | null>(null);
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    void httpClient
+      .get("/drive/status")
+      .then(({ data }) => {
+        setDriveAutorizado(data.autorizado);
+        if (!data.autorizado) {
+          return httpClient.get("/drive/auth-url");
+        }
+        return null;
+      })
+      .then((resp) => {
+        if (resp?.data?.auth_url) setAuthUrl(resp.data.auth_url);
+      })
+      .catch(() => {
+        setDriveAutorizado(false);
+      });
+  }, []);
 
   if (noDisponible) {
     return (
@@ -71,6 +93,12 @@ export default function Respaldos() {
       ),
     },
     {
+      titulo: "Creado por",
+      render: (r) => (
+        <span className="text-zinc-600">{r.usuario_nombre ?? "—"}</span>
+      ),
+    },
+    {
       titulo: "Acción",
       render: (r) =>
         r.estado === "COMPLETADO" ? (
@@ -102,8 +130,40 @@ export default function Respaldos() {
     <div>
       <PageHeader titulo="Respaldos" descripcion="Copias de seguridad de la base de datos." />
 
+      {driveAutorizado === false && (
+        <div className="mb-4">
+          <Alert tono="alerta">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-medium">Google Drive no está autorizado</p>
+                <p className="mt-1 text-sm">
+                  Los respaldos necesitan Google Drive para almacenarse. Autoriza la aplicación
+                  haciendo clic en el enlace y seleccionando tu cuenta de Google.
+                </p>
+                {authUrl && (
+                  <a
+                    href={authUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-blue-600 underline"
+                  >
+                    Autorizar Google Drive
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+          </Alert>
+        </div>
+      )}
+
       <Card className="mb-4">
-        <Button onClick={() => void crear()} icono={<Plus className="h-4 w-4" aria-hidden />}>
+        <Button
+          onClick={() => void crear()}
+          icono={<Plus className="h-4 w-4" aria-hidden />}
+          disabled={driveAutorizado === false}
+        >
           Crear respaldo
         </Button>
       </Card>
