@@ -142,6 +142,10 @@ class BitacoraPaginadaResponse(BaseModel):
     total: int
     pagina: int
     tamano_pagina: int
+    # Cursor de la última fila devuelta: mandalo como `cursor` para pedir el
+    # tramo siguiente sin que las inserciones de arriba corran las páginas.
+    # `None` cuando no hay más registros.
+    siguiente_cursor: str | None = None
 
 
 # ---------- Configuración ----------

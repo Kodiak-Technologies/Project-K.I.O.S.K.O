@@ -15,6 +15,7 @@ import {
   type Columna,
   type Tono,
 } from "../../../shared/components/ui";
+import { usePaginacionCursor } from "../../../shared/lib/use-paginacion-cursor";
 import { PaginacionControles } from "../components/PaginacionControles";
 import { SelectorProducto } from "../components/SelectorProducto";
 import { useMovimientos } from "../hooks/useMovimientos";
@@ -43,18 +44,31 @@ export default function MovimientosInventario() {
   const [filtroTipo, setFiltroTipo] = useState<TipoMovimiento | "">("");
   const [fechaDesde, setFechaDesde] = useState<string>("");
   const [fechaHasta, setFechaHasta] = useState<string>("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // Cada venta escribe movimientos nuevos por arriba: con `page`/OFFSET las
+  // filas se corrían y aparecían repetidas al pasar de página.
+  const paginacion = usePaginacionCursor(20);
+  const { page, pageSize, cursor, registrarRespuesta, reiniciar } = paginacion;
+
+  // Otro filtro ⇒ otro conjunto: los cursores acumulados dejan de valer.
+  useEffect(() => {
+    reiniciar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroProducto, filtroTipo, fechaDesde, fechaHasta]);
 
   useEffect(() => {
-    const filtros: FiltrosMovimientos = { page, page_size: pageSize };
+    const filtros: FiltrosMovimientos = { page_size: pageSize };
+    if (cursor) filtros.cursor = cursor;
     if (filtroProducto) filtros.producto_id = filtroProducto;
     if (filtroTipo) filtros.tipo = filtroTipo;
     if (fechaDesde) filtros.fecha_desde = fechaDesde;
     if (fechaHasta) filtros.fecha_hasta = fechaHasta;
     void recargar(filtros);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroProducto, filtroTipo, fechaDesde, fechaHasta, page, pageSize]);
+  }, [filtroProducto, filtroTipo, fechaDesde, fechaHasta, page, pageSize, cursor]);
+
+  useEffect(() => {
+    if (paginados) registrarRespuesta(paginados.siguiente_cursor);
+  }, [paginados, registrarRespuesta]);
 
   if (noDisponible) {
     return (
@@ -129,7 +143,6 @@ export default function MovimientosInventario() {
           value={filtroProducto === "" ? null : filtroProducto}
           onChange={(id) => {
             setFiltroProducto(id ?? "");
-            setPage(1);
           }}
           soloActivos={false}
         />
@@ -138,7 +151,6 @@ export default function MovimientosInventario() {
           value={filtroTipo}
           onChange={(e) => {
             setFiltroTipo(e.target.value as TipoMovimiento | "");
-            setPage(1);
           }}
         >
           <option value="">Todos</option>
@@ -156,7 +168,6 @@ export default function MovimientosInventario() {
               value={fechaDesde}
               onChange={(e) => {
                 setFechaDesde(e.target.value);
-                setPage(1);
               }}
               className="w-full min-h-tactil rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500"
             />
@@ -170,7 +181,6 @@ export default function MovimientosInventario() {
               value={fechaHasta}
               onChange={(e) => {
                 setFechaHasta(e.target.value);
-                setPage(1);
               }}
               className="w-full min-h-tactil rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500"
             />
@@ -200,8 +210,8 @@ export default function MovimientosInventario() {
             paginados={paginados}
             page={page}
             pageSize={pageSize}
-            onCambiarPage={setPage}
-            onCambiarPageSize={setPageSize}
+            onCambiarPage={paginacion.onCambiarPage}
+            onCambiarPageSize={paginacion.onCambiarPageSize}
             etiqueta="movimientos"
           />
         </Card>

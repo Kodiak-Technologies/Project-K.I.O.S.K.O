@@ -74,7 +74,12 @@ class SqlAlchemyHistorialPrecioRepository(HistorialPrecioRepositoryPort):
                 await self._db.execute(
                     select(HistorialPrecioModel)
                     .where(*filtros)
-                    .order_by(HistorialPrecioModel.created_at.desc())
+                    # Desempate por PK: aprobar un ingreso escribe varias filas
+                    # de historial en el mismo instante (una por línea).
+                    .order_by(
+                        HistorialPrecioModel.created_at.desc(),
+                        HistorialPrecioModel.id.desc(),
+                    )
                     .offset((page - 1) * page_size)
                     .limit(page_size)
                 )

@@ -45,7 +45,10 @@ class SqlAlchemyRespaldoRepository:
         total = (
             await self._db.execute(select(func.count()).select_from(RespaldoModel))
         ).scalar_one()
-        consulta = select(RespaldoModel).order_by(RespaldoModel.generado_en.desc())
+        # Desempate por PK: los respaldos automáticos comparten `generado_en`.
+        consulta = select(RespaldoModel).order_by(
+            RespaldoModel.generado_en.desc(), RespaldoModel.id.desc()
+        )
         if page is not None and page_size is not None:
             consulta = consulta.offset((page - 1) * page_size).limit(page_size)
         resultado = await self._db.execute(consulta)

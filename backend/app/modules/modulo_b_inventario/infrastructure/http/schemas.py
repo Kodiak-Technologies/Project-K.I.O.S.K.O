@@ -439,6 +439,9 @@ class IngresosPaginadosResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+    # Cursor de la última fila: mandalo como `cursor` para pedir el tramo
+    # siguiente sin que las escrituras de arriba corran las páginas.
+    siguiente_cursor: str | None = None
 
 
 class AprobarIngresoRequest(BaseModel):
@@ -681,6 +684,9 @@ class MovimientosPaginadosResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+    # Cursor de la última fila: mandalo como `cursor` para pedir el tramo
+    # siguiente sin que las escrituras de arriba corran las páginas.
+    siguiente_cursor: str | None = None
 
 
 # =============================================================================

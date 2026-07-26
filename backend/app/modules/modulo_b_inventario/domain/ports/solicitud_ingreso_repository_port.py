@@ -1,6 +1,7 @@
 # Puerto: contrato para persistir y consultar solicitudes de ingreso de mercadería (RF-05, RF-06).
 # El stock NO se toca al crear/consultar; solo al aprobar (HU-B07, D-09).
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from app.modules.modulo_b_inventario.domain.entities import SolicitudIngreso
 
@@ -39,8 +40,13 @@ class SolicitudIngresoRepositoryPort(ABC):
         fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[SolicitudIngreso], int]:
-        """Devuelve (items, total). Filtros opcionales."""
+        """Devuelve (items, total). Filtros opcionales.
+
+        Con `cursor` pagina por keyset y se ignora `page`: los cajeros
+        registran ingresos mientras la cola se revisa, y con OFFSET eso
+        corre las páginas."""
 
     @abstractmethod
     async def listar_por_solicitante(
@@ -53,6 +59,7 @@ class SolicitudIngresoRepositoryPort(ABC):
         fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[SolicitudIngreso], int]:
         """Lista las solicitudes creadas por un usuario específico (CAJERO),
         aplicando los mismos filtros que el listado general."""

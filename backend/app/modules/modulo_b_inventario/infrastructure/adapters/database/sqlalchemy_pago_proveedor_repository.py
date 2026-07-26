@@ -90,9 +90,12 @@ class SqlAlchemyPagoProveedorRepository(PagoProveedorRepositoryPort):
                 await self._db.execute(
                     select(PagoProveedorModel)
                     .where(*filtros)
+                    # `fecha` es un día y varios pagos caen en el mismo: el
+                    # desempate por PK hace la paginación determinista.
                     .order_by(
                         PagoProveedorModel.fecha.desc(),
                         PagoProveedorModel.created_at.desc(),
+                        PagoProveedorModel.id.desc(),
                     )
                     .offset((page - 1) * page_size)
                     .limit(page_size)

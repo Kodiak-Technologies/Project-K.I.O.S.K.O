@@ -97,6 +97,32 @@ class HttpVentaDataProvider:
         except Exception:
             return []
 
+    async def listar_ventas_paginado(
+        self,
+        desde: str | None = None,
+        hasta: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[dict], int]:
+        """Una sola llamada a `/ventas`: no recorre el histórico entero."""
+        try:
+            params: dict = {"page": page, "page_size": page_size}
+            if desde:
+                params["desde"] = desde
+            if hasta:
+                params["hasta"] = hasta
+            client = await self._get_client()
+            resp = await client.get("/ventas", params=params, headers=self._headers)
+            if resp.status_code != 200:
+                return [], 0
+            cuerpo = resp.json()
+            return (
+                [self._resumen(v) for v in cuerpo.get("items", [])],
+                cuerpo.get("total", 0),
+            )
+        except Exception:
+            return [], 0
+
     async def obtener_detalle_venta(self, venta_id: int) -> list[dict]:
         v = await self._venta_cruda(venta_id)
         if v is None:

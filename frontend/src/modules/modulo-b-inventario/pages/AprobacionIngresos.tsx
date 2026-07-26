@@ -23,6 +23,7 @@ import { codigoDeError, mensajeDeError } from "../../../shared/lib/http-client";
 import { FormularioIngresoEditable } from "../components/FormularioIngresoEditable";
 import { IngresoDetalleContent } from "../components/IngresoDetalleContent";
 import { ModalConfirmacion } from "../components/ModalConfirmacion";
+import { usePaginacionCursor } from "../../../shared/lib/use-paginacion-cursor";
 import { PaginacionControles } from "../components/PaginacionControles";
 import { mapErrorCodeToMessage } from "../lib/mapErrorCodeToMessage";
 import { useIngresos } from "../hooks/useIngresos";
@@ -48,13 +49,23 @@ export default function AprobacionIngresos() {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // La cola crece mientras la administradora la revisa: con `page`/OFFSET
+  // cada ingreso nuevo le corría las filas y le repetía solicitudes.
+  const paginacion = usePaginacionCursor(20);
+  const { page, pageSize, cursor, registrarRespuesta } = paginacion;
 
   useEffect(() => {
-    void recargar({ estado: "Pendiente", page, page_size: pageSize });
+    void recargar({
+      estado: "Pendiente",
+      page_size: pageSize,
+      ...(cursor ? { cursor } : {}),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize]);
+  }, [page, pageSize, cursor]);
+
+  useEffect(() => {
+    if (paginados) registrarRespuesta(paginados.siguiente_cursor);
+  }, [paginados, registrarRespuesta]);
 
   async function abrirDetalle(s: SolicitudIngreso) {
     setModo("ver");
@@ -252,8 +263,8 @@ export default function AprobacionIngresos() {
           paginados={paginados}
           page={page}
           pageSize={pageSize}
-          onCambiarPage={setPage}
-          onCambiarPageSize={setPageSize}
+          onCambiarPage={paginacion.onCambiarPage}
+          onCambiarPageSize={paginacion.onCambiarPageSize}
           etiqueta="pendientes"
         />
       </Card>

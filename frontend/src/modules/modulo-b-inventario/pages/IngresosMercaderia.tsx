@@ -24,6 +24,7 @@ import {
 } from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
 import { FormularioLineaIngreso, type LineaIngreso } from "../components/FormularioLineaIngreso";
+import { usePaginacionCursor } from "../../../shared/lib/use-paginacion-cursor";
 import { PaginacionControles } from "../components/PaginacionControles";
 import { SubirImagen } from "../components/SubirImagen";
 import { useIngresos } from "../hooks/useIngresos";
@@ -59,8 +60,10 @@ export default function IngresosMercaderia() {
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<EstadoIngreso | "">("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // Los cajeros registran ingresos mientras la lista se navega: con
+  // `page`/OFFSET las filas nuevas corrían las páginas y se veían repetidas.
+  const paginacion = usePaginacionCursor(20);
+  const { page, pageSize, cursor, registrarRespuesta, reiniciar } = paginacion;
 
   // Si la URL trae ?producto_id=NNN, pre-cargamos la primera línea.
   useEffect(() => {
@@ -74,13 +77,24 @@ export default function IngresosMercaderia() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productoInicial]);
 
+  // Otro filtro ⇒ otro conjunto: los cursores acumulados dejan de valer.
+  useEffect(() => {
+    reiniciar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroEstado]);
+
   // Re-cargar lista cuando cambia filtro o paginación.
   useEffect(() => {
-    const filtros: FiltrosIngresos = { page, page_size: pageSize };
+    const filtros: FiltrosIngresos = { page_size: pageSize };
+    if (cursor) filtros.cursor = cursor;
     if (filtroEstado) filtros.estado = filtroEstado;
     void recargar(filtros);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroEstado, page, pageSize]);
+  }, [filtroEstado, page, pageSize, cursor]);
+
+  useEffect(() => {
+    if (paginados) registrarRespuesta(paginados.siguiente_cursor);
+  }, [paginados, registrarRespuesta]);
 
   // Estando en esta pestaña, el lector escribe donde esté el cursor: si el foco
   // quedó suelto (tras un clic en cualquier parte), lo devolvemos al buscador
@@ -362,7 +376,6 @@ export default function IngresosMercaderia() {
           value={filtroEstado}
           onChange={(e) => {
             setFiltroEstado(e.target.value as EstadoIngreso | "");
-            setPage(1);
           }}
           className="max-w-xs"
         >
@@ -398,8 +411,8 @@ export default function IngresosMercaderia() {
             paginados={paginados}
             page={page}
             pageSize={pageSize}
-            onCambiarPage={setPage}
-            onCambiarPageSize={setPageSize}
+            onCambiarPage={paginacion.onCambiarPage}
+            onCambiarPageSize={paginacion.onCambiarPageSize}
             etiqueta="ingresos"
           />
         </Card>

@@ -45,6 +45,10 @@ export interface BitacoraPaginada {
   total: number;
   pagina: number;
   tamano_pagina: number;
+  /** Cursor de la última fila; se manda como `cursor` para pedir el tramo
+   *  siguiente. La bitácora recibe eventos constantemente y con OFFSET las
+   *  páginas se corrían. Lo administra `useBitacora`. */
+  siguiente_cursor?: string | null;
 }
 
 export interface FiltrosBitacora {
@@ -55,6 +59,8 @@ export interface FiltrosBitacora {
   entidad?: string;
   pagina?: number;
   tamano_pagina?: number;
+  /** Paginación por cursor: si va, el backend ignora `pagina`. */
+  cursor?: string;
 }
 
 export interface Configuracion {

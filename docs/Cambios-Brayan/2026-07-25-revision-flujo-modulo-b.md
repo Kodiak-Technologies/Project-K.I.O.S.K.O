@@ -635,3 +635,239 @@ anulada no; el producto aparece en más vendidos con sus unidades; la devolució
 parcial descuenta del producto y del total; `cobrado = vendido + devoluciones`;
 el egreso sube por el costo del ingreso aprobado (+600); y la exportación a Excel
 sigue funcionando. Suite del Módulo B: **84 passed**. `tsc --noEmit` limpio.
+
+---
+
+## 15. Anexo — paginación determinista: cada página con datos distintos (10ª pasada)
+
+Revisión pedida sobre los listados: asegurar que la página 2 no repita ni
+saltee filas de la página 1.
+
+### 15.1 El problema: `ORDER BY` sobre columnas no únicas
+
+Los 10 listados paginados hacían `LIMIT/OFFSET` ordenando por una columna
+**que se repite**. Cuando hay filas empatadas, SQL **no garantiza** ningún
+orden entre ellas: cada página se ordena por separado, así que la misma fila
+puede caer en dos páginas y otra no aparecer nunca.
+
+Los empates son reales en la BD de pruebas:
+
+| Tabla | Filas | Filas empatadas | Ordenaba por |
+|---|---|---|---|
+| `productos` | 171 | **143** | `nombre` |
+| `historial_precios` | 96 | 44 | `created_at` |
+| `bitacora_auditoria` | 1015 | 10 | `created_at` |
+| `respaldos` | 102 | 3 | `generado_en` |
+
+`productos` es el caso grave, y es la tabla del **POS y del Catálogo**: hay 52
+productos llamados `'P'`, 46 `'TestProd'` y 22 `'TestHist'`. Son datos de
+prueba, pero el defecto es estructural — dos productos con el mismo nombre
+alcanzan.
+
+**Con el volumen actual el orden salía consistente**: forzando planes distintos
+(sin índices, sort en disco) no se reprodujo la corrupción. Era un bug
+**latente** — la garantía no existía y aparece al cambiar el plan o crecer los
+datos.
+
+### 15.2 La corrección
+
+Desempate por PK (única) en el `ORDER BY` de los 10 listados paginados:
+
+| Endpoint | ORDER BY ahora |
+|---|---|
+| `GET /bitacora` | `created_at DESC, id DESC` |
+| `GET /movimientos` | `created_at DESC, id DESC` |
+| `GET /productos/{id}/historial-precios` | `created_at DESC, id DESC` |
+| `GET /productos` (POS + Catálogo) | `nombre, id` |
+| `GET /productos/por-reponer` | `(stock_minimo - stock) DESC, nombre, id` |
+| `GET /proveedores` | `razon_social, id` |
+| `GET /proveedores/{id}/pagos` | `fecha DESC, created_at DESC, id DESC` |
+| `GET /ingresos` | `created_at DESC, id DESC` |
+| `GET /notificaciones` | `leida ASC, created_at DESC, id DESC` |
+| `GET /respaldos` | `generado_en DESC, id DESC` |
+
+`GET /ventas` ya ordenaba por `id DESC` — estaba bien.
+
+### 15.3 Lo que el desempate NO arregla: el `OFFSET` se desplaza
+
+Apareció verificando, y **es el hallazgo más importante**: si entran filas
+entre dos requests, el `OFFSET` apunta a otro lado y el usuario ve una fila
+repetida (o se saltea una). El desempate por PK no lo cubre — es inherente a
+paginar por OFFSET sobre una tabla que se escribe.
+
+Se reprodujo dos veces:
+
+1. Insertando una fila entre cargar la página 1 y la 2 de bitácora (en una
+   transacción revertida): 1 fila repetida, con y sin desempate.
+2. **Sin querer**: dejando correr la suite de pytest contra la misma BD durante
+   el barrido de verificación, `GET /proveedores` perdió filas y `GET /ingresos`
+   las repitió. Con la BD quieta, los mismos listados dan OK.
+
+O sea: **en producción, con el POS escribiendo mientras alguien pagina Ingresos
+o Productos, esto pasa de verdad.** El arreglo de fondo es paginación por
+cursor (keyset: `WHERE (created_at, id) < (:ultimo_created_at, :ultimo_id)`),
+que no se hizo acá porque cambia el contrato de los 10 endpoints y del
+`PaginacionControles` del frontend. Queda como recomendación.
+
+### 15.4 `GET /notas-venta` paginaba en memoria — corregido
+
+La sección 10 dice que se paginó en backend, pero sólo había cambiado la
+**forma** de la respuesta: `notas_venta_router.py` seguía trayendo el histórico
+completo vía HTTP (`listar_ventas` recorre todas las páginas de `/ventas`) y
+recortaba con `ventas[inicio : inicio + page_size]`. Las páginas salían bien
+(el orden de `/ventas` es `id DESC`, estable), pero cada request costaba lo
+mismo que exportar el rango entero.
+
+La paginación ahora baja hasta el origen:
+
+* `VentaDataProviderPort.listar_ventas_paginado(desde, hasta, page, page_size)`
+  → `(ventas de la página, total)`, con **una sola** llamada a `/ventas`.
+* `listar_ventas` (el rango completo) se conserva porque hay tres consumidores
+  que sí necesitan todo: los dos reportes y el ZIP de notas. Su docstring ahora
+  dice explícitamente cuándo usar cada uno.
+
+**Verificado** contra Supabase, instrumentando el adaptador:
+
+| | Antes | Ahora |
+|---|---|---|
+| `GET /notas-venta?page=2` — recorridos del histórico completo | 1 | **0** |
+| `GET /notas-venta?page=2` — llamadas paginadas a `/ventas` | 0 | **1** |
+| `GET /reportes/resumen` — recorridos del histórico | 1 | 1 (sin cambio) |
+
+Y el contrato intacto: `total=14` coincide con `/ventas`, páginas 1 y 2 sin
+solapamiento, `page=0` y `page_size=500` siguen dando **422**.
+
+### 15.5 Lo que ya estaba bien
+
+* El frontend no pagina en memoria en ninguna pantalla (los `.slice()` que
+  quedan son formato de fecha y topes de autocompletado).
+* `PaginacionControles` de `modulo-b-inventario` es un re-export del de
+  `shared/components/ui`, no un duplicado.
+* Los listados sin paginar (`/categorias`, `/usuarios`, `/roles`, `/permisos`,
+  `/metodos-pago`, `/caja/turnos`) son datos de referencia acotados.
+
+### Verificación
+
+Barrido página por página de los 11 listados, comparando la secuencia completa
+de ids contra el listado traído de una sola vez, con **9 combinaciones de
+`page_size` × plan de ejecución** cada uno (`page_size` 7/20/100 × plan normal /
+sin índices / sort en disco), verificando además que no haya ids repetidos ni
+faltantes:
+
+**11 listados correctos, 0 con fallas** (con la BD sin escrituras concurrentes).
+
+Suite del Módulo B: **84 passed**.
+
+### 15.6 Los tests del Módulo D estaban desactualizados, no rotos
+
+`tests/modulo_d_documentos/test_api.py` fallaba en **10 de 26**. Se comprobó con
+`git stash` que fallaban igual sin los cambios de esta pasada, y al mirar cada
+error resultó que **ninguno era un bug**: los 10 eran tests que quedaron
+desactualizados respecto del código.
+
+| Tests | Esperaban | Realidad | Causa |
+|---|---|---|---|
+| 5 de boletas | 401 / lista | **404** | Las boletas se eliminaron en la reestructuración (su reemplazo son las notas de venta) |
+| `notificaciones_con_auth` | lista plana | envoltorio `{items, total, …}` | **La paginación de la 6ª pasada** (§11.1) |
+| `respaldos_con_auth` | lista plana | envoltorio `{items, total, …}` | **La paginación de la 6ª pasada** (§11.1) |
+| 2 de config notificaciones | `canal_telegram_activo`, `canal_correo_activo` | sólo `nivel_detalle` | Los canales salieron del schema |
+| `drive_callback_sin_code` | 422 | 200 con `{"error": …}` | `code` es opcional a propósito: ahí aterriza el redirect de Google |
+
+Vale marcar que **dos los rompió esta misma serie de revisiones**: al paginar
+`/notificaciones` y `/respaldos` en la 6ª pasada se cambió la forma de la
+respuesta sin actualizar sus tests.
+
+Corregido: los 5 de boletas se reemplazaron por un test parametrizado que
+verifica que las 4 rutas devuelven **404** (misma convención que se usó con las
+mermas del Módulo B), y los otros 5 se alinearon con el contrato actual.
+Resultado: **25 passed**.
+
+> **Pendiente**: `test_domain.py` y `test_usecases.py` siguen sin compilar
+> (importan `CanalNotificacion` y `generar_boleta_usecase`, ambos eliminados).
+> Se dejan como están por decisión del equipo: van a reescribirse cuando se
+> encare la cobertura de tests completa del sistema.
+
+---
+
+## 16. Anexo — paginación por cursor en los listados que se escriben (11ª pasada)
+
+La 10ª pasada dejó pendiente lo único que el desempate por PK **no** arregla:
+el `OFFSET` cuenta posiciones sobre los datos del momento, así que si entran
+filas mientras alguien navega, las páginas se corren y se ven registros
+repetidos (o se saltean).
+
+### 16.1 Sólo tres listados lo necesitan
+
+El desfase aparece donde el orden es por **fecha de inserción descendente** y
+las filas nuevas caen arriba:
+
+| Listado | Ordena por | ¿Se escribe mientras se navega? |
+|---|---|---|
+| `GET /bitacora` | `created_at DESC` | **Sí**, cada request se audita |
+| `GET /inventario/movimientos` | `created_at DESC` | **Sí**, cada venta escribe |
+| `GET /ingresos` | `created_at DESC` | **Sí**, los cajeros registran |
+| `GET /productos` | `nombre, id` | **No** — vender cambia `stock`, no el nombre |
+| Proveedores, pagos, respaldos, notificaciones | — | casi no cambian |
+
+**Productos quedó afuera a propósito**: su clave de orden es estable, así que
+una venta no le mueve la posición a ningún producto. Sólo se desplaza al crear
+o renombrar productos, que es una acción ocasional del admin.
+
+### 16.2 Cómo quedó
+
+`app/shared/http/cursor.py` codifica el par `(created_at, id)` en base64url.
+Es opaco para el cliente, así que el formato se puede cambiar sin romper nada,
+y un cursor corrupto da **422** (llega por querystring: cualquiera puede mandar
+cualquier cosa).
+
+En SQL, `OFFSET` se reemplaza por la comparación de tuplas, que usa el mismo
+índice que el `ORDER BY`:
+
+```sql
+WHERE (created_at, id) < (:cursor_fecha, :cursor_id)
+ORDER BY created_at DESC, id DESC LIMIT :n
+```
+
+**No es un cambio incompatible**: los tres endpoints siguen aceptando `page` /
+`pagina`. Si viene `cursor` se usa keyset, si no, OFFSET como antes.
+
+### 16.3 El frontend no cambió de aspecto
+
+Los controles ya eran sólo *Anterior / Siguiente* —nunca hubo saltar a la
+página 7—, así que **no se perdió nada de la UI**: se conservan el selector de
+"N por página", el "Mostrando X-Y de Z" y el "Pág. N / M" (el `total` se sigue
+calculando).
+
+Lo que cambia es de dónde sale la página: `shared/lib/use-paginacion-cursor.ts`
+mantiene una pila de cursores y traduce los ±1 del control a avanzar o
+retroceder. `PaginacionControles` **no se tocó**. La bitácora administra su pila
+dentro de `useBitacora`, porque ahí los filtros ya vivían en el hook.
+
+Al cambiar cualquier filtro o el tamaño de página se descartan los cursores: son
+otro conjunto de resultados y los cortes viejos no aplican.
+
+### Verificación
+
+Insertando una fila entre página y página (todo en transacciones revertidas,
+salvo lo indicado abajo):
+
+| Tabla | OFFSET | Cursor |
+|---|---|---|
+| `bitacora_auditoria` | **ROTO** — 5 filas repetidas | **OK** — 0 |
+| `movimientos_inventario` | **ROTO** — 4 filas repetidas | **OK** — 0 |
+| `solicitudes_ingreso` | **ROTO** — 4 filas repetidas | **OK** — 0 |
+
+Además, contra Supabase: los tres listados recorren sus páginas sin repetidos,
+volver atrás con el cursor guardado devuelve exactamente la misma página, y un
+cursor inválido da 422 en los tres. `tsc --noEmit` limpio.
+
+Suites: Módulo B **84 passed**; Módulo A **13 passed, 1 failed**
+(`test_bloqueo_tras_tres_intentos_fallidos`, sobre el bloqueo por intentos de
+login). Se verificó con `git stash` que **falla igual sin estos cambios**: es
+preexistente y ajeno a la paginación.
+
+> **Nota sobre datos**: verificando la bitácora se insertaron **24 filas con
+> `accion='PROBE_CURSOR'`** (ids 1099-1122) antes de darnos cuenta de que la
+> tabla es inmutable por trigger y no admite `DELETE`. Quedan ahí, marcadas y
+> filtrables. Las pruebas siguientes se hicieron dentro de transacciones que se
+> revierten, que es como debió hacerse desde el principio.

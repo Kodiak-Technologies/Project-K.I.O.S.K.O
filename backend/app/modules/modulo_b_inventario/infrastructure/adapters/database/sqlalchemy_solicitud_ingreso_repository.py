@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -180,6 +180,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[SolicitudIngreso], int]:
         return await self._listar(
             estado=estado,
@@ -189,6 +190,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
             solicitado_por=None,
             page=page,
             page_size=page_size,
+            cursor=cursor,
         )
 
     async def listar_por_solicitante(
@@ -201,6 +203,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[SolicitudIngreso], int]:
         # Los filtros de proveedor/fecha antes se descartaban para el CAJERO:
         # la API respondía 200 con la lista SIN filtrar.
@@ -212,6 +215,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
             solicitado_por=usuario_id,
             page=page,
             page_size=page_size,
+            cursor=cursor,
         )
 
     async def _listar(
@@ -224,6 +228,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         solicitado_por: int | None,
         page: int,
         page_size: int,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[SolicitudIngreso], int]:
         filtros: list[Any] = [SolicitudIngresoModel.deleted_at.is_(None)]
         if estado is not None:
@@ -243,19 +248,30 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
             )
         ).scalar_one()
 
-        filas = (
-            (
-                await self._db.execute(
-                    select(SolicitudIngresoModel)
-                    .where(*filtros)
-                    .order_by(SolicitudIngresoModel.created_at.desc())
-                    .offset((page - 1) * page_size)
-                    .limit(page_size)
-                )
+        consulta = (
+            select(SolicitudIngresoModel)
+            .where(*filtros)
+            # Desempate por PK para que la paginación sea determinista.
+            .order_by(
+                SolicitudIngresoModel.created_at.desc(),
+                SolicitudIngresoModel.id.desc(),
             )
-            .scalars()
-            .all()
+            .limit(page_size)
         )
+        if cursor is not None:
+            # Keyset: los cajeros registran ingresos mientras la administradora
+            # revisa la cola, y con OFFSET eso le corría las páginas.
+            momento, ultimo_id = cursor
+            consulta = consulta.where(
+                tuple_(
+                    SolicitudIngresoModel.created_at, SolicitudIngresoModel.id
+                )
+                < (momento, ultimo_id)
+            )
+        else:
+            consulta = consulta.offset((page - 1) * page_size)
+
+        filas = (await self._db.execute(consulta)).scalars().all()
         # Cargar líneas en bloque (una sola consulta para toda la página)
         lineas_por_solicitud = await self._lineas_de([f.id for f in filas])
         return (

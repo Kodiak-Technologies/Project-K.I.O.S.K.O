@@ -18,6 +18,13 @@ class AuditoriaRepositoryPort(Protocol):
         entidad: str | None = None,
         pagina: int = 1,
         tamano_pagina: int = 25,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[RegistroAuditoria], int]:
-        """Devuelve (registros de la página, total de registros que cumplen el filtro)."""
+        """Devuelve (registros de la página, total de registros que cumplen el filtro).
+
+        Con `cursor` pagina por keyset —"lo que viene después de esa fila"— y
+        `pagina` se ignora. Es lo que corresponde acá: la bitácora recibe filas
+        nuevas por arriba continuamente, y con OFFSET eso corre las páginas y
+        hace que se repitan o se salteen registros.
+        """
         ...

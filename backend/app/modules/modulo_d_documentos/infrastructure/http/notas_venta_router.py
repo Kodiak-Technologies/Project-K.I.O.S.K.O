@@ -42,10 +42,12 @@ async def listar_notas_venta(
     if page_size < 1 or page_size > 100:
         raise ValidacionError("page_size debe estar entre 1 y 100.")
 
-    ventas = await venta_data.listar_ventas(desde=desde, hasta=hasta)
-    total = len(ventas)
-    inicio = (page - 1) * page_size
-    pagina = ventas[inicio : inicio + page_size]
+    # La paginación baja hasta `/ventas`: antes se traía el histórico completo
+    # por HTTP y se recortaba en memoria, así que cada request costaba lo mismo
+    # que exportar todo el rango.
+    pagina, total = await venta_data.listar_ventas_paginado(
+        desde=desde, hasta=hasta, page=page, page_size=page_size
+    )
     return NotasVentaPaginadasResponse(
         items=[NotaVentaResponse.desde_venta(v) for v in pagina],
         total=total,

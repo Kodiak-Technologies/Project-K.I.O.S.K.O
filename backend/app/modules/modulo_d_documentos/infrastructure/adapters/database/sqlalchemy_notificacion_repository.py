@@ -52,7 +52,13 @@ class SqlAlchemyNotificacionRepository:
         consulta = (
             select(NotificacionModel)
             .where(condicion)
-            .order_by(NotificacionModel.leida.asc(), NotificacionModel.created_at.desc())
+            # Desempate por PK: sin él la paginación de la bandeja no es
+            # determinista cuando dos avisos comparten `created_at`.
+            .order_by(
+                NotificacionModel.leida.asc(),
+                NotificacionModel.created_at.desc(),
+                NotificacionModel.id.desc(),
+            )
         )
         if page is not None and page_size is not None:
             consulta = consulta.offset((page - 1) * page_size).limit(page_size)

@@ -14,6 +14,7 @@ from app.modules.modulo_b_inventario.infrastructure.http.schemas import (
     MovimientosPaginadosResponse,
 )
 from app.shared.database.session import get_db
+from app.shared.http.cursor import codificar_cursor, decodificar_cursor
 
 router = APIRouter(prefix="/inventario/movimientos", tags=["Inventario - Movimientos"])
 
@@ -26,6 +27,7 @@ async def listar(
     fecha_hasta: date_type | None = None,
     page: int = 1,
     page_size: int = 20,
+    cursor: str | None = None,
     _usuario: Usuario = Depends(require_permission("inventario.ver")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -38,6 +40,13 @@ async def listar(
         fecha_hasta=fecha_hasta.isoformat() if fecha_hasta else None,
         page=page,
         page_size=page_size,
+        cursor=decodificar_cursor(cursor) if cursor else None,
+    )
+    # Página completa ⇒ asumimos que hay más; página corta ⇒ se acabó.
+    siguiente = (
+        codificar_cursor(items[-1].created_at, items[-1].id)  # type: ignore[arg-type]
+        if len(items) == page_size
+        else None
     )
     return MovimientosPaginadosResponse(
         items=[
@@ -57,4 +66,5 @@ async def listar(
             for m in items
         ],
         total=total, page=page, page_size=page_size, total_pages=total_pages,
+        siguiente_cursor=siguiente,
     )

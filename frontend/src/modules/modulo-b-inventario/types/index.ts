@@ -20,12 +20,18 @@ export interface PaginadosResponse<T> {
   page: number;
   page_size: number;
   total_pages: number;
+  /** Cursor de la última fila (solo en los listados que se escriben en
+   *  caliente: movimientos e ingresos). Ver `usePaginacionCursor`. */
+  siguiente_cursor?: string | null;
 }
 
 /** Filtros comunes para los listados paginados del módulo B. */
 export interface FiltrosPaginacion {
   page?: number;
   page_size?: number;
+  /** Paginación por cursor: si va, el backend ignora `page`. Evita que las
+   *  filas nuevas corran las páginas mientras el usuario navega. */
+  cursor?: string;
 }
 
 // =============================================================================

@@ -234,7 +234,10 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
                         isouter=True,
                     )
                     .where(*filtros)
-                    .order_by(ProductoModel.nombre)
+                    # Desempate por PK: hay productos que comparten nombre, y
+                    # sin él el orden entre ellos no está garantizado — la misma
+                    # fila podía aparecer en dos páginas del POS o del catálogo.
+                    .order_by(ProductoModel.nombre, ProductoModel.id)
                     .offset((page - 1) * page_size)
                     .limit(page_size)
                 )
@@ -271,10 +274,13 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
                         isouter=True,
                     )
                     .where(*filtros)
-                    # Orden por faltante DESC
+                    # Orden por faltante DESC, con desempate por PK para que la
+                    # paginación sea determinista (el faltante y el nombre se
+                    # repiten entre productos).
                     .order_by(
                         (ProductoModel.stock_minimo - ProductoModel.stock).desc(),
                         ProductoModel.nombre,
+                        ProductoModel.id,
                     )
                     .offset((page - 1) * page_size)
                     .limit(page_size)
