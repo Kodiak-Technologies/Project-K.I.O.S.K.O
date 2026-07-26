@@ -1,14 +1,14 @@
 """Módulo C — HU-C10: campos para el modo offline con sincronización (RF-26).
 
 Revision ID: 0009_modulo_c_offline
-Revises: 0008_modulo_c_fiados
+Revises: 0007_modulo_c_anulaciones
 Create Date: 2026-07-17
 """
 import sqlalchemy as sa
 from alembic import op
 
 revision = "0009_modulo_c_offline"
-down_revision = "0008_modulo_c_fiados"
+down_revision = "0007_modulo_c_anulaciones"
 branch_labels = None
 depends_on = None
 

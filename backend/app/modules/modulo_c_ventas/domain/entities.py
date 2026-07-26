@@ -69,7 +69,6 @@ class ResumenCaja:
     efectivo_esperado: Decimal
     monto_inicial: Decimal
     ventas_efectivo: Decimal
-    abonos_efectivo: Decimal  # fiados cobrados en efectivo (HU-C09)
     devoluciones_efectivo: Decimal  # dinero devuelto de la caja (HU-C08)
     totales_por_metodo: dict[str, float]
     total_vendido: Decimal
@@ -102,7 +101,7 @@ class MetodoPago:
     """
 
     id: int | None
-    codigo: str  # EFECTIVO | YAPE | PLIN | TARJETA | TRANSFERENCIA | FIADO | ...
+    codigo: str  # EFECTIVO | YAPE | PLIN | TARJETA | TRANSFERENCIA | ...
     nombre: str
     es_efectivo: bool = False
     activo: bool = True
@@ -153,8 +152,7 @@ class Venta:
     usuario_id: int
     vendedor: str  # snapshot del nombre
     total: Decimal
-    metodo_pago: str  # resumen: EFECTIVO | YAPE | ... | MIXTO | FIADO
-    cliente_id: int | None = None  # obligatorio si la venta es al fiado (RF-28)
+    metodo_pago: str  # resumen: EFECTIVO | YAPE | ... | MIXTO
     estado: str = VENTA_COMPLETADA
     detalles: list[DetalleVenta] = field(default_factory=list)
     pagos: list[PagoVenta] = field(default_factory=list)
@@ -177,55 +175,6 @@ class Venta:
     def total_efectivo(self) -> Decimal:
         """Cuánto de esta venta entró como dinero FÍSICO a la caja (para el arqueo)."""
         return sum((p.monto for p in self.pagos if p.es_efectivo), Decimal("0"))
-
-
-@dataclass
-class Cliente:
-    """Cliente del barrio al que se le puede fiar (RF-28).
-
-    limite_credito = 0 significa sin límite definido; si es mayor a 0, el sistema
-    bloquea nuevos fiados que lo superen (solo el ADMIN fija el límite).
-    """
-
-    id: int | None
-    nombre: str
-    alias: str | None = None
-    telefono: str | None = None
-    limite_credito: Decimal = Decimal("0")
-    activo: bool = True
-    created_at: datetime | None = None
-
-
-@dataclass
-class Fiado:
-    """Una venta al fiado: descuenta stock pero NO ingresa dinero a la caja.
-    El saldo baja con cada abono; la caja solo ve el efectivo de los abonos."""
-
-    id: int | None
-    venta_id: int
-    cliente_id: int
-    monto_total: Decimal
-    saldo_pendiente: Decimal
-    estado: str = "PENDIENTE"  # PENDIENTE | PAGADO | ANULADO
-    cliente_nombre: str = ""
-    created_at: datetime | None = None
-
-
-@dataclass
-class Abono:
-    """Un pago (total o parcial) de un fiado. Si es en efectivo, entra al arqueo
-    del turno en el que se cobró (RF-17)."""
-
-    id: int | None
-    fiado_id: int
-    turno_id: int
-    usuario_id: int
-    registrado_por: str
-    codigo_metodo: str
-    es_efectivo: bool
-    monto: Decimal
-    metodo_pago_id: int | None = None
-    created_at: datetime | None = None
 
 
 @dataclass

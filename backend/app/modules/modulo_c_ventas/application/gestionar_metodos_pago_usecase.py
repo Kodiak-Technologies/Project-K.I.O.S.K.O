@@ -1,7 +1,7 @@
 # Caso de uso: gestionar el catálogo de métodos de pago (RF-20).
 # El ADMIN puede agregar métodos nuevos (ej. una nueva billetera) o desactivar
-# alguno sin tocar código; EFECTIVO y FIADO no se pueden desactivar porque la
-# caja (RF-17) y el fiado (RF-28) dependen de ellos.
+# alguno sin tocar código; EFECTIVO no se puede desactivar porque la caja
+# (RF-17) depende de él.
 from app.modules.modulo_a_seguridad.application.registrar_auditoria_usecase import (
     RegistrarAuditoriaUseCase,
 )
@@ -9,10 +9,10 @@ from app.modules.modulo_c_ventas.domain.entities import MetodoPago
 from app.modules.modulo_c_ventas.domain.ports.metodo_pago_repository_port import (
     MetodoPagoRepositoryPort,
 )
-from app.modules.modulo_c_ventas.domain.value_objects import METODO_EFECTIVO, METODO_FIADO
+from app.modules.modulo_c_ventas.domain.value_objects import METODO_EFECTIVO
 from app.shared.kernel.exceptions import ConflictoError, NoEncontradoError, ValidacionError
 
-PROTEGIDOS = {METODO_EFECTIVO, METODO_FIADO}
+PROTEGIDOS = {METODO_EFECTIVO}
 
 
 class GestionarMetodosPagoUseCase:

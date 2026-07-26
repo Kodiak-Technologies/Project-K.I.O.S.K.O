@@ -5,11 +5,11 @@ import type { LucideIcon } from "lucide-react";
 import {
   Bell,
   ClipboardCheck,
-  HandCoins,
   History,
   Home,
   Package,
   PackagePlus,
+  PackageX,
   Receipt,
   ScrollText,
   Settings,
@@ -44,7 +44,6 @@ const GRUPOS: Grupo[] = [
     enlaces: [
       { a: "/pos", texto: "Punto de venta", icono: ShoppingCart },
       { a: "/caja", texto: "Caja", icono: Wallet },
-      { a: "/fiados", texto: "Fiados", icono: HandCoins },
       { a: "/historial-ventas", texto: "Historial", icono: History },
     ],
   },
@@ -55,6 +54,10 @@ const GRUPOS: Grupo[] = [
       { a: "/productos", texto: "Productos", icono: PackagePlus, soloAdmin: true },
       { a: "/ingresos", texto: "Ingresos", icono: Truck },
       { a: "/aprobaciones", texto: "Aprobaciones", icono: ClipboardCheck, soloAdmin: true },
+      { a: "/mermas", texto: "Mermas", icono: PackageX },
+      { a: "/mermas/aprobacion", texto: "Aprobar mermas", icono: ClipboardCheck, soloAdmin: true },
+      { a: "/proveedores", texto: "Proveedores", icono: Users, soloAdmin: true },
+      { a: "/movimientos", texto: "Movimientos", icono: History },
     ],
   },
   {

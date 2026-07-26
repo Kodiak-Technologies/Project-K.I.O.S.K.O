@@ -13,42 +13,60 @@ import {
   ModuloPendiente,
   PageHeader,
   PageSpinner,
-  Select,
   Table,
   type Columna,
 } from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
-import { useCategorias } from "../hooks/useCategorias";
+import { PaginacionControles } from "../components/PaginacionControles";
+import { SelectorCategoria } from "../components/SelectorCategoria";
+import { SubirImagen } from "../components/SubirImagen";
 import { useProductos } from "../hooks/useProductos";
-import type { Producto } from "../types";
+import type { EdicionProducto, NuevoProducto, Producto } from "../types";
 
+// Formulario simplificado: un solo precio de venta y código siempre manual.
+// El backend sigue recibiendo `precio_compra_actual=0` y `es_codigo_interno=false`
+// por compatibilidad, pero no se exponen al usuario.
 const esquemaProducto = z.object({
-  codigo: z.string().min(1, "Ingresa el código (o escanea el de barras)"),
   nombre: z.string().min(1, "Ingresa el nombre del producto"),
-  precio: z.number().positive("El precio debe ser mayor a 0"),
+  codigo: z.string().min(1, "Escaneá o escribí un código"),
+  precio_venta: z.number().positive("El precio de venta debe ser mayor a 0"),
   stock_minimo: z.number().int().min(0, "El stock mínimo no puede ser negativo"),
+  stock_inicial: z.number().int().min(0).optional(),
+  categoria_id: z.number().nullable().optional(),
+  foto_url: z.string().nullable().optional(),
 });
 
-const FORMULARIO_VACIO = {
+interface FormProducto {
+  codigo: string;
+  nombre: string;
+  categoria_id: number | null;
+  precio_venta: number;
+  stock_minimo: number;
+  stock_inicial: number;
+  foto_url: string | null;
+}
+
+const FORMULARIO_VACIO: FormProducto = {
   codigo: "",
   nombre: "",
-  categoria_id: null as number | null,
-  precio: 0,
+  categoria_id: null,
+  precio_venta: 0,
   stock_minimo: 0,
   stock_inicial: 0,
+  foto_url: null,
 };
 
 export default function GestionProductos() {
-  const { productos, cargando, error, noDisponible, crear, actualizar } = useProductos();
-  const { categorias, crear: crearCategoria } = useCategorias();
-
+  const { productos, paginados, cargando, error, noDisponible, recargar, crear, actualizar } =
+    useProductos();
   const [editando, setEditando] = useState<Producto | null>(null);
   const [modalAbierto, setModalAbierto] = useState(false);
-  const [formulario, setFormulario] = useState(FORMULARIO_VACIO);
-  const [nuevaCategoria, setNuevaCategoria] = useState("");
+  const [formulario, setFormulario] = useState<FormProducto>(FORMULARIO_VACIO);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   function abrirCrear() {
     setEditando(null);
@@ -63,9 +81,10 @@ export default function GestionProductos() {
       codigo: p.codigo,
       nombre: p.nombre,
       categoria_id: p.categoria_id,
-      precio: p.precio,
+      precio_venta: p.precio_venta ?? p.precio,
       stock_minimo: p.stock_minimo,
       stock_inicial: 0,
+      foto_url: p.foto_url,
     });
     setErrorAccion(null);
     setModalAbierto(true);
@@ -82,11 +101,29 @@ export default function GestionProductos() {
     setErrorAccion(null);
     try {
       if (editando) {
-        const { stock_inicial: _sinStock, ...cambios } = formulario;
+        // El backend NO acepta precios en PATCH /productos/{id} (van por /precio).
+        const cambios: EdicionProducto = {
+          nombre: formulario.nombre.trim(),
+          codigo: formulario.codigo.trim(),
+          categoria_id: formulario.categoria_id,
+          stock_minimo: formulario.stock_minimo,
+          foto_url: formulario.foto_url,
+        };
         await actualizar(editando.id, cambios);
         setMensaje(`Producto '${formulario.nombre}' actualizado.`);
       } else {
-        await crear(formulario);
+        const nuevo: NuevoProducto = {
+          nombre: formulario.nombre.trim(),
+          codigo: formulario.codigo.trim(),
+          categoria_id: formulario.categoria_id,
+          precio_venta: formulario.precio_venta,
+          precio_compra_actual: 0,
+          stock_minimo: formulario.stock_minimo,
+          stock_inicial: formulario.stock_inicial,
+          es_codigo_interno: false,
+          foto_url: formulario.foto_url,
+        };
+        await crear(nuevo);
         setMensaje(`Producto '${formulario.nombre}' creado.`);
       }
       setModalAbierto(false);
@@ -97,14 +134,15 @@ export default function GestionProductos() {
     }
   }
 
-  async function manejarNuevaCategoria() {
-    if (!nuevaCategoria.trim()) return;
-    try {
-      await crearCategoria(nuevaCategoria.trim());
-      setNuevaCategoria("");
-    } catch (e) {
-      setErrorAccion(mensajeDeError(e));
-    }
+  function manejarCambioPage(nueva: number) {
+    setPage(nueva);
+    void recargar({ page: nueva, page_size: pageSize });
+  }
+
+  function manejarCambioPageSize(nueva: number) {
+    setPageSize(nueva);
+    setPage(1);
+    void recargar({ page: 1, page_size: nueva });
   }
 
   if (noDisponible) {
@@ -121,13 +159,34 @@ export default function GestionProductos() {
   if (error) return <Alert tono="peligro">{error}</Alert>;
 
   const columnas: Columna<Producto>[] = [
+    {
+      titulo: "Foto",
+      render: (p) =>
+        p.foto_url ? (
+          <img src={p.foto_url} alt={p.nombre} className="h-8 w-8 rounded object-cover" />
+        ) : (
+          <div className="h-8 w-8 rounded bg-zinc-100" aria-hidden />
+        ),
+    },
     { titulo: "Código", render: (p) => <span className="font-mono text-xs text-zinc-500">{p.codigo}</span> },
     { titulo: "Producto", render: (p) => <span className="font-medium text-zinc-800">{p.nombre}</span> },
-    { titulo: "Categoría", soloEscritorio: true, render: (p) => p.categoria ?? "—" },
+    { titulo: "Categoría", soloEscritorio: true, render: (p) => p.categoria_nombre ?? "—" },
     {
-      titulo: "Precio",
+      titulo: "Precio venta",
       alinear: "derecha",
-      render: (p) => <span className="tabular-nums">S/ {p.precio.toFixed(2)}</span>,
+      render: (p) => <span className="tabular-nums">S/ {(p.precio_venta ?? p.precio).toFixed(2)}</span>,
+    },
+    {
+      titulo: "Precio compra",
+      alinear: "derecha",
+      soloEscritorio: true,
+      render: (p) => <span className="tabular-nums">S/ {p.precio_compra_actual.toFixed(2)}</span>,
+    },
+    {
+      titulo: "Stock",
+      alinear: "derecha",
+      soloEscritorio: true,
+      render: (p) => <span className="tabular-nums">{p.stock}</span>,
     },
     {
       titulo: "Estado",
@@ -189,6 +248,14 @@ export default function GestionProductos() {
             />
           }
         />
+        <PaginacionControles
+          paginados={paginados}
+          page={page}
+          pageSize={pageSize}
+          onCambiarPage={manejarCambioPage}
+          onCambiarPageSize={manejarCambioPageSize}
+          etiqueta="productos"
+        />
       </Card>
 
       <Modal
@@ -198,8 +265,6 @@ export default function GestionProductos() {
       >
         <form onSubmit={(e) => void manejarGuardar(e)} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            {/* autoFocus: el lector de barras/QR emula un teclado — con el cursor
-                acá, escanear el producto llena el código solo. */}
             <Input
               label="Código (escanéalo o escríbelo)"
               requerido
@@ -221,8 +286,9 @@ export default function GestionProductos() {
               type="number"
               step="0.10"
               min={0}
-              value={formulario.precio || ""}
-              onChange={(e) => setFormulario({ ...formulario, precio: Number(e.target.value) })}
+              disabled={!!editando}
+              value={formulario.precio_venta || ""}
+              onChange={(e) => setFormulario({ ...formulario, precio_venta: Number(e.target.value) })}
             />
             <Input
               label="Stock mínimo (alerta)"
@@ -241,31 +307,22 @@ export default function GestionProductos() {
               />
             )}
           </div>
-          <Select
-            label="Categoría"
-            value={formulario.categoria_id ?? ""}
-            onChange={(e) =>
-              setFormulario({ ...formulario, categoria_id: e.target.value ? Number(e.target.value) : null })
-            }
-          >
-            <option value="">Sin categoría</option>
-            {categorias.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </Select>
-          <div className="flex items-end gap-2">
-            <Input
-              label="Nueva categoría"
-              placeholder="ej. Abarrotes"
-              value={nuevaCategoria}
-              onChange={(e) => setNuevaCategoria(e.target.value)}
-            />
-            <Button type="button" variante="secundario" onClick={() => void manejarNuevaCategoria()}>
-              Agregar
-            </Button>
-          </div>
+          {editando && (
+            <p className="text-xs text-zinc-500">
+              Para cambiar precios usá la acción "Cambiar precio" (próxima PR).
+            </p>
+          )}
+          <SelectorCategoria
+            value={formulario.categoria_id}
+            onChange={(id) => setFormulario({ ...formulario, categoria_id: id })}
+          />
+          <SubirImagen
+            carpeta="productos"
+            label="Foto del producto (opcional)"
+            ayuda="JPG o PNG. Se muestra en el POS."
+            value={formulario.foto_url}
+            onChange={(url) => setFormulario({ ...formulario, foto_url: url })}
+          />
           {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
           <div className="flex justify-end gap-2">
             <Button type="button" variante="secundario" onClick={() => setModalAbierto(false)}>

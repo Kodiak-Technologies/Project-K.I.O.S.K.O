@@ -119,11 +119,10 @@ async def movimientos(
     usuario: Usuario = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """El RASTRO del turno (HU-C08): ventas, anulaciones/devoluciones y abonos
-    de fiado con quién/cuándo/motivo. Es el modal del panel de la administradora."""
-    ventas, reversos, abonos = await contenedor.consultar_caja_usecase(db).movimientos(turno_id)
+    """El RASTRO del turno (HU-C08): ventas y anulaciones/devoluciones con
+    quién/cuándo/motivo. Es el modal del panel de la administradora."""
+    ventas, reversos = await contenedor.consultar_caja_usecase(db).movimientos(turno_id)
     return MovimientosTurnoResponse(
         ventas=[VentaResponse.desde_entidad(v) for v in ventas],
         reversos=[AnulacionResponse.desde_entidad(r) for r in reversos],
-        abonos=abonos,
     )

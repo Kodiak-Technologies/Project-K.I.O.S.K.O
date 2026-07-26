@@ -83,3 +83,17 @@ export function mensajeDeError(error: unknown): string {
   }
   return "Ocurrió un error inesperado. Intenta de nuevo.";
 }
+
+/**
+ * sdd/modulo-b-aprobaciones-detalle-editar: extrae el `code` estructurado
+ * que el backend ahora adjunta a sus respuestas de error
+ * (NFR-5: `{ "detail": "...", "code": "..." }`).
+ * Devuelve `undefined` si el error no tiene `code` (backward compat).
+ */
+export function codigoDeError(error: unknown): string | undefined {
+  if (axios.isAxiosError(error)) {
+    const code = (error.response?.data as { code?: unknown })?.code;
+    if (typeof code === "string") return code;
+  }
+  return undefined;
+}
