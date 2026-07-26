@@ -1,5 +1,5 @@
 // Selector de producto con búsqueda por código o nombre (debounce 300ms).
-// Reutilizado en: IngresosMercaderia, Mermas, AprobacionMermas, MovimientosInventario.
+// Reutilizado en: IngresosMercaderia, MovimientosInventario y Catálogo.
 import { useEffect, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
 import { Select } from "../../../shared/components/ui";

@@ -11,31 +11,44 @@ from app.shared.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Orden de tablas respetando foreign keys
+# Orden de tablas respetando foreign keys.
+#
+# OJO al tocar esta lista: `tablas_a_volcar` filtra por las que existen en la
+# BD, así que una tabla que falte acá NO se respalda y NO avisa. Se había
+# quedado vieja y dejaba afuera todo el lado de proveedores/ingresos del
+# Módulo B (7 tablas), además de listar 3 tablas del fiado ya eliminadas.
+# Debe coincidir con `db/schema.sql`.
 TABLAS_ORDEN = [
+    # Módulo A — seguridad
     "roles",
     "permisos",
     "rol_permisos",
     "usuarios",
     "sesiones",
-    "configuracion_negocio",
     "bitacora_auditoria",
+    "configuracion_negocio",
+    # Módulo B — inventario
     "categorias",
+    "proveedores",
     "productos",
+    "solicitudes_ingreso",
+    "detalle_solicitud",
+    "pagos_proveedor",
+    "movimientos_inventario",
+    "historial_precios",
+    # Módulo C — ventas y caja
+    "metodos_pago",
     "turnos_caja",
     "arqueos",
-    "clientes",
     "ventas",
     "detalles_venta",
-    "metodos_pago",
     "pagos_venta",
-    "fiados",
-    "abonos",
     "anulaciones",
+    # Módulo D — documentos
     "notificaciones",
     "config_notificaciones",
-    "oauth_tokens",
     "respaldos",
+    "oauth_tokens",
 ]
 
 

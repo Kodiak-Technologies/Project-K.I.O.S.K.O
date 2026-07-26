@@ -107,7 +107,13 @@ export default function Catalogo() {
     ajustarStock,
     eliminar,
   } = useProductos();
-  const { categorias } = useCategorias();
+  const { categorias, crear: crearCategoria } = useCategorias();
+
+  // Alta de categoría: hasta ahora sólo se podían crear por BD. El único
+  // componente que las creaba (`SelectorCategoria`) quedó huérfano cuando esta
+  // página reemplazó a GestionProductos.
+  const [nuevaCategoria, setNuevaCategoria] = useState<string | null>(null);
+  const [creandoCategoria, setCreandoCategoria] = useState(false);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -242,6 +248,22 @@ export default function Catalogo() {
       setErrorAccion(mensajeDeError(e));
     } finally {
       setProcesando(false);
+    }
+  }
+
+  async function guardarCategoria() {
+    const nombre = (nuevaCategoria ?? "").trim();
+    if (!nombre) return;
+    setCreandoCategoria(true);
+    setErrorAccion(null);
+    try {
+      await crearCategoria({ nombre });
+      setMensaje(`Categoría '${nombre}' creada.`);
+      setNuevaCategoria(null);
+    } catch (e) {
+      setErrorAccion(mensajeDeError(e));
+    } finally {
+      setCreandoCategoria(false);
     }
   }
 
@@ -507,15 +529,65 @@ export default function Catalogo() {
         titulo="Catálogo"
         descripcion="Se edita como una planilla: tocá el lápiz para modificar una fila."
         acciones={
-          <Button
-            onClick={empezarAlta}
-            disabled={editandoId !== null}
-            icono={<Plus className="h-4 w-4" aria-hidden />}
-          >
-            Nuevo producto
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variante="secundario"
+              onClick={() => setNuevaCategoria("")}
+              disabled={nuevaCategoria !== null}
+              icono={<Plus className="h-4 w-4" aria-hidden />}
+            >
+              Nueva categoría
+            </Button>
+            <Button
+              onClick={empezarAlta}
+              disabled={editandoId !== null}
+              icono={<Plus className="h-4 w-4" aria-hidden />}
+            >
+              Nuevo producto
+            </Button>
+          </div>
         }
       />
+
+      {/* Alta de categoría en línea: mismo criterio que el resto de la página
+          (se edita en el lugar, sin modales). Enter guarda, Escape descarta. */}
+      {nuevaCategoria !== null && (
+        <Card className="mb-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-56 flex-1">
+              <Input
+                label="Nueva categoría"
+                placeholder="ej. Abarrotes"
+                value={nuevaCategoria}
+                autoFocus
+                maxLength={80}
+                onChange={(e) => setNuevaCategoria(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void guardarCategoria();
+                  }
+                  if (e.key === "Escape") setNuevaCategoria(null);
+                }}
+              />
+            </div>
+            <Button
+              onClick={() => void guardarCategoria()}
+              cargando={creandoCategoria}
+              disabled={!nuevaCategoria.trim()}
+            >
+              Guardar
+            </Button>
+            <Button
+              variante="secundario"
+              onClick={() => setNuevaCategoria(null)}
+              disabled={creandoCategoria}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {mensaje && (
         <div className="mb-4">

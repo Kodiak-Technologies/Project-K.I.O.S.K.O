@@ -29,13 +29,12 @@ class ListarMovimientosInventarioUseCase:
             raise ValidacionError("page_size debe estar entre 1 y 100.")
         if tipo is not None and tipo not in (
             "ingreso",
-            "merma",
             "ajuste",
             "venta",
             "devolucion",
         ):
             raise ValidacionError(
-                "tipo debe ser uno de: ingreso, merma, ajuste, venta, devolucion."
+                "tipo debe ser uno de: ingreso, ajuste, venta, devolucion."
             )
         items, total = await self._movimientos.listar_paginado(
             producto_id=producto_id,

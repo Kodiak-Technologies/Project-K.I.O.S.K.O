@@ -871,3 +871,101 @@ preexistente y ajeno a la paginación.
 > tabla es inmutable por trigger y no admite `DELETE`. Quedan ahí, marcadas y
 > filtrables. Las pruebas siguientes se hicieron dentro de transacciones que se
 > revierten, que es como debió hacerse desde el principio.
+
+---
+
+## 17. Anexo — esquema definitivo de la BD (12ª pasada)
+
+Se revisó el modelo E-R contra el código y se generó `db/schema.sql`, el
+esquema **definitivo y único**, pensado para recrear la base desde cero.
+
+### 17.1 El bug que apareció revisando: el respaldo dejaba 7 tablas afuera
+
+`crear_respaldo_usecase.py` tenía una lista fija `TABLAS_ORDEN` que se había
+quedado vieja. Como `tablas_a_volcar` la filtra por las tablas que existen, no
+fallaba: **omitía en silencio**.
+
+No se estaban respaldando `proveedores`, `solicitudes_ingreso`,
+`detalle_solicitud`, `pagos_proveedor`, `movimientos_inventario`,
+`historial_precios` ni `mermas` — todo el lado de proveedores, ingresos y
+movimientos de inventario. Y además listaba `clientes`, `fiados` y `abonos`,
+que ya no existen. Corregido y anotado en el propio archivo.
+
+### 17.2 Estado real: la BD no estaba tan sucia
+
+Las 28 tablas de Supabase coinciden **exactamente** con los modelos: no hay
+tablas huérfanas ni columnas que el código espere y no existan. La única
+columna sin mapear era `productos.foto_url`.
+
+Lo que sí sobraba: **`mermas`** (22 columnas, 6 FKs, 4 índices) sin ningún
+código que la usara, y **5 permisos huérfanos** (`mermas.registrar`,
+`mermas.confirmar` y los tres del fiado).
+
+### 17.3 Qué se eliminó
+
+* Tabla `mermas`, `movimientos_inventario.merma_id` y el tipo de movimiento
+  `'merma'`. Con ellos se fueron `MermaModel`, la factory muerta
+  `MovimientoInventario.merma()`, el VO `TipoMovimiento.MERMA`, el filtro del
+  frontend y los campos de los schemas. El reemplazo sigue siendo el ajuste
+  manual de stock, que ahora tiene su propio CHECK: `chk_mov_ajuste_tiene_motivo`
+  (un ajuste sin motivo no entra: es la única trazabilidad del faltante).
+* `productos.foto_url` y los 5 permisos huérfanos.
+* Los 4 `db/schema_modulo_*.sql` y `limpieza_ventas_fiado.sql`, reemplazados
+  por `db/schema.sql`.
+
+### 17.4 Mejoras de estructura aplicadas
+
+| # | Problema | Corrección |
+|---|---|---|
+| 1 | `productos.codigo` y `categorias.nombre` eran únicos **globales**: un registro dado de baja quemaba su código para siempre (41 de 183 productos borrados) | Índice único **parcial** `WHERE deleted_at IS NULL`, mismo criterio que `proveedores.ruc` |
+| 2 | `productos.creado_por`, `actualizado_por`, `categorias.creado_por`, todos los `deleted_by` y `notificaciones.producto_id` eran enteros sueltos, sin FK | FK a `usuarios`/`productos`, unificando el criterio con las que sí la tenían |
+| 3 | Índices duplicados: `ix_productos_codigo` + `productos_codigo_key`, e igual en `usuarios.username` y `proveedores.ruc` | Se deja solo el del UNIQUE |
+| 4 | Los índices no acompañaban al `ORDER BY (created_at DESC, id DESC)` de la paginación por cursor | Compuestos en bitácora, movimientos, solicitudes, historial, notificaciones y respaldos. Además `detalles_venta(producto_id)`, que faltaba y lo usan los reportes |
+
+### 17.5 Reportes: "más vendidos" agrupaba por nombre
+
+Salió mientras se evaluaba el punto 1: `generar_reporte_mas_vendidos_usecase`
+agrupaba por el **nombre** del producto, así que dos productos distintos que se
+llamaran igual se sumaban como uno solo. Ahora agrupa por `producto_id` y el
+nombre se usa sólo para mostrar — tomando el de la venta más reciente
+(comparando por id de venta, sin depender del orden en que lleguen).
+
+### 17.6 Alembic
+
+Las 20 migraciones se colapsaron en `0001_esquema_inicial`, que ejecuta
+`db/schema.sql`. Se terminan de raíz los dos *heads*, la revisión huérfana
+`0013_modulo_d_respaldo_drive` (aplicada en la BD compartida pero inexistente
+en la rama) y las migraciones que hacían `ALTER` sobre tablas que ninguna
+creaba. `alembic heads` → **una sola cabeza**.
+
+`scripts/aplicar_schema.py` ahora aplica `db/schema.sql` y **aborta si la base
+ya tiene tablas**, salvo que se pase `--reset`.
+
+### Verificación
+
+El script se ejecutó completo contra Postgres real en un esquema temporal que
+se revierte (la BD quedó intacta), comprobando:
+
+* **26 tablas creadas == 26 modelos** SQLAlchemy, y columna por columna.
+* Seed cargado: 2 roles, 25 permisos, admin, 5 métodos de pago y las 2 filas
+  de configuración.
+* Los **25 permisos que el código exige** (`require_permission`) están todos, y
+  ADMIN los tiene todos.
+* El seed coincide **exactamente** con `scripts/seed.py`, permiso por permiso,
+  incluidos los 9 del CAJERO.
+* `admin` / `admin123` valida contra el hasher de la aplicación y entra con
+  `debe_cambiar_password = TRUE`.
+
+> **Se detectó a tiempo**: el hash bcrypt del admin se había escrito de memoria
+> y era **inválido** — habría dejado el sistema sin acceso. Se reemplazó por uno
+> generado y verificado contra `BcryptPasswordHasher`.
+
+### 17.7 Cómo recrear la base
+
+```bash
+# Opción A — script directo (borra todo y recrea)
+python -m scripts.aplicar_schema --reset
+
+# Opción B — alembic (equivalente: la migración inicial ejecuta el mismo SQL)
+alembic upgrade head
+```

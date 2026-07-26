@@ -673,7 +673,6 @@ class MovimientoInventarioResponse(BaseModel):
     tipo: str
     motivo: str | None
     solicitud_ingreso_id: int | None
-    merma_id: int | None
     registrado_por_nombre: str
     created_at: datetime | None
 

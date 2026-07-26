@@ -59,7 +59,6 @@ async def listar(
                 tipo=str(m.tipo),
                 motivo=m.motivo,
                 solicitud_ingreso_id=m.solicitud_ingreso_id,
-                merma_id=m.merma_id,
                 registrado_por_nombre=m.registrado_por_nombre,
                 created_at=m.created_at,
             )

@@ -226,74 +226,6 @@ class DetalleSolicitudModel(Base):
     )
 
 
-class MermaModel(Base, SoftDeleteMixin):
-    """Tabla HISTÓRICA de mermas. Sin lógica activa desde 2026-07-25.
-
-    El flujo de mermas se reemplazó por el ajuste manual de stock del catálogo
-    (`POST /productos/{id}/ajustar-stock`). El modelo se conserva porque:
-      - `movimientos_inventario.merma_id` la referencia con FK,
-      - las mermas ya registradas son parte del histórico contable.
-    NO hay endpoints, casos de uso ni repositorio que la usen.
-    """
-
-    __tablename__ = "mermas"
-    __table_args__ = (
-        CheckConstraint("cantidad > 0", name="chk_mermas_cantidad_positiva"),
-        CheckConstraint(
-            "motivo IN ('vencimiento','rotura','otro')", name="chk_mermas_motivo"
-        ),
-        CheckConstraint(
-            "estado IN ('Registrada','Confirmada','Rechazada')",
-            name="chk_mermas_estado",
-        ),
-        Index("idx_mermas_producto_fecha", "producto_id", "created_at"),
-        Index("idx_mermas_motivo", "motivo"),
-        Index("idx_mermas_estado", "estado", "created_at"),
-        # sdd/modulo-b-aprobaciones-detalle-editar
-        Index(
-            "idx_mermas_editado_en",
-            "editado_en",
-            postgresql_where=sa.text("editado_en IS NOT NULL AND deleted_at IS NULL"),
-        ),
-    )
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    producto_id: Mapped[int] = mapped_column(
-        ForeignKey("productos.id", ondelete="RESTRICT"), nullable=False
-    )
-    cantidad: Mapped[int] = mapped_column(Integer, nullable=False)
-    motivo: Mapped[str] = mapped_column(String(30), nullable=False)
-    observacion: Mapped[str | None] = mapped_column(Text)
-    proveedor_id: Mapped[int | None] = mapped_column(
-        ForeignKey("proveedores.id", ondelete="RESTRICT")
-    )
-    estado: Mapped[str] = mapped_column(String(20), default="Registrada", nullable=False)
-    motivo_rechazo: Mapped[str | None] = mapped_column(Text)
-    registrado_por: Mapped[int] = mapped_column(
-        ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False
-    )
-    registrado_por_nombre: Mapped[str] = mapped_column(String(100), nullable=False)
-    confirmado_por: Mapped[int | None] = mapped_column(
-        ForeignKey("usuarios.id", ondelete="RESTRICT")
-    )
-    confirmado_por_nombre: Mapped[str | None] = mapped_column(String(100))
-    confirmado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    rechazado_por: Mapped[int | None] = mapped_column(
-        ForeignKey("usuarios.id", ondelete="RESTRICT")
-    )
-    rechazado_por_nombre: Mapped[str | None] = mapped_column(String(100))
-    rechazado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # sdd/modulo-b-aprobaciones-detalle-editar: edit audit triple.
-    editado_por: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("usuarios.id", ondelete="SET NULL")
-    )
-    editado_por_nombre: Mapped[str | None] = mapped_column(String(100))
-    editado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
 class PagoProveedorModel(Base, SoftDeleteMixin):
     """Historial de pagos/compras a crédito (D-12, D-15). Append-only por convención."""
 
@@ -338,12 +270,12 @@ class MovimientoInventarioModel(Base):
     __table_args__ = (
         CheckConstraint("cantidad <> 0", name="chk_mov_cantidad_no_cero"),
         CheckConstraint(
-            "tipo IN ('ingreso','merma','ajuste','venta','devolucion')",
+            "tipo IN ('ingreso','ajuste','venta','devolucion')",
             name="chk_mov_tipo",
         ),
         CheckConstraint(
             "(tipo IN ('ingreso','devolucion') AND cantidad > 0) OR "
-            "(tipo IN ('merma','venta') AND cantidad < 0) OR "
+            "(tipo = 'venta' AND cantidad < 0) OR "
             "(tipo = 'ajuste')",
             name="chk_mov_signo_por_tipo",
         ),
@@ -351,15 +283,16 @@ class MovimientoInventarioModel(Base):
             "tipo <> 'ingreso' OR solicitud_ingreso_id IS NOT NULL",
             name="chk_mov_ingreso_tiene_solicitud",
         ),
+        # El ajuste manual (reemplazo del flujo de mermas) siempre lleva
+        # motivo: es la única trazabilidad del faltante.
         CheckConstraint(
-            "tipo <> 'merma' OR (merma_id IS NOT NULL AND motivo IS NOT NULL "
-            "AND length(trim(motivo)) > 0)",
-            name="chk_mov_merma_tiene_merma",
+            "tipo <> 'ajuste' OR (motivo IS NOT NULL AND length(trim(motivo)) > 0)",
+            name="chk_mov_ajuste_tiene_motivo",
         ),
         Index("idx_mov_producto_fecha", "producto_id", "created_at"),
         Index("idx_mov_tipo", "tipo"),
         Index("idx_mov_solicitud", "solicitud_ingreso_id"),
-        Index("idx_mov_merma", "merma_id"),
+        Index("idx_mov_created_at_id", "created_at", "id"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -371,9 +304,6 @@ class MovimientoInventarioModel(Base):
     motivo: Mapped[str | None] = mapped_column(String(200))
     solicitud_ingreso_id: Mapped[int | None] = mapped_column(
         ForeignKey("solicitudes_ingreso.id", ondelete="RESTRICT")
-    )
-    merma_id: Mapped[int | None] = mapped_column(
-        ForeignKey("mermas.id", ondelete="RESTRICT")
     )
     registrado_por: Mapped[int] = mapped_column(
         ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False
