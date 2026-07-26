@@ -52,4 +52,7 @@ export interface Respaldo {
   estado: EstadoRespaldo;
   generado_en: string | null;
   expira_en: string | null;
+  usuario_id: number | null;
+  usuario_nombre: string | null;
+  drive_file_id: string | null;
 }

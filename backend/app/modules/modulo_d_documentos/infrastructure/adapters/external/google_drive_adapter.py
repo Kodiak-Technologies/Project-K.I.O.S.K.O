@@ -1,5 +1,6 @@
 import asyncio
 import io
+import mimetypes
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
@@ -7,7 +8,7 @@ import httpx
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
 from app.modules.modulo_d_documentos.domain.entities import OAuthToken
 from app.modules.modulo_d_documentos.domain.ports.drive_storage_port import DriveStoragePort
@@ -101,15 +102,21 @@ class GoogleDriveAdapter(DriveStoragePort):
 
         return creds
 
+    def _inferir_mimetype(self, nombre: str) -> str:
+        mimetype, _ = mimetypes.guess_type(nombre)
+        return mimetype or "application/octet-stream"
+
     async def subir(self, archivo_bytes: bytes, nombre: str, carpeta: str) -> str:
         creds = await self._obtener_credenciales()
         service = await asyncio.to_thread(build, "drive", "v3", credentials=creds)
 
         folder_id = await self._asegurar_carpeta(service, carpeta)
 
+        mimetype = self._inferir_mimetype(nombre)
+
         media = MediaIoBaseUpload(
             io.BytesIO(archivo_bytes),
-            mimetype="image/png",
+            mimetype=mimetype,
             resumable=True,
         )
 
@@ -126,6 +133,28 @@ class GoogleDriveAdapter(DriveStoragePort):
 
         return file["id"]
 
+    async def descargar(self, file_id: str) -> bytes:
+        creds = await self._obtener_credenciales()
+        service = await asyncio.to_thread(build, "drive", "v3", credentials=creds)
+
+        request = service.files().get_media(fileId=file_id)
+        buffer = io.BytesIO()
+        downloader = MediaIoBaseDownload(buffer, request)
+
+        done = False
+        while not done:
+            _, done = await asyncio.to_thread(downloader.next_chunk)
+
+        return buffer.getvalue()
+
+    async def eliminar(self, file_id: str) -> None:
+        creds = await self._obtener_credenciales()
+        service = await asyncio.to_thread(build, "drive", "v3", credentials=creds)
+
+        await asyncio.to_thread(
+            service.files().delete(fileId=file_id).execute
+        )
+
     async def obtener_url(self, file_id: str) -> str:
         creds = await self._obtener_credenciales()
         service = await asyncio.to_thread(build, "drive", "v3", credentials=creds)
@@ -140,7 +169,7 @@ class GoogleDriveAdapter(DriveStoragePort):
 
     async def _asegurar_carpeta(self, service, carpeta: str) -> str:
         partes = carpeta.split("/")
-        parent_id = self.folder_id
+        parent_id = self.folder_id if self.folder_id else "root"
 
         for parte in partes:
             query = (

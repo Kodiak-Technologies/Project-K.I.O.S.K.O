@@ -5,5 +5,6 @@ export { Badge, type Tono } from "./Badge";
 export { Card } from "./Card";
 export { Input, Select } from "./Field";
 export { Table, type Columna } from "./Table";
+export { Pagination } from "./Pagination";
 export { Modal } from "./Modal";
 export { Alert, EmptyState, ModuloPendiente, PageSpinner, PageHeader } from "./Feedback";

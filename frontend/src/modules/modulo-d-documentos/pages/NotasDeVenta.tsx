@@ -1,6 +1,6 @@
 // Página de consulta/descarga de notas de venta.
-import { useState } from "react";
-import { Download, FileText, Upload, X } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Download, FileText, X } from "lucide-react";
 import {
   Alert,
   Button,
@@ -10,6 +10,7 @@ import {
   ModuloPendiente,
   PageHeader,
   PageSpinner,
+  Pagination,
   Table,
   type Columna,
 } from "../../../shared/components/ui";
@@ -17,19 +18,31 @@ import { useNotasVenta } from "../hooks/useNotasVenta";
 import { notasVentaHttpAdapter } from "../services/notasVenta.http-adapter";
 import type { NotaVenta } from "../types";
 
+const POR_PAGINA = 20;
+
 export default function NotasDeVenta() {
   const { notas, cargando, error, noDisponible, recargar } = useNotasVenta();
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [descargandoId, setDescargandoId] = useState<number | null>(null);
   const [descargandoBatch, setDescargandoBatch] = useState(false);
-  const [subiendoBatch, setSubiendoBatch] = useState(false);
+  const [paginaActual, setPaginaActual] = useState(1);
 
-  const filtrar = () => void recargar(desde || undefined, hasta || undefined);
+  const totalPaginas = Math.max(1, Math.ceil(notas.length / POR_PAGINA));
+  const notasPagina = useMemo(
+    () => notas.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA),
+    [notas, paginaActual]
+  );
+
+  const filtrar = () => {
+    setPaginaActual(1);
+    void recargar(desde || undefined, hasta || undefined);
+  };
 
   const limpiarFiltros = () => {
     setDesde("");
     setHasta("");
+    setPaginaActual(1);
     void recargar();
   };
 
@@ -73,17 +86,6 @@ export default function NotasDeVenta() {
     } catch {
     } finally {
       setDescargandoBatch(false);
-    }
-  };
-
-  const subirDriveBatch = async () => {
-    setSubiendoBatch(true);
-    try {
-      await notasVentaHttpAdapter.subirDriveBatch(desde || undefined, hasta || undefined);
-      void recargar(desde || undefined, hasta || undefined);
-    } catch {
-    } finally {
-      setSubiendoBatch(false);
     }
   };
 
@@ -147,14 +149,6 @@ export default function NotasDeVenta() {
             >
               {descargandoBatch ? "Descargando…" : "Descargar ZIP"}
             </Button>
-            <Button
-              variante="primario"
-              icono={<Upload className="h-4 w-4" aria-hidden />}
-              onClick={() => void subirDriveBatch()}
-              disabled={subiendoBatch}
-            >
-              {subiendoBatch ? "Subiendo…" : "Subir a Drive"}
-            </Button>
           </div>
         }
       />
@@ -183,7 +177,7 @@ export default function NotasDeVenta() {
         <Card sinPadding>
           <Table
             columnas={columnas}
-            filas={notas}
+            filas={notasPagina}
             claveDe={(nv) => nv.venta_id}
             vacio={
               <EmptyState
@@ -193,6 +187,13 @@ export default function NotasDeVenta() {
               />
             }
           />
+          {notas.length > POR_PAGINA && (
+            <Pagination
+              actual={paginaActual}
+              total={totalPaginas}
+              onChange={setPaginaActual}
+            />
+          )}
         </Card>
       )}
     </div>

@@ -62,20 +62,7 @@ from app.shared.http.middlewares import registrar_middlewares
 
 logger = logging.getLogger(__name__)
 
-TAREA_REINTENTO_INTERVALO = 300  # 5 minutos
-TAREA_RESPALDO_INTERVALO = 86400  # 24 horas
-
-
-async def _ejecutar_tarea_reintentar() -> None:
-    from app.modules.modulo_d_documentos.infrastructure.tasks.reintentar_subidas import (
-        reintentar_subidas_pendientes,
-    )
-    while True:
-        try:
-            await reintentar_subidas_pendientes()
-        except Exception as e:
-            logger.error("Error en tarea de reintento: %s", str(e))
-        await asyncio.sleep(TAREA_REINTENTO_INTERVALO)
+TAREA_RESPALDO_INTERVALO = 604800  # 7 días (una semana)
 
 
 async def _ejecutar_tarea_respaldos() -> None:
@@ -130,18 +117,20 @@ async def _ejecutar_cierre_automatico_background() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # El yield debe ejecutarse sí o sí; nunca debe propagarse una excepción
-    # previa porque eso impediría que uvicorn termine de arrancar y deje al
-    # server "vivo pero sin aceptar conexiones".
-    # Usamos create_task para no bloquear el startup y dar margen a que el
-    # pool de conexiones se estabilice antes de pegar contra la DB.
+    # Iniciamos todas las tareas en segundo plano que provienen de ambos lados
     logger.info("Iniciando tareas en segundo plano...")
+    
     task_cierre = asyncio.create_task(_ejecutar_cierre_automatico_background())
+    
+    # Si la tarea de reintentar existe en tu proyecto, la ejecutamos aquí
     task_reintentar = asyncio.create_task(_ejecutar_tarea_reintentar())
+    
     task_respaldos = asyncio.create_task(_ejecutar_tarea_respaldos())
+
     try:
         yield
     finally:
+        # Se asegura de cancelar absolutamente todas al apagar el server
         logger.info("Deteniendo tareas en segundo plano...")
         task_cierre.cancel()
         task_reintentar.cancel()

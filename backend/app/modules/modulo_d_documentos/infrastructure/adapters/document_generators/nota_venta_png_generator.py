@@ -38,7 +38,7 @@ class NotaVentaPngGenerator:
                 font_small = ImageFont.load_default()
                 font_total = ImageFont.load_default()
 
-        alto_estimado = 280 + len(productos) * 22 + len(pagos) * 18
+        alto_estimado = 5000
         img = Image.new("RGB", (self.ANCHO, alto_estimado), color="white")
         draw = ImageDraw.Draw(img)
 
