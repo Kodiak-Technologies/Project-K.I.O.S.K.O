@@ -1,0 +1,35 @@
+# Lo que NO se copia dentro de la imagen (COPY . .).
+
+# Entornos virtuales (nunca copiar un venv de Windows a una imagen Linux)
+.venv/
+venv/
+env/
+
+# Caches de Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Git / metadata
+.git/
+.gitignore
+.dockerignore
+.gcloudignore
+
+# Secretos y config local (en prod vienen de Cloud Run / Secret Manager)
+.env
+.env.*
+!.env.example
+google-drive-credentials.json
+*-credentials.json
+
+# Tests y docs (no se necesitan en runtime)
+tests/
+README.md
+DEPLOY.md
+
+# Logs y temporales
+*.log

@@ -37,10 +37,14 @@ def registrar_middlewares(app: FastAPI) -> None:
     # (agregado al final) queda por FUERA y añade sus headers también a los 500
     # que devuelve CapturarErroresMiddleware.
     app.add_middleware(CapturarErroresMiddleware)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins_list,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    cors_kwargs = {
+        "allow_origins": settings.cors_origins_list,
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
+    # Además de la lista fija, acepta por patrón los subdominios de Vercel
+    # (cuyo hash cambia en cada deploy). Solo si hay regex configurado.
+    if settings.cors_origin_regex:
+        cors_kwargs["allow_origin_regex"] = settings.cors_origin_regex
+    app.add_middleware(CORSMiddleware, **cors_kwargs)
