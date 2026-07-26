@@ -16,7 +16,10 @@ from app.modules.modulo_a_seguridad.infrastructure.dependencies import (
 from app.modules.modulo_b_inventario import module_container as contenedor
 from app.modules.modulo_b_inventario.infrastructure.http.schemas import (
     ActualizarProductoRequest,
+    AjustarStockRequest,
+    AjusteStockResponse,
     CambiarPrecioRequest,
+    EliminarProductoRequest,
     CambiarPrecioResponse,
     CrearProductoRequest,
     HistorialPaginadosResponse,
@@ -44,12 +47,18 @@ async def listar(
     categoria_id: int | None = None,
     solo_con_stock: bool = False,
     solo_bajo_minimo: bool = False,
+    sin_stock: bool = False,
+    precio_min: float | None = None,
+    precio_max: float | None = None,
     activo: bool | None = None,
     page: int = 1,
     page_size: int = 20,
     _usuario: Usuario = Depends(require_permission("inventario.ver")),
     db: AsyncSession = Depends(get_db),
 ):
+    """Listado del catálogo. Filtros: texto (nombre/código), categoría, estado
+    de stock (`solo_con_stock`, `solo_bajo_minimo`, `sin_stock`) y rango de
+    precio (`precio_min`/`precio_max`)."""
     items, total, page, page_size, total_pages = await contenedor.listar_productos_usecase(
         db
     ).ejecutar(
@@ -57,6 +66,9 @@ async def listar(
         categoria_id=categoria_id,
         solo_con_stock=solo_con_stock,
         solo_bajo_minimo=solo_bajo_minimo,
+        sin_stock=sin_stock,
+        precio_min=Decimal(str(precio_min)) if precio_min is not None else None,
+        precio_max=Decimal(str(precio_max)) if precio_max is not None else None,
         activo=activo,
         page=page,
         page_size=page_size,
@@ -159,7 +171,6 @@ async def crear(
         stock_minimo=datos.stock_minimo,
         stock_inicial=datos.stock_inicial,
         es_codigo_interno=datos.es_codigo_interno,
-        foto_url=datos.foto_url,
         usuario_id=usuario.id,  # type: ignore[union-attr]
         usuario_nombre=usuario.nombre,
         ip=ip,
@@ -179,8 +190,8 @@ async def editar(
 ):
     # `ProductoUpdate` tiene extra="forbid": mandar precio/precio_compra_actual
     # ya devuelve 422 en la validación del body (antes se ignoraba en silencio).
-    cambios = datos.model_dump(exclude_unset=True)
     ip, user_agent = contexto_request(request)
+    cambios = datos.cambios()
     actualizado = await contenedor.editar_producto_usecase(db).ejecutar(
         producto_id=producto_id,
         cambios=cambios,
@@ -223,6 +234,65 @@ async def cambiar_precio(
         user_agent=user_agent,
     )
     return CambiarPrecioResponse.desde(producto, historial_registrado, filas)
+
+
+# =============================================================================
+# Catálogo del ADMIN: ajuste manual de stock y baja de producto
+# =============================================================================
+
+
+@router.post("/{producto_id}/ajustar-stock", response_model=AjusteStockResponse)
+async def ajustar_stock(
+    producto_id: int,
+    datos: AjustarStockRequest,
+    request: Request,
+    usuario: Usuario = Depends(require_permission("inventario.ajustar_stock")),
+    db: AsyncSession = Depends(get_db),
+    auditoria=Depends(get_auditoria),
+):
+    """Suma o descuenta stock a mano (solo ADMIN, con contraseña).
+
+    El cajero no tiene este permiso: para él el stock sube aprobando una
+    solicitud de ingreso y baja vendiendo.
+    """
+    ip, user_agent = contexto_request(request)
+    resultado = await contenedor.ajustar_stock_usecase(db).ejecutar(
+        producto_id=producto_id,
+        delta=datos.delta,
+        motivo=datos.motivo,
+        usuario_id=usuario.id,  # type: ignore[union-attr]
+        usuario_nombre=usuario.nombre,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    return AjusteStockResponse(
+        producto=ProductoResponse.desde_entidad(resultado.producto),
+        stock_anterior=resultado.stock_anterior,
+        stock_actual=resultado.stock_actual,
+        delta=resultado.delta,
+    )
+
+
+@router.delete("/{producto_id}", response_model=ProductoResponse)
+async def eliminar(
+    producto_id: int,
+    request: Request,
+    datos: EliminarProductoRequest | None = None,
+    usuario: Usuario = Depends(require_permission("registros.eliminar")),
+    db: AsyncSession = Depends(get_db),
+    auditoria=Depends(get_auditoria),
+):
+    """Baja del producto (borrado lógico; el histórico se conserva)."""
+    ip, user_agent = contexto_request(request)
+    eliminado = await contenedor.eliminar_producto_usecase(db).ejecutar(
+        producto_id=producto_id,
+        usuario_id=usuario.id,  # type: ignore[union-attr]
+        usuario_nombre=usuario.nombre,
+        motivo=datos.motivo if datos else None,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    return ProductoResponse.desde_entidad(eliminado)
 
 
 # =============================================================================

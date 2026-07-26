@@ -299,13 +299,7 @@ export default function ProveedorDetalle() {
         />
         {paginados && (
           <PaginacionControles
-            paginados={{
-              items: pagos,
-              total: paginados.total,
-              total_pages: paginados.total_pages,
-              page,
-              page_size: pageSize,
-            }}
+            paginados={{ total: paginados.total, total_pages: paginados.total_pages }}
             page={page}
             pageSize={pageSize}
             onCambiarPage={setPage}

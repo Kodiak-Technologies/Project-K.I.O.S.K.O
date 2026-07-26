@@ -129,7 +129,9 @@ class SqlAlchemyProveedorRepository(ProveedorRepositoryPort):
                 await self._db.execute(
                     select(ProveedorModel)
                     .where(*filtros)
-                    .order_by(ProveedorModel.razon_social)
+                    # Desempate por PK: dos proveedores pueden compartir razón
+                    # social, y sin él la paginación no es determinista.
+                    .order_by(ProveedorModel.razon_social, ProveedorModel.id)
                     .offset((page - 1) * page_size)
                     .limit(page_size)
                 )

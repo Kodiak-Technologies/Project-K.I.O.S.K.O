@@ -1,4 +1,6 @@
 # Caso de uso: listar movimientos de inventario con filtros.
+from datetime import datetime
+
 from app.modules.modulo_b_inventario.domain.entities import MovimientoInventario
 from app.modules.modulo_b_inventario.domain.ports.movimiento_inventario_repository_port import (
     MovimientoInventarioRepositoryPort,
@@ -19,6 +21,7 @@ class ListarMovimientosInventarioUseCase:
         fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[MovimientoInventario], int, int, int, int]:
         if page < 1:
             raise ValidacionError("page debe ser >= 1.")
@@ -41,6 +44,7 @@ class ListarMovimientosInventarioUseCase:
             fecha_hasta=fecha_hasta,
             page=page,
             page_size=page_size,
+            cursor=cursor,
         )
         total_pages = (total + page_size - 1) // page_size if total else 0
         return items, total, page, page_size, total_pages

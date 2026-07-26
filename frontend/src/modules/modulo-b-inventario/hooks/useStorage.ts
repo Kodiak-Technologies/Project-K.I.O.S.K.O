@@ -1,6 +1,6 @@
 // Hook: subir archivos a Storage. Maneja estado de progreso y error de red.
 // Devuelve un callback `subir` que no expone `AbortController` aún (es suficiente
-// para el flujo actual: foto de producto / boleta de ingreso).
+// para el flujo actual: foto de la boleta de ingreso).
 import { useCallback, useState } from "react";
 import { mensajeDeError } from "../../../shared/lib/http-client";
 import { storageHttpAdapter } from "../services/storage.http-adapter";

@@ -17,6 +17,8 @@ class GenerarReporteMasVendidosUseCase:
         orden: str = "mayor",
     ) -> list[TopProducto]:
         ventas = await self._venta_data.listar_ventas(desde=desde, hasta=hasta)
+        # Las anuladas no se vendieron (mismo criterio que el resumen).
+        ventas = [v for v in ventas if str(v.get("estado", "")).upper() != "ANULADA"]
 
         producto_stats: dict[str, dict] = defaultdict(lambda: {"cantidad": 0, "total": 0.0})
 
@@ -28,7 +30,10 @@ class GenerarReporteMasVendidosUseCase:
                         continue
 
                 nombre = item.get("nombre", "Desconocido")
-                cantidad = item.get("cantidad", 0)
+                # Lo devuelto volvió al stock: no cuenta como vendido.
+                cantidad = item.get("cantidad", 0) - item.get("cantidad_devuelta", 0)
+                if cantidad <= 0:
+                    continue
                 precio = item.get("precio_unitario", 0)
                 producto_stats[nombre]["cantidad"] += cantidad
                 producto_stats[nombre]["total"] += cantidad * precio

@@ -44,6 +44,6 @@ class ConsultarCajaUseCase:
         ventas del turno y reversos hechos durante él."""
         if await self._caja.buscar_por_id(turno_id) is None:
             raise NoEncontradoError("Turno no encontrado.")
-        ventas = await self._ventas.listar(turno_id=turno_id)
+        ventas, _total = await self._ventas.listar(turno_id=turno_id)
         reversos = await self._ventas.anulaciones_de_turno(turno_id)
         return ventas, reversos

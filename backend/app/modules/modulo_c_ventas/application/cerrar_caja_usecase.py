@@ -38,9 +38,16 @@ async def calcular_resumen(caja_repo: CajaRepositoryPort, turno: TurnoCaja) -> R
 
 
 class CerrarCajaUseCase:
-    def __init__(self, caja_repo: CajaRepositoryPort, auditoria: RegistrarAuditoriaUseCase):
+    def __init__(
+        self,
+        caja_repo: CajaRepositoryPort,
+        auditoria: RegistrarAuditoriaUseCase,
+        notificador=None,
+    ):
         self._caja = caja_repo
         self._auditoria = auditoria
+        # Opcional (tests con mocks); el contenedor siempre lo inyecta.
+        self._notificador = notificador
 
     async def ejecutar(
         self,
@@ -108,5 +115,27 @@ class CerrarCajaUseCase:
                 valor_nuevo={"diferencia": float(diferencia)},
                 motivo=comentario,
                 ip=ip, user_agent=user_agent,
+            )
+
+        # El cierre (y sobre todo el descuadre) es justo lo que la administradora
+        # quiere saber en el momento, no al día siguiente.
+        if self._notificador is not None:
+            from app.modules.modulo_d_documentos.domain.value_objects import (
+                TipoNotificacion,
+            )
+
+            detalle_diferencia = (
+                "Cuadró exacto."
+                if diferencia == 0
+                else f"DESCUADRE de S/ {float(diferencia):+.2f}."
+            )
+            await self._notificador.avisar(
+                TipoNotificacion.CIERRE_CAJA,
+                f"Caja cerrada por {nombre_usuario}",
+                f"Turno #{turno.id}: vendido S/ {float(resumen.total_vendido):.2f}, "
+                f"efectivo esperado S/ {float(resumen.efectivo_esperado):.2f}, "
+                f"contado S/ {float(contado):.2f}. {detalle_diferencia}",
+                entidad_origen="turnos_caja",
+                entidad_id=turno.id,
             )
         return turno_cerrado, arqueo

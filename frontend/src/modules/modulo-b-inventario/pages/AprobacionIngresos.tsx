@@ -1,6 +1,11 @@
 // Página para aprobar o rechazar ingresos de mercadería pendientes (solo ADMIN).
+//
+// La cola de solicitudes es una tabla de filas. El detalle se abre en un pop-up
+// dividido en dos: a la izquierda los productos por ingresar (cantidad y costo
+// unitario) y a la derecha la boleta, para contrastarlos sin perder de vista
+// ninguno de los dos.
 import { useEffect, useState } from "react";
-import { Check, ClipboardCheck, X } from "lucide-react";
+import { Check, ClipboardCheck, ImageOff, X } from "lucide-react";
 import {
   Alert,
   Button,
@@ -18,23 +23,22 @@ import { codigoDeError, mensajeDeError } from "../../../shared/lib/http-client";
 import { FormularioIngresoEditable } from "../components/FormularioIngresoEditable";
 import { IngresoDetalleContent } from "../components/IngresoDetalleContent";
 import { ModalConfirmacion } from "../components/ModalConfirmacion";
+import { usePaginacionCursor } from "../../../shared/lib/use-paginacion-cursor";
 import { PaginacionControles } from "../components/PaginacionControles";
 import { mapErrorCodeToMessage } from "../lib/mapErrorCodeToMessage";
 import { useIngresos } from "../hooks/useIngresos";
-import { useProductos } from "../hooks/useProductos";
 import type { SolicitudIngreso, SolicitudIngresoUpdateBody } from "../types";
 
-type ModoModal = "ver" | "editar" | null;
+type ModoPanel = "ver" | "editar" | null;
 
 export default function AprobacionIngresos() {
   // Filtro server-side: solo pendientes (la cola de aprobación).
   const { ingresos, paginados, cargando, error, noDisponible, recargar, aprobar, rechazar, editar, obtener } =
     useIngresos();
-  const { productos } = useProductos({ page_size: 200 });
   const { usuario } = useAuth();
 
   const [detalle, setDetalle] = useState<SolicitudIngreso | null>(null);
-  const [modo, setModo] = useState<ModoModal>(null);
+  const [modo, setModo] = useState<ModoPanel>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [errorDetalle, setErrorDetalle] = useState<string | null>(null);
   const [editando, setEditando] = useState(false);
@@ -45,17 +49,23 @@ export default function AprobacionIngresos() {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // La cola crece mientras la administradora la revisa: con `page`/OFFSET
+  // cada ingreso nuevo le corría las filas y le repetía solicitudes.
+  const paginacion = usePaginacionCursor(20);
+  const { page, pageSize, cursor, registrarRespuesta } = paginacion;
 
   useEffect(() => {
-    void recargar({ estado: "Pendiente", page, page_size: pageSize });
+    void recargar({
+      estado: "Pendiente",
+      page_size: pageSize,
+      ...(cursor ? { cursor } : {}),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize]);
+  }, [page, pageSize, cursor]);
 
-  function nombreProducto(id: number): string {
-    return productos.find((p) => p.id === id)?.nombre ?? `#${id}`;
-  }
+  useEffect(() => {
+    if (paginados) registrarRespuesta(paginados.siguiente_cursor);
+  }, [paginados, registrarRespuesta]);
 
   async function abrirDetalle(s: SolicitudIngreso) {
     setModo("ver");
@@ -234,11 +244,13 @@ export default function AprobacionIngresos() {
         </div>
       )}
 
+      {/* La cola sigue siendo una tabla de filas, a todo el ancho. */}
       <Card sinPadding>
         <Table
           columnas={columnas}
           filas={ingresos}
           claveDe={(i) => i.id}
+          alHacerClicFila={(i) => void abrirDetalle(i)}
           vacio={
             <EmptyState
               icono={ClipboardCheck}
@@ -251,13 +263,14 @@ export default function AprobacionIngresos() {
           paginados={paginados}
           page={page}
           pageSize={pageSize}
-          onCambiarPage={setPage}
-          onCambiarPageSize={setPageSize}
+          onCambiarPage={paginacion.onCambiarPage}
+          onCambiarPageSize={paginacion.onCambiarPageSize}
           etiqueta="pendientes"
         />
       </Card>
 
-      {/* Modal: detalle / edición (sdd/modulo-b-aprobaciones-detalle-editar) */}
+      {/* Detalle en pop-up: a la IZQUIERDA los productos por ingresar
+          (cantidad y costo unitario), a la DERECHA la boleta para contrastar. */}
       {detalle && modo && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4"
@@ -267,12 +280,15 @@ export default function AprobacionIngresos() {
             role="dialog"
             aria-modal="true"
             aria-label={modo === "editar" ? "Editar solicitud" : "Detalle de la solicitud"}
-            className="max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-lg sm:max-w-2xl sm:rounded-2xl"
+            className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-lg sm:max-w-5xl sm:rounded-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
               <h3 className="font-semibold text-zinc-900">
-                Solicitud #{detalle.id} {modo === "editar" && <span className="text-sm font-normal text-zinc-500">(editando)</span>}
+                Solicitud #{detalle.id}
+                {modo === "editar" && (
+                  <span className="ml-1 text-sm font-normal text-zinc-500">(editando)</span>
+                )}
               </h3>
               <button
                 onClick={cerrarDetalle}
@@ -282,30 +298,59 @@ export default function AprobacionIngresos() {
                 <X className="h-5 w-5" />
               </button>
             </header>
-            <div className="space-y-4 px-5 py-4">
-              {cargandoDetalle && modo === "ver" ? (
-                <PageSpinner texto="Cargando detalle…" />
-              ) : errorDetalle && modo === "ver" ? (
-                <Alert tono="peligro">{errorDetalle}</Alert>
-              ) : modo === "ver" ? (
-                <IngresoDetalleContent
-                  ingreso={detalle}
-                  currentUser={usuario}
-                  productos={productos}
-                  onEditarClick={() => setModo("editar")}
-                />
-              ) : (
-                <FormularioIngresoEditable
-                  inicial={detalle}
-                  onSubmit={manejarEditar}
-                  onCancel={() => setModo("ver")}
-                  procesando={editando}
-                  error={errorEdicion}
-                />
-              )}
+
+            <div className="grid flex-1 gap-5 overflow-y-auto px-5 py-4 lg:grid-cols-[1fr_22rem] lg:items-start">
+              {/* Izquierda: qué se está por ingresar */}
+              <div>
+                {cargandoDetalle && modo === "ver" ? (
+                  <PageSpinner texto="Cargando detalle…" />
+                ) : errorDetalle && modo === "ver" ? (
+                  <Alert tono="peligro">{errorDetalle}</Alert>
+                ) : modo === "ver" ? (
+                  <IngresoDetalleContent
+                    ingreso={detalle}
+                    currentUser={usuario}
+                    onEditarClick={() => setModo("editar")}
+                  />
+                ) : (
+                  <FormularioIngresoEditable
+                    inicial={detalle}
+                    onSubmit={manejarEditar}
+                    onCancel={() => setModo("ver")}
+                    procesando={editando}
+                    error={errorEdicion}
+                  />
+                )}
+              </div>
+
+              {/* Derecha: la boleta */}
+              <div>
+                <h4 className="mb-2 text-sm font-semibold text-zinc-800">Boleta</h4>
+                {detalle.foto_boleta_url ? (
+                  <a
+                    href={detalle.foto_boleta_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Abrir la boleta en tamaño completo"
+                    className="block rounded-lg border border-zinc-200 bg-zinc-50 p-2"
+                  >
+                    <img
+                      src={detalle.foto_boleta_url}
+                      alt={`Boleta de la solicitud #${detalle.id}`}
+                      className="max-h-[28rem] w-full rounded object-contain"
+                    />
+                  </a>
+                ) : (
+                  <p className="flex items-center gap-2 rounded-lg border border-dashed border-zinc-300 px-3 py-6 text-sm text-zinc-500">
+                    <ImageOff className="h-4 w-4" aria-hidden />
+                    Esta solicitud no tiene boleta adjunta.
+                  </p>
+                )}
+              </div>
             </div>
+
             {modo === "ver" && (
-              <footer className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
+              <footer className="flex flex-wrap justify-end gap-2 border-t border-zinc-100 px-5 py-4">
                 <Button variante="secundario" onClick={cerrarDetalle}>
                   Cerrar
                 </Button>

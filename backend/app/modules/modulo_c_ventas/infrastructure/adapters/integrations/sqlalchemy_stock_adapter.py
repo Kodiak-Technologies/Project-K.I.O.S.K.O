@@ -21,15 +21,16 @@ class SqlAlchemyStockAdapter(ProductoStockPort):
     async def obtener_para_venta(self, producto_ids: list[int]) -> dict[int, ProductoVendible]:
         filas = await self._db.execute(
             text(
-                "SELECT id, codigo, nombre, precio, stock, activo FROM productos "
-                "WHERE id = ANY(:ids) AND deleted_at IS NULL"
+                "SELECT id, codigo, nombre, precio, stock, stock_minimo, activo "
+                "FROM productos WHERE id = ANY(:ids) AND deleted_at IS NULL"
             ),
             {"ids": producto_ids},
         )
         return {
             fila.id: ProductoVendible(
                 id=fila.id, codigo=fila.codigo, nombre=fila.nombre,
-                precio=fila.precio, stock=fila.stock, activo=fila.activo,
+                precio=fila.precio, stock=fila.stock, stock_minimo=fila.stock_minimo,
+                activo=fila.activo,
             )
             for fila in filas
         }
@@ -79,6 +80,21 @@ class SqlAlchemyStockAdapter(ProductoStockPort):
         await self._registrar_movimiento(
             producto_id, cantidad, "devolucion", motivo, usuario_id, usuario_nombre
         )
+
+    async def marcar_alerta_stock(self, producto_id: int) -> bool:
+        """Marca la alerta de stock mínimo; True solo la primera vez (RF-24).
+
+        UPDATE condicional: si dos ventas dejan el producto bajo mínimo a la vez,
+        sale un único aviso.
+        """
+        resultado = await self._db.execute(
+            text(
+                "UPDATE productos SET alerta_stock_notificada = TRUE "
+                "WHERE id = :id AND alerta_stock_notificada = FALSE"
+            ),
+            {"id": producto_id},
+        )
+        return resultado.rowcount == 1
 
     async def _registrar_movimiento(
         self,

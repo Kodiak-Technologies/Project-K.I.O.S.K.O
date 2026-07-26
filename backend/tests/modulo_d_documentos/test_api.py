@@ -2,11 +2,24 @@ import pytest
 from tests.modulo_d_documentos.conftest import correr, cliente_api, crear_usuario_directo, token_de, auth, username_unico
 
 
-def test_listar_boletas_sin_auth():
+# Las boletas se eliminaron en la reestructuración del Módulo D (su reemplazo
+# son las notas de venta). Los tests que las ejercitaban esperaban 401 y desde
+# entonces recibían 404; se reemplazan por esta comprobación de que las rutas
+# efectivamente ya no existen, igual que se hizo con las mermas del Módulo B.
+@pytest.mark.parametrize(
+    "metodo,ruta",
+    [
+        ("get", "/boletas"),
+        ("get", "/boletas/999"),
+        ("post", "/boletas?venta_id=1"),
+        ("post", "/boletas/999/subir-drive"),
+    ],
+)
+def test_rutas_de_boletas_eliminadas(metodo, ruta):
     async def escenario():
         async with cliente_api() as api:
-            respuesta = await api.get("/boletas")
-            assert respuesta.status_code == 401
+            respuesta = await getattr(api, metodo)(ruta)
+            assert respuesta.status_code == 404
 
     correr(escenario())
 
@@ -47,15 +60,6 @@ def test_respaldos_sin_auth():
     correr(escenario())
 
 
-def test_boleta_por_id_sin_auth():
-    async def escenario():
-        async with cliente_api() as api:
-            respuesta = await api.get("/boletas/999")
-            assert respuesta.status_code == 401
-
-    correr(escenario())
-
-
 def test_notificacion_marcar_leida_sin_auth():
     async def escenario():
         async with cliente_api() as api:
@@ -75,15 +79,6 @@ def test_health():
     correr(escenario())
 
 
-def test_subir_boleta_drive_sin_auth():
-    async def escenario():
-        async with cliente_api() as api:
-            respuesta = await api.post("/boletas/999/subir-drive")
-            assert respuesta.status_code == 401
-
-    correr(escenario())
-
-
 def test_crear_respaldo_sin_auth():
     async def escenario():
         async with cliente_api() as api:
@@ -97,15 +92,6 @@ def test_descargar_respaldo_sin_auth():
     async def escenario():
         async with cliente_api() as api:
             respuesta = await api.get("/respaldos/999/descargar")
-            assert respuesta.status_code == 401
-
-    correr(escenario())
-
-
-def test_crear_boleta_sin_auth():
-    async def escenario():
-        async with cliente_api() as api:
-            respuesta = await api.post("/boletas?venta_id=1")
             assert respuesta.status_code == 401
 
     correr(escenario())
@@ -138,7 +124,11 @@ def test_drive_callback_sin_code():
     async def escenario():
         async with cliente_api() as api:
             respuesta = await api.get("/drive/callback")
-            assert respuesta.status_code == 422
+            # `code` es opcional a propósito: acá aterriza el redirect de
+            # Google, así que la falta de código se contesta con un mensaje
+            # legible y no con un 422 que el usuario vería como error crudo.
+            assert respuesta.status_code == 200
+            assert "error" in respuesta.json()
 
     correr(escenario())
 
@@ -169,26 +159,9 @@ def test_config_notificaciones_put_sin_auth():
         async with cliente_api() as api:
             respuesta = await api.put(
                 "/notificaciones/config",
-                json={
-                    "canal_telegram_activo": True,
-                    "canal_correo_activo": False,
-                    "nivel_detalle": "MEDIO",
-                },
+                json={"nivel_detalle": "MEDIO"},
             )
             assert respuesta.status_code == 401
-
-    correr(escenario())
-
-
-def test_listar_boletas_con_auth():
-    async def escenario():
-        username = username_unico("admin_boletas")
-        await crear_usuario_directo(username, "ADMIN")
-        async with cliente_api() as api:
-            tokens = await token_de(api, username)
-            respuesta = await api.get("/boletas", headers=auth(tokens["access_token"]))
-            assert respuesta.status_code == 200
-            assert isinstance(respuesta.json(), list)
 
     correr(escenario())
 
@@ -201,7 +174,11 @@ def test_notificaciones_con_auth():
             tokens = await token_de(api, username)
             respuesta = await api.get("/notificaciones", headers=auth(tokens["access_token"]))
             assert respuesta.status_code == 200
-            assert isinstance(respuesta.json(), list)
+            # Devuelve el envoltorio paginado estándar desde la 6ª pasada,
+            # no una lista plana.
+            data = respuesta.json()
+            assert isinstance(data["items"], list)
+            assert {"total", "page", "page_size", "total_pages"} <= data.keys()
 
     correr(escenario())
 
@@ -249,9 +226,10 @@ def test_config_notificaciones_get_con_auth():
             tokens = await token_de(api, username)
             respuesta = await api.get("/notificaciones/config", headers=auth(tokens["access_token"]))
             assert respuesta.status_code == 200
+            # La config quedó reducida a `nivel_detalle`: los canales
+            # (telegram/correo) salieron del schema en la reestructuración.
             data = respuesta.json()
-            assert "canal_telegram_activo" in data
-            assert "canal_correo_activo" in data
+            assert "nivel_detalle" in data
 
     correr(escenario())
 
@@ -264,17 +242,11 @@ def test_config_notificaciones_put_con_auth():
             tokens = await token_de(api, username)
             respuesta = await api.put(
                 "/notificaciones/config",
-                json={
-                    "canal_telegram_activo": True,
-                    "canal_correo_activo": True,
-                    "nivel_detalle": "MEDIO",
-                },
+                json={"nivel_detalle": "MEDIO"},
                 headers=auth(tokens["access_token"]),
             )
             assert respuesta.status_code == 200
-            data = respuesta.json()
-            assert data["canal_telegram_activo"] is True
-            assert data["canal_correo_activo"] is True
+            assert respuesta.json()["nivel_detalle"] == "MEDIO"
 
     correr(escenario())
 
@@ -287,7 +259,10 @@ def test_respaldos_con_auth():
             tokens = await token_de(api, username)
             respuesta = await api.get("/respaldos", headers=auth(tokens["access_token"]))
             assert respuesta.status_code == 200
-            assert isinstance(respuesta.json(), list)
+            # Envoltorio paginado estándar desde la 6ª pasada.
+            data = respuesta.json()
+            assert isinstance(data["items"], list)
+            assert {"total", "page", "page_size", "total_pages"} <= data.keys()
 
     correr(escenario())
 

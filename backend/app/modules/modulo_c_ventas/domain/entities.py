@@ -89,6 +89,9 @@ class ProductoVendible:
     precio: Decimal
     stock: int
     activo: bool
+    # Umbral de reposición: con él la venta puede avisar cuando deja el producto
+    # bajo mínimo (RF-24), sin consultar de nuevo al inventario.
+    stock_minimo: int = 0
 
 
 @dataclass

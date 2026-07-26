@@ -22,6 +22,9 @@ dependencies = [
     "google-api-python-client>=2.0",
     "google-auth>=2.0",
     "psycopg2-binary>=2.9",
+    # Base IANA de zonas horarias: Windows no la trae y `zoneinfo` la necesita
+    # para resolver la zona del negocio (ver shared/config/zona_horaria.py).
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]

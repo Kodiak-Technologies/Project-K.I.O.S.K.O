@@ -20,9 +20,11 @@ class ConsultarBitacoraUseCase:
         entidad: str | None = None,
         pagina: int = 1,
         tamano_pagina: int = 25,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[RegistroAuditoria], int]:
         return await self._auditoria_repo.consultar(
             desde=desde, hasta=hasta, usuario_id=usuario_id,
             accion=accion, entidad=entidad,
             pagina=max(1, pagina), tamano_pagina=min(max(1, tamano_pagina), 100),
+            cursor=cursor,
         )

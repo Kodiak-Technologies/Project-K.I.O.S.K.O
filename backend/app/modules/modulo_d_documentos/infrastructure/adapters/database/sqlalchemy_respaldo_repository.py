@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select, delete
+from sqlalchemy import func, select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.modulo_d_documentos.domain.entities import Respaldo
@@ -38,11 +38,21 @@ class SqlAlchemyRespaldoRepository:
         await self._db.refresh(fila)
         return _a_entidad(fila)
 
-    async def listar(self) -> list[Respaldo]:
-        resultado = await self._db.execute(
-            select(RespaldoModel).order_by(RespaldoModel.generado_en.desc())
+    async def listar(
+        self, page: int | None = None, page_size: int | None = None
+    ) -> tuple[list[Respaldo], int]:
+        """(respaldos, total). Con `page`/`page_size` acota en SQL."""
+        total = (
+            await self._db.execute(select(func.count()).select_from(RespaldoModel))
+        ).scalar_one()
+        # Desempate por PK: los respaldos automáticos comparten `generado_en`.
+        consulta = select(RespaldoModel).order_by(
+            RespaldoModel.generado_en.desc(), RespaldoModel.id.desc()
         )
-        return [_a_entidad(fila) for fila in resultado.scalars().all()]
+        if page is not None and page_size is not None:
+            consulta = consulta.offset((page - 1) * page_size).limit(page_size)
+        resultado = await self._db.execute(consulta)
+        return [_a_entidad(fila) for fila in resultado.scalars().all()], total
 
     async def buscar_por_id(self, respaldo_id: int) -> Respaldo | None:
         resultado = await self._db.execute(

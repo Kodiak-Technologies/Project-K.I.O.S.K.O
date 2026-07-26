@@ -1,5 +1,22 @@
 // Tipos/DTOs del módulo de documentos.
 
+/** Envoltorio de paginación, igual al del resto de los listados del sistema. */
+export interface NotasVentaPaginadas {
+  items: NotaVenta[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+/** Filtros de `GET /notas-venta`. */
+export interface FiltrosNotasVenta {
+  desde?: string;
+  hasta?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export interface NotaVenta {
   venta_id: number;
   identificacion: string;
@@ -13,6 +30,8 @@ export interface ResumenReporte {
   desde: string;
   hasta: string;
   total_vendido: number;
+  /** Devoluciones parciales del período (el total vendido ya es neto de esto). */
+  total_devuelto: number;
   total_egresos: number;
   numero_ventas: number;
   ticket_promedio: number;
@@ -55,4 +74,21 @@ export interface Respaldo {
   usuario_id: number | null;
   usuario_nombre: string | null;
   drive_file_id: string | null;
+}
+
+/** Envoltorios de paginación de `GET /notificaciones` y `GET /respaldos`. */
+export interface NotificacionesPaginadas {
+  items: Notificacion[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface RespaldosPaginados {
+  items: Respaldo[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }

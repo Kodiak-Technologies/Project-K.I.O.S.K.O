@@ -12,6 +12,7 @@ import {
   PageSpinner,
   Select,
   type Tono,
+  PaginacionControles,
 } from "../../../shared/components/ui";
 import { useNotificaciones } from "../hooks/useNotificaciones";
 import { useAuthContext } from "../../../shared/lib/auth-context";
@@ -29,16 +30,25 @@ const TONO_TIPO: Record<TipoNotificacion, Tono> = {
 export default function Notificaciones() {
   const { usuario } = useAuthContext();
   const esAdmin = usuario?.rol === "ADMIN";
-  const { notificaciones, config, cargando, error, noDisponible, recargar, marcarLeida, actualizarConfig } =
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const { notificaciones, paginados, config, cargando, error, noDisponible, recargar, marcarLeida, actualizarConfig } =
     useNotificaciones();
   const [mostrarConfig, setMostrarConfig] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState<TipoNotificacion | "TODOS">("TODOS");
 
+  // Cambiar de página o de tamaño recarga contra el servidor.
+  useEffect(() => {
+    void recargar(page, pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
+
   // Auto-marcar todas como leídas al entrar a la página.
   useEffect(() => {
     if (!cargando && !noDisponible && notificaciones.some((n) => !n.leida)) {
-      void notificacionesHttpAdapter.marcarTodasLeidas().then(() => void recargar());
+      void notificacionesHttpAdapter.marcarTodasLeidas().then(() => void recargar(page, pageSize));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cargando, noDisponible]);
 
   const notificacionesFiltradas = filtroTipo === "TODOS"
@@ -163,6 +173,21 @@ export default function Notificaciones() {
           ))}
         </ul>
       )}
+
+      {/* Misma paginación que el resto de las listas del sistema. */}
+      <Card sinPadding className="mt-3">
+        <PaginacionControles
+          paginados={paginados}
+          page={page}
+          pageSize={pageSize}
+          onCambiarPage={setPage}
+          onCambiarPageSize={(n) => {
+            setPageSize(n);
+            setPage(1);
+          }}
+          etiqueta="notificaciones"
+        />
+      </Card>
     </div>
   );
 }

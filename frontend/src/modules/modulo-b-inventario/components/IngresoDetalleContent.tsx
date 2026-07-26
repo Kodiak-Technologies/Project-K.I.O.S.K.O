@@ -1,11 +1,12 @@
-// sdd/modulo-b-aprobaciones-detalle-editar: read-only detail layout for
-// SolicitudIngreso. Refactor del cuerpo del modal inline en
-// AprobacionIngresos.tsx (líneas 211-302). Ahora reutilizable y con el
-// botón "Editar" gated por `canEditIngreso`.
+// Detalle de solo lectura de una SolicitudIngreso: datos de cabecera + la lista
+// de productos a ingresar (cantidad y costo unitario) con su total.
+//
+// NO incluye la boleta: en la pantalla de aprobaciones la boleta va en la
+// columna de la derecha, al lado de esta lista, para poder compararlas.
 import { Pencil } from "lucide-react";
 import { Button } from "../../../shared/components/ui";
 import { canEditIngreso } from "../lib/permisos";
-import type { Producto, SolicitudIngreso } from "../types";
+import type { SolicitudIngreso } from "../types";
 
 interface UsuarioMin {
   id: number;
@@ -16,19 +17,19 @@ interface UsuarioMin {
 interface Props {
   ingreso: SolicitudIngreso;
   currentUser: UsuarioMin | null;
-  productos: Producto[];
   onEditarClick: () => void;
 }
 
 export function IngresoDetalleContent({
   ingreso,
   currentUser,
-  productos,
   onEditarClick,
 }: Props) {
   const puedeEditar = canEditIngreso(ingreso, currentUser);
-  const nombreProducto = (id: number) =>
-    productos.find((p) => p.id === id)?.nombre ?? `#${id}`;
+  const total =
+    ingreso.monto_total ??
+    ingreso.lineas.reduce((suma, l) => suma + l.cantidad * l.precio_compra_unitario, 0);
+  const unidades = ingreso.lineas.reduce((suma, l) => suma + l.cantidad, 0);
 
   return (
     <div className="space-y-4">
@@ -49,12 +50,6 @@ export function IngresoDetalleContent({
             <dd>#{ingreso.proveedor_id}</dd>
           </div>
         )}
-        {ingreso.monto_total != null && (
-          <div>
-            <dt className="text-zinc-500">Monto total</dt>
-            <dd>S/ {ingreso.monto_total.toFixed(2)}</dd>
-          </div>
-        )}
         {ingreso.motivo != null && (
           <div className="sm:col-span-2">
             <dt className="text-zinc-500">Motivo</dt>
@@ -62,34 +57,63 @@ export function IngresoDetalleContent({
           </div>
         )}
         {ingreso.editado_en != null && (
-          <div className="sm:col-span-2 text-xs text-zinc-500">
+          <div className="text-xs text-zinc-500 sm:col-span-2">
             Editado por {ingreso.editado_por_nombre} el{" "}
             {new Date(ingreso.editado_en).toLocaleString("es-PE")}
           </div>
         )}
       </dl>
-      {ingreso.foto_boleta_url && (
-        <a href={ingreso.foto_boleta_url} target="_blank" rel="noopener noreferrer">
-          <img
-            src={ingreso.foto_boleta_url}
-            alt="Boleta"
-            className="max-h-64 rounded-lg border border-zinc-200 object-contain"
-          />
-        </a>
-      )}
+
+      {/* Productos a ingresar: es lo que hay que contrastar contra la boleta. */}
       <div>
-        <h4 className="mb-2 text-sm font-semibold text-zinc-800">Líneas</h4>
-        <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200">
-          {ingreso.lineas.map((l) => (
-            <li key={l.id} className="flex items-center justify-between px-3 py-2 text-sm">
-              <span className="truncate">{nombreProducto(l.producto_id)}</span>
-              <span className="ml-3 shrink-0 tabular-nums text-zinc-500">
-                {l.cantidad} × S/ {l.precio_compra_unitario.toFixed(2)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <h4 className="mb-2 text-sm font-semibold text-zinc-800">
+          Productos por ingresar ({ingreso.lineas.length})
+        </h4>
+        <div className="overflow-x-auto rounded-lg border border-zinc-200">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-[11px] uppercase text-zinc-500">
+                <th className="px-3 py-2 font-medium">Producto</th>
+                <th className="px-3 py-2 text-right font-medium">Cantidad</th>
+                <th className="px-3 py-2 text-right font-medium">Costo unit.</th>
+                <th className="px-3 py-2 text-right font-medium">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ingreso.lineas.map((l) => (
+                <tr key={l.id} className="border-b border-zinc-100 last:border-0">
+                  <td className="px-3 py-2">
+                    <span className="block truncate text-zinc-800">
+                      {l.producto_nombre ?? `#${l.producto_id}`}
+                    </span>
+                    {l.producto_codigo && (
+                      <span className="font-mono text-xs text-zinc-400">{l.producto_codigo}</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{l.cantidad}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    S/ {l.precio_compra_unitario.toFixed(2)}
+                  </td>
+                  <td className="px-3 py-2 text-right font-medium tabular-nums">
+                    S/ {(l.cantidad * l.precio_compra_unitario).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-zinc-200 bg-zinc-50">
+                <td className="px-3 py-2 text-xs uppercase text-zinc-500">Total</td>
+                <td className="px-3 py-2 text-right font-medium tabular-nums">{unidades}</td>
+                <td />
+                <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                  S/ {total.toFixed(2)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
+
       {/* FR-7.8: el botón "Editar" se OCULTA (no se deshabilita) cuando el
           gate falla — no revelamos editabilidad a quien no puede actuar. */}
       {puedeEditar && (

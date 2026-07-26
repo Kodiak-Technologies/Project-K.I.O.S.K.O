@@ -9,10 +9,15 @@ from app.modules.modulo_b_inventario.domain.ports.detalle_solicitud_repository_p
 )
 from app.modules.modulo_b_inventario.infrastructure.adapters.database.models import (
     DetalleSolicitudModel,
+    ProductoModel,
 )
 
 
-def _a_entidad(fila: DetalleSolicitudModel) -> DetalleSolicitud:
+def _a_entidad(
+    fila: DetalleSolicitudModel,
+    producto_nombre: str | None = None,
+    producto_codigo: str | None = None,
+) -> DetalleSolicitud:
     return DetalleSolicitud(
         id=fila.id,
         solicitud_id=fila.solicitud_id,
@@ -20,6 +25,8 @@ def _a_entidad(fila: DetalleSolicitudModel) -> DetalleSolicitud:
         cantidad=fila.cantidad,
         precio_compra_unitario=fila.precio_compra_unitario,
         created_at=fila.created_at,
+        producto_nombre=producto_nombre,
+        producto_codigo=producto_codigo,
     )
 
 
@@ -47,14 +54,17 @@ class SqlAlchemyDetalleSolicitudRepository(DetalleSolicitudRepositoryPort):
         return detalles
 
     async def listar_por_solicitud(self, solicitud_id: int) -> list[DetalleSolicitud]:
+        # JOIN con productos: el nombre viaja en la respuesta para que el
+        # cliente no tenga que cargar el catálogo entero y traducir el id.
         filas = (
             await self._db.execute(
-                select(DetalleSolicitudModel)
+                select(DetalleSolicitudModel, ProductoModel.nombre, ProductoModel.codigo)
+                .join(ProductoModel, DetalleSolicitudModel.producto_id == ProductoModel.id)
                 .where(DetalleSolicitudModel.solicitud_id == solicitud_id)
                 .order_by(DetalleSolicitudModel.id)
             )
-        ).scalars()
-        return [_a_entidad(f) for f in filas]
+        ).all()
+        return [_a_entidad(f, nombre, codigo) for f, nombre, codigo in filas]
 
     async def eliminar_por_solicitud(self, solicitud_id: int) -> None:
         # Solo usado en rollback manual. En BD ya hay ON DELETE CASCADE.

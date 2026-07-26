@@ -3,8 +3,10 @@ import { httpClient } from "../../../shared/lib/http-client";
 import type { NotificacionesPort } from "./notificaciones.port";
 
 export const notificacionesHttpAdapter: NotificacionesPort = {
-  async listar() {
-    const { data } = await httpClient.get("/notificaciones");
+  async listar(page = 1, pageSize = 20) {
+    const { data } = await httpClient.get("/notificaciones", {
+      params: { page, page_size: pageSize },
+    });
     return data;
   },
   async marcarLeida(id) {

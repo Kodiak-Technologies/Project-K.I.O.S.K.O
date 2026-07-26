@@ -19,7 +19,6 @@ def test_import_entities() -> None:
         Categoria,
         DetalleSolicitud,
         HistorialPrecio,
-        Merma,
         MovimientoInventario,
         PagoProveedor,
         Producto,
@@ -34,7 +33,6 @@ def test_import_entities() -> None:
             Categoria,
             SolicitudIngreso,
             DetalleSolicitud,
-            Merma,
             Proveedor,
             PagoProveedor,
             MovimientoInventario,
@@ -46,9 +44,7 @@ def test_import_entities() -> None:
 def test_import_value_objects() -> None:
     from app.modules.modulo_b_inventario.domain.value_objects import (
         CodigoInterno,
-        EstadoMerma,
         EstadoSolicitud,
-        MotivoMerma,
         StorageResult,
         TipoMovimiento,
         TipoPago,
@@ -59,8 +55,6 @@ def test_import_value_objects() -> None:
         cls is not None
         for cls in (
             EstadoSolicitud,
-            EstadoMerma,
-            MotivoMerma,
             TipoPago,
             TipoMovimiento,
             TipoPrecio,
@@ -82,9 +76,6 @@ def test_import_puertos() -> None:
     )
     from app.modules.modulo_b_inventario.domain.ports.historial_precio_repository_port import (
         HistorialPrecioRepositoryPort,
-    )
-    from app.modules.modulo_b_inventario.domain.ports.merma_repository_port import (
-        MermaRepositoryPort,
     )
     from app.modules.modulo_b_inventario.domain.ports.movimiento_inventario_repository_port import (
         MovimientoInventarioRepositoryPort,
@@ -108,7 +99,6 @@ def test_import_puertos() -> None:
         CategoriaRepositoryPort,
         SolicitudIngresoRepositoryPort,
         DetalleSolicitudRepositoryPort,
-        MermaRepositoryPort,
         ProveedorRepositoryPort,
         PagoProveedorRepositoryPort,
         MovimientoInventarioRepositoryPort,
@@ -129,7 +119,6 @@ def test_import_modelos() -> None:
         CategoriaModel,
         DetalleSolicitudModel,
         HistorialPrecioModel,
-        MermaModel,
         MovimientoInventarioModel,
         PagoProveedorModel,
         ProductoModel,
@@ -140,7 +129,6 @@ def test_import_modelos() -> None:
     # Smoke: los nombres de tabla son los esperados
     assert SolicitudIngresoModel.__tablename__ == "solicitudes_ingreso"
     assert DetalleSolicitudModel.__tablename__ == "detalle_solicitud"
-    assert MermaModel.__tablename__ == "mermas"
     assert ProveedorModel.__tablename__ == "proveedores"
     assert PagoProveedorModel.__tablename__ == "pagos_proveedor"
     assert MovimientoInventarioModel.__tablename__ == "movimientos_inventario"
@@ -162,9 +150,6 @@ def test_import_adaptadores_stub() -> None:
     )
     from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_historial_precio_repository import (
         SqlAlchemyHistorialPrecioRepository,
-    )
-    from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_merma_repository import (
-        SqlAlchemyMermaRepository,
     )
     from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_movimiento_inventario_repository import (
         SqlAlchemyMovimientoInventarioRepository,
@@ -267,9 +252,8 @@ def test_value_objects_validan_pertenencia() -> None:
 
     from app.modules.modulo_b_inventario.domain.value_objects import (
         CodigoInterno,
-        EstadoMerma,
         EstadoSolicitud,
-        MotivoMerma,
+        TipoMovimiento,
         TipoPago,
         TipoPrecio,
     )
@@ -277,8 +261,6 @@ def test_value_objects_validan_pertenencia() -> None:
 
     # Válidos
     assert str(EstadoSolicitud("Pendiente")) == "Pendiente"
-    assert str(EstadoMerma("Confirmada")) == "Confirmada"
-    assert str(MotivoMerma("vencimiento")) == "vencimiento"
     assert str(TipoPago("compra_credito")) == "compra_credito"
     assert str(TipoPrecio("venta")) == "venta"
     assert str(CodigoInterno("PAP-001")) == "PAP-001"
@@ -287,6 +269,6 @@ def test_value_objects_validan_pertenencia() -> None:
     with pytest.raises(ValidacionError):
         EstadoSolicitud("invalido")
     with pytest.raises(ValidacionError):
-        MotivoMerma("robo")
+        TipoMovimiento("robo")
     with pytest.raises(ValidacionError):
         CodigoInterno("malformado")

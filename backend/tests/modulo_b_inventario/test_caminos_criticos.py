@@ -18,7 +18,6 @@ from decimal import Decimal
 import pytest
 
 from app.modules.modulo_b_inventario.domain.value_objects import (
-    EstadoMerma,
     EstadoSolicitud,
 )
 from app.modules.modulo_b_inventario.infrastructure.adapters.database.models import (
@@ -51,7 +50,7 @@ from .conftest import (
 
 def test_defensa_en_profundidad_admin_vs_cajero() -> None:
     """Matriz de permisos: ADMIN tiene acceso, CAJERO recibe 403 en endpoints
-    exclusivos de ADMIN (aprobar ingreso, confirmar merma, cambiar precio,
+    exclusivos de ADMIN (aprobar ingreso, ajustar stock, cambiar precio,
     crear/editar proveedor)."""
 
     async def _run():
@@ -68,8 +67,8 @@ def test_defensa_en_profundidad_admin_vs_cajero() -> None:
                     "inventario.aprobar_ingreso",
                     "inventario.solicitar_ingreso",
                     "inventario.ver",
-                    "mermas.registrar",
-                    "mermas.confirmar",
+                    "inventario.ajustar_stock",
+                    "registros.eliminar",
                     "proveedores.gestionar",
                     "proveedores.compras_credito",
                     "proveedores.pagos",
@@ -89,7 +88,6 @@ def test_defensa_en_profundidad_admin_vs_cajero() -> None:
                 [
                     "inventario.solicitar_ingreso",
                     "inventario.ver",
-                    "mermas.registrar",
                     "storage.upload",
                 ],
             )
@@ -176,24 +174,33 @@ def test_defensa_en_profundidad_admin_vs_cajero() -> None:
             )
             assert r.status_code == 200, r.text
 
-            # 10) CAJERO puede registrar merma
+            # 10) CAJERO NO puede ajustar stock a mano → 403
             r = await api.post(
-                "/mermas",
-                json={
-                    "producto_id": prod_id,
-                    "cantidad": 2,
-                    "motivo": "vencimiento",
-                },
+                f"/productos/{prod_id}/ajustar-stock",
+                json={"delta": -2, "motivo": "Rotura"},
                 headers=cajero_auth,
             )
-            assert r.status_code == 201, r.text
-            merma_id = r.json()["id"]
+            assert r.status_code == 403, r.text
 
-            # 11) CAJERO NO puede confirmar merma → 403
+            # 11) ADMIN sí puede, con su contraseña
             r = await api.post(
-                f"/mermas/{merma_id}/confirmar",
-                headers=cajero_auth,
+                f"/productos/{prod_id}/ajustar-stock",
+                json={"delta": -2, "motivo": "Producto roto"},
+                headers=admin_auth,
             )
+            assert r.status_code == 200, r.text
+            assert r.json()["delta"] == -2
+
+            # 12) el ajuste no puede dejar el stock negativo → 409
+            r = await api.post(
+                f"/productos/{prod_id}/ajustar-stock",
+                json={"delta": -99999, "motivo": "Imposible"},
+                headers=admin_auth,
+            )
+            assert r.status_code == 409, r.text
+
+            # 13) CAJERO NO puede eliminar productos → 403
+            r = await api.request("DELETE", f"/productos/{prod_id}", headers=cajero_auth)
             assert r.status_code == 403, r.text
 
     correr(_run())

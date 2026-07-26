@@ -19,6 +19,12 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_venta
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.http_configuracion_provider import (
     HttpConfiguracionProvider,
 )
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.sql_egresos_data_provider import (
+    SqlEgresosDataProvider,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.sql_metodo_pago_provider import (
+    SqlMetodoPagoProvider,
+)
 from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_drive_adapter import (
     GoogleDriveAdapter,
 )
@@ -91,31 +97,13 @@ def get_configuracion_provider():
     return _configuracion_provider
 
 
-class MockEgresosDataProvider:
-    async def obtener_egresos(self, desde: str, hasta: str) -> list[dict]:
-        return [
-            {"concepto": "Compra mercadería", "monto": 1200.00, "fecha": "2026-07-15", "metodo_pago": "EFECTIVO"},
-            {"concepto": "Servicio luz", "monto": 150.00, "fecha": "2026-07-14", "metodo_pago": "TRANSFERENCIA"},
-            {"concepto": "Servicio agua", "monto": 80.00, "fecha": "2026-07-13", "metodo_pago": "EFECTIVO"},
-        ]
-
-    async def total_egresos(self, desde: str, hasta: str) -> float:
-        egresos = await self.obtener_egresos(desde, hasta)
-        return sum(e.get("monto", 0) for e in egresos)
+# Egresos y desglose por método de pago salen de la BD real (antes eran mocks
+# con montos inventados: 1200/150/80 de egresos y 850/320/180/200 de métodos).
+def get_egresos_data_provider(db: AsyncSession = Depends(get_db)):
+    """Costo de la mercadería ingresada (solicitudes aprobadas)."""
+    return SqlEgresosDataProvider(db)
 
 
-class MockMetodoPagoProvider:
-    async def desglose_por_metodo(self, desde: str, hasta: str) -> dict[str, float]:
-        return {"EFECTIVO": 850.00, "YAPE": 320.00, "PLIN": 180.00, "TARJETA": 200.00}
-
-
-_egresos_data_provider = MockEgresosDataProvider()
-_metodo_pago_provider = MockMetodoPagoProvider()
-
-
-def get_egresos_data_provider():
-    return _egresos_data_provider
-
-
-def get_metodo_pago_provider():
-    return _metodo_pago_provider
+def get_metodo_pago_provider(db: AsyncSession = Depends(get_db)):
+    """Recaudación por método, desde `pagos_venta`."""
+    return SqlMetodoPagoProvider(db)

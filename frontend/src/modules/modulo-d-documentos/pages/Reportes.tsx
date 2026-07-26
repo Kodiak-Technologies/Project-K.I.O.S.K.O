@@ -156,11 +156,16 @@ export default function Reportes() {
 
       {resumen && !cargando && (
         <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Indicador etiqueta="Total vendido" valor={`S/ ${resumen.total_vendido.toFixed(2)}`} />
             <Indicador etiqueta="Total egresos" valor={`S/ ${resumen.total_egresos.toFixed(2)}`} />
             <Indicador etiqueta="Ventas" valor={String(resumen.numero_ventas)} />
             <Indicador etiqueta="Ticket promedio" valor={`S/ ${resumen.ticket_promedio.toFixed(2)}`} />
+            {/* Explica por qué lo cobrado por método puede superar lo vendido. */}
+            <Indicador
+              etiqueta="Devoluciones"
+              valor={`S/ ${(resumen.total_devuelto ?? 0).toFixed(2)}`}
+            />
           </div>
 
           {resumen.total_vendido > 0 && (
@@ -181,7 +186,7 @@ export default function Reportes() {
           )}
 
           {datosMetodosPago.length > 0 && (
-            <Card titulo="Desglose por método de pago" sinPadding>
+            <Card titulo="Cobrado por método de pago" sinPadding>
               <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
                 <div className="w-full sm:w-1/2">
                   <ResponsiveContainer width="100%" height={220}>

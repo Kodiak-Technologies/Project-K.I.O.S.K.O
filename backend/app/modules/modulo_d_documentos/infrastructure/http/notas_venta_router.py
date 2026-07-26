@@ -14,22 +14,47 @@ from app.modules.modulo_d_documentos.infrastructure.dependencies import (
 )
 from app.modules.modulo_d_documentos.infrastructure.http.schemas import (
     NotaVentaResponse,
+    NotasVentaPaginadasResponse,
     DescargarNotasRequest,
 )
+from app.shared.kernel.exceptions import ValidacionError
 from app.modules.modulo_d_documentos.domain.ports.venta_data_provider_port import VentaDataProviderPort
 
 router = APIRouter(prefix="/notas-venta", tags=["Documentos"])
 
 
-@router.get("", response_model=list[NotaVentaResponse])
+@router.get("", response_model=NotasVentaPaginadasResponse)
 async def listar_notas_venta(
     desde: str | None = None,
     hasta: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
     usuario: Usuario = Depends(get_current_user),
     venta_data: VentaDataProviderPort = Depends(get_venta_data_provider),
 ):
-    ventas = await venta_data.listar_ventas(desde=desde, hasta=hasta)
-    return [NotaVentaResponse.desde_venta(v) for v in ventas]
+    """Listado paginado (mismo contrato que el resto de las tablas del sistema).
+
+    Antes devolvía TODAS las notas del rango en una sola respuesta y el frontend
+    las acumulaba sin límite.
+    """
+    if page < 1:
+        raise ValidacionError("page debe ser >= 1.")
+    if page_size < 1 or page_size > 100:
+        raise ValidacionError("page_size debe estar entre 1 y 100.")
+
+    # La paginación baja hasta `/ventas`: antes se traía el histórico completo
+    # por HTTP y se recortaba en memoria, así que cada request costaba lo mismo
+    # que exportar todo el rango.
+    pagina, total = await venta_data.listar_ventas_paginado(
+        desde=desde, hasta=hasta, page=page, page_size=page_size
+    )
+    return NotasVentaPaginadasResponse(
+        items=[NotaVentaResponse.desde_venta(v) for v in pagina],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=(total + page_size - 1) // page_size if total else 0,
+    )
 
 
 @router.get("/{venta_id}/png")

@@ -20,19 +20,34 @@ class GenerarReporteVentasUseCase:
     async def ejecutar(self, desde: str, hasta: str) -> ResumenReporte:
         ventas = await self._venta_data.listar_ventas(desde=desde, hasta=hasta)
 
-        total_vendido = sum(v.get("total", 0) for v in ventas)
+        # Una venta ANULADA se revirtió por completo (repuso stock y devolvió la
+        # plata): no es venta. Antes sumaba igual al total y al top de productos.
+        ventas = [v for v in ventas if str(v.get("estado", "")).upper() != "ANULADA"]
         numero_ventas = len(ventas)
 
         producto_stats: dict[str, dict] = defaultdict(lambda: {"cantidad": 0, "total": 0.0})
 
+        # El total sale de las líneas netas (cantidad − devuelta), no del total
+        # bruto de la venta: así una devolución parcial se refleja en el reporte.
+        total_vendido = 0.0
+        total_devuelto = 0.0
         for venta in ventas:
             items = await self._venta_data.obtener_detalle_venta(venta["id"])
+            if not items:
+                # Sin detalle disponible, el total de la venta es lo mejor que hay.
+                total_vendido += float(venta.get("total", 0))
+                continue
             for item in items:
                 nombre = item.get("nombre", "Desconocido")
-                cantidad = item.get("cantidad", 0)
                 precio = item.get("precio_unitario", 0)
+                devueltas = item.get("cantidad_devuelta", 0)
+                total_devuelto += devueltas * precio
+                cantidad = item.get("cantidad", 0) - devueltas
+                if cantidad <= 0:
+                    continue
                 producto_stats[nombre]["cantidad"] += cantidad
                 producto_stats[nombre]["total"] += cantidad * precio
+                total_vendido += cantidad * precio
 
         top_productos = sorted(
             [TopProducto(nombre=k, cantidad=v["cantidad"], total=v["total"])
@@ -45,6 +60,9 @@ class GenerarReporteVentasUseCase:
         if self._egresos_data:
             total_egresos = await self._egresos_data.total_egresos(desde, hasta)
 
+        # Nota: `metodos_pago` es lo COBRADO por método (de `pagos_venta`); las
+        # devoluciones tienen su propio rastro de efectivo, por eso puede no
+        # cuadrar exactamente contra el neto vendido cuando hubo devoluciones.
         metodos_pago: dict[str, float] = {}
         if self._metodo_pago_data:
             metodos_pago = await self._metodo_pago_data.desglose_por_metodo(desde, hasta)
@@ -53,6 +71,7 @@ class GenerarReporteVentasUseCase:
             desde=desde,
             hasta=hasta,
             total_vendido=total_vendido,
+            total_devuelto=total_devuelto,
             total_egresos=total_egresos,
             numero_ventas=numero_ventas,
             top_productos=top_productos,

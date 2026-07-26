@@ -1,43 +1,34 @@
-// Rutas propias del módulo de inventario (Catalogo, GestionProductos, IngresosMercaderia,
-// AprobacionIngresos, Mermas, AprobacionMermas, Proveedores, ProveedorDetalle, MovimientosInventario).
-import type { RouteObject } from "react-router-dom";
+// Rutas propias del módulo de inventario (Catalogo, IngresosMercaderia,
+// AprobacionIngresos, Proveedores, ProveedorDetalle, MovimientosInventario).
+//
+// El catálogo de CONSULTA (solo lectura) vive en el punto de venta; esta vista
+// es la de gestión y por eso es solo para ADMIN.
+import { Navigate, type RouteObject } from "react-router-dom";
 import { ProtectedRoute } from "../../shared/components/ProtectedRoute";
 import AprobacionIngresos from "./pages/AprobacionIngresos";
-import AprobacionMermas from "./pages/AprobacionMermas";
 import Catalogo from "./pages/Catalogo";
-import GestionProductos from "./pages/GestionProductos";
 import IngresosMercaderia from "./pages/IngresosMercaderia";
 import MovimientosInventario from "./pages/MovimientosInventario";
-import Mermas from "./pages/Mermas";
 import ProveedorDetalle from "./pages/ProveedorDetalle";
 import Proveedores from "./pages/Proveedores";
 
 export const rutasModuloB: RouteObject[] = [
-  { path: "catalogo", element: <Catalogo /> },
   {
-    path: "productos",
+    path: "catalogo",
     element: (
       <ProtectedRoute soloAdmin>
-        <GestionProductos />
+        <Catalogo />
       </ProtectedRoute>
     ),
   },
+  // La antigua "Productos+" se fusionó con el catálogo: los enlaces viejos siguen andando.
+  { path: "productos", element: <Navigate to="/catalogo" replace /> },
   { path: "ingresos", element: <IngresosMercaderia /> },
   {
     path: "aprobaciones",
     element: (
       <ProtectedRoute soloAdmin>
         <AprobacionIngresos />
-      </ProtectedRoute>
-    ),
-  },
-  // Mermas: el CAJERO registra (paso 1). El ADMIN ve la cola de confirmación.
-  { path: "mermas", element: <Mermas /> },
-  {
-    path: "mermas/aprobacion",
-    element: (
-      <ProtectedRoute soloAdmin>
-        <AprobacionMermas />
       </ProtectedRoute>
     ),
   },

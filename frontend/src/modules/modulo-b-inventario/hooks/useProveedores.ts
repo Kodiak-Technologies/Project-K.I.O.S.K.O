@@ -1,6 +1,7 @@
 // Hook: listar, crear, editar proveedores y gestionar deuda (compras a crédito / pagos).
 import { useCallback, useEffect, useState } from "react";
 import { mensajeDeError, servicioNoDisponible } from "../../../shared/lib/http-client";
+import { useFiltrosEstables } from "../../../shared/lib/use-filtros-estables";
 import { proveedoresHttpAdapter } from "../services/proveedores.http-adapter";
 import type {
   EdicionProveedor,
@@ -50,44 +51,49 @@ export function useProveedores(filtrosIniciales?: FiltrosProveedores): EstadoHoo
     }
   }, []);
 
+  // El literal `{ page_size: 100 }` es un objeto nuevo en cada render: como
+  // dependencia dispara el efecto en bucle. Dependemos de su CONTENIDO.
+  const { clave: filtrosKey, ref: filtrosRef } = useFiltrosEstables(filtrosIniciales);
+
   useEffect(() => {
-    void recargar(filtrosIniciales);
-  }, [recargar, filtrosIniciales]);
+    void recargar(filtrosRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recargar, filtrosKey]);
 
   const crear = useCallback(
     async (datos: NuevoProveedor) => {
       const creado = await proveedoresHttpAdapter.crear(datos);
-      await recargar(filtrosIniciales);
+      await recargar(filtrosRef.current);
       return creado;
     },
-    [recargar, filtrosIniciales]
+    [recargar, filtrosRef]
   );
 
   const editar = useCallback(
     async (id: number, datos: EdicionProveedor) => {
       const actualizado = await proveedoresHttpAdapter.editar(id, datos);
-      await recargar(filtrosIniciales);
+      await recargar(filtrosRef.current);
       return actualizado;
     },
-    [recargar, filtrosIniciales]
+    [recargar, filtrosRef]
   );
 
   const registrarCompraCredito = useCallback(
     async (id: number, datos: NuevoPagoProveedor) => {
       const pago = await proveedoresHttpAdapter.registrarCompraCredito(id, datos);
-      await recargar(filtrosIniciales);
+      await recargar(filtrosRef.current);
       return pago;
     },
-    [recargar, filtrosIniciales]
+    [recargar, filtrosRef]
   );
 
   const registrarPago = useCallback(
     async (id: number, datos: NuevoPagoProveedor) => {
       const pago = await proveedoresHttpAdapter.registrarPago(id, datos);
-      await recargar(filtrosIniciales);
+      await recargar(filtrosRef.current);
       return pago;
     },
-    [recargar, filtrosIniciales]
+    [recargar, filtrosRef]
   );
 
   const listarPagos = useCallback(

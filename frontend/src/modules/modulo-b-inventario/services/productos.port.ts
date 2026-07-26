@@ -1,6 +1,9 @@
 // Puerto: interfaz de gestión de productos (listar, crear, actualizar, precios).
 // Fuente de verdad: backend/app/modules/modulo_b_inventario/infrastructure/http/productos_router.py
 import type {
+  AjusteStock,
+  AjusteStockRespuesta,
+  BajaProducto,
   CambioPrecio,
   CambioPrecioRespuesta,
   EdicionProducto,
@@ -27,6 +30,10 @@ export interface ProductosPort {
   actualizar(id: number, datos: EdicionProducto): Promise<Producto>;
   /** `PATCH /productos/{id}/precio`. */
   cambiarPrecio(id: number, datos: CambioPrecio): Promise<CambioPrecioRespuesta>;
+  /** `POST /productos/{id}/ajustar-stock` (solo ADMIN, exige contraseña). */
+  ajustarStock(id: number, datos: AjusteStock): Promise<AjusteStockRespuesta>;
+  /** `DELETE /productos/{id}` (baja lógica; solo ADMIN, exige contraseña). */
+  eliminar(id: number, datos: BajaProducto): Promise<Producto>;
   /** `GET /productos/{id}/historial-precios`. */
   historialPrecios(id: number, filtros?: { tipo?: string; page?: number; page_size?: number }): Promise<PaginadosResponse<HistorialPrecioItem>>;
 }

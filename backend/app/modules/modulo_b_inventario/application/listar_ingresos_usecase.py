@@ -1,6 +1,7 @@
 # Caso de uso: listar solicitudes de ingreso (HU-B08, REQ-CONS).
 # - ADMIN ve todas, CAJERO solo las propias.
 # - Filtros: estado, proveedor, fechas.
+from datetime import datetime
 from decimal import Decimal
 
 from app.modules.modulo_a_seguridad.domain.entities import Usuario
@@ -33,6 +34,7 @@ class ListarIngresosUseCase:
         page: int = 1,
         page_size: int = 20,
         usuario: Usuario | None = None,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[dict], int, int, int, int]:
         if page < 1:
             raise ValidacionError("page debe ser >= 1.")
@@ -48,6 +50,7 @@ class ListarIngresosUseCase:
                 fecha_hasta=fecha_hasta,
                 page=page,
                 page_size=page_size,
+                cursor=cursor,
             )
         else:
             items, total = await self._solicitudes.listar_paginado(
@@ -57,6 +60,7 @@ class ListarIngresosUseCase:
                 fecha_hasta=fecha_hasta,
                 page=page,
                 page_size=page_size,
+                cursor=cursor,
             )
         # Cada item: agregados cantidad_productos y monto_total
         resultado: list[dict] = []

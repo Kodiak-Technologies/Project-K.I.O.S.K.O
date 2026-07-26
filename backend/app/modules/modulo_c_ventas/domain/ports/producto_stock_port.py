@@ -30,6 +30,11 @@ class ProductoStockPort(ABC):
         asiento en `movimientos_inventario` (D-07)."""
 
     @abstractmethod
+    async def marcar_alerta_stock(self, producto_id: int) -> bool:
+        """Marca la alerta de stock mínimo del producto. True solo la primera
+        vez, para no repetir el aviso hasta que se reponga (RF-24)."""
+
+    @abstractmethod
     async def reponer_stock(
         self,
         producto_id: int,

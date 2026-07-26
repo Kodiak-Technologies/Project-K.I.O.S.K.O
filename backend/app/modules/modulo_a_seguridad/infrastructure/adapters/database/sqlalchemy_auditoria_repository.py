@@ -2,7 +2,7 @@
 # Solo INSERT y SELECT: la bitácora es inmutable (trigger en BD lo refuerza).
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.modulo_a_seguridad.domain.entities import RegistroAuditoria
@@ -58,6 +58,7 @@ class SqlAlchemyAuditoriaRepository:
         entidad: str | None = None,
         pagina: int = 1,
         tamano_pagina: int = 25,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[RegistroAuditoria], int]:
         filtros = []
         if desde is not None:
@@ -75,11 +76,31 @@ class SqlAlchemyAuditoriaRepository:
             await self._db.execute(select(func.count()).select_from(BitacoraAuditoriaModel).where(*filtros))
         ).scalar_one()
 
-        resultado = await self._db.execute(
+        consulta = (
             select(BitacoraAuditoriaModel)
             .where(*filtros)
-            .order_by(BitacoraAuditoriaModel.created_at.desc())
-            .offset((pagina - 1) * tamano_pagina)
+            # El desempate por PK hace la paginación determinista: `created_at`
+            # se repite (varios eventos en el mismo instante) y sin él el orden
+            # entre empatados no está garantizado, así que una fila podía salir
+            # en dos páginas y otra en ninguna.
+            .order_by(
+                BitacoraAuditoriaModel.created_at.desc(),
+                BitacoraAuditoriaModel.id.desc(),
+            )
             .limit(tamano_pagina)
         )
+        if cursor is not None:
+            # Keyset: "lo que viene después de esta fila". Inmune a las
+            # inserciones de arriba, que en la bitácora son constantes.
+            momento, ultimo_id = cursor
+            consulta = consulta.where(
+                tuple_(
+                    BitacoraAuditoriaModel.created_at, BitacoraAuditoriaModel.id
+                )
+                < (momento, ultimo_id)
+            )
+        else:
+            consulta = consulta.offset((pagina - 1) * tamano_pagina)
+
+        resultado = await self._db.execute(consulta)
         return [_a_entidad(f) for f in resultado.scalars().all()], total

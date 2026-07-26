@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, delete, update
+from sqlalchemy import func, select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.modulo_d_documentos.domain.entities import Notificacion
@@ -33,16 +33,37 @@ class SqlAlchemyNotificacionRepository:
         )
         return [_a_entidad(fila) for fila in resultado.scalars().all()]
 
-    async def listar_por_usuario(self, usuario_id: int) -> list[Notificacion]:
-        resultado = await self._db.execute(
-            select(NotificacionModel)
-            .where(
-                (NotificacionModel.usuario_id == usuario_id)
-                | (NotificacionModel.usuario_id.is_(None))
-            )
-            .order_by(NotificacionModel.leida.asc(), NotificacionModel.created_at.desc())
+    async def listar_por_usuario(
+        self,
+        usuario_id: int,
+        page: int | None = None,
+        page_size: int | None = None,
+    ) -> tuple[list[Notificacion], int]:
+        """(notificaciones, total). Con `page`/`page_size` acota en SQL: la
+        bandeja crece sin techo y antes se traía entera en cada consulta."""
+        condicion = (NotificacionModel.usuario_id == usuario_id) | (
+            NotificacionModel.usuario_id.is_(None)
         )
-        return [_a_entidad(fila) for fila in resultado.scalars().all()]
+        total = (
+            await self._db.execute(
+                select(func.count()).select_from(NotificacionModel).where(condicion)
+            )
+        ).scalar_one()
+        consulta = (
+            select(NotificacionModel)
+            .where(condicion)
+            # Desempate por PK: sin él la paginación de la bandeja no es
+            # determinista cuando dos avisos comparten `created_at`.
+            .order_by(
+                NotificacionModel.leida.asc(),
+                NotificacionModel.created_at.desc(),
+                NotificacionModel.id.desc(),
+            )
+        )
+        if page is not None and page_size is not None:
+            consulta = consulta.offset((page - 1) * page_size).limit(page_size)
+        resultado = await self._db.execute(consulta)
+        return [_a_entidad(fila) for fila in resultado.scalars().all()], total
 
     async def marcar_leida(self, notificacion_id: int) -> Notificacion | None:
         fila = await self._db.get(NotificacionModel, notificacion_id)

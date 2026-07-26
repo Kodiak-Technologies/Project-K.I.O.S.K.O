@@ -33,9 +33,6 @@ from app.modules.modulo_b_inventario.infrastructure.http.ingresos_router import 
 from app.modules.modulo_b_inventario.infrastructure.http.inventario_movimientos_router import (
     router as inventario_movimientos_router,
 )
-from app.modules.modulo_b_inventario.infrastructure.http.mermas_router import (
-    router as mermas_router,
-)
 from app.modules.modulo_b_inventario.infrastructure.http.productos_router import (
     router as productos_router,
 )
@@ -155,7 +152,6 @@ app.include_router(configuracion_router)
 app.include_router(productos_router)
 app.include_router(categorias_router)
 app.include_router(ingresos_router)
-app.include_router(mermas_router)
 app.include_router(proveedores_router)
 app.include_router(inventario_movimientos_router)
 app.include_router(storage_router)

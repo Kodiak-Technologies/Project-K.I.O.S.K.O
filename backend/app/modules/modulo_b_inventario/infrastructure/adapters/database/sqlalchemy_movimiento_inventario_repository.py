@@ -2,9 +2,10 @@
 # Implementación completa de PR2.
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.modulo_b_inventario.domain.entities import MovimientoInventario
@@ -14,10 +15,15 @@ from app.modules.modulo_b_inventario.domain.ports.movimiento_inventario_reposito
 from app.modules.modulo_b_inventario.domain.value_objects import TipoMovimiento
 from app.modules.modulo_b_inventario.infrastructure.adapters.database.models import (
     MovimientoInventarioModel,
+    ProductoModel,
 )
 
 
-def _a_entidad(fila: MovimientoInventarioModel) -> MovimientoInventario:
+def _a_entidad(
+    fila: MovimientoInventarioModel,
+    producto_nombre: str | None = None,
+    producto_codigo: str | None = None,
+) -> MovimientoInventario:
     return MovimientoInventario(
         id=fila.id,
         producto_id=fila.producto_id,
@@ -29,6 +35,8 @@ def _a_entidad(fila: MovimientoInventarioModel) -> MovimientoInventario:
         solicitud_ingreso_id=fila.solicitud_ingreso_id,
         merma_id=fila.merma_id,
         created_at=fila.created_at,
+        producto_nombre=producto_nombre,
+        producto_codigo=producto_codigo,
     )
 
 
@@ -62,6 +70,7 @@ class SqlAlchemyMovimientoInventarioRepository(MovimientoInventarioRepositoryPor
         fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[MovimientoInventario], int]:
         filtros: list[Any] = []
         if producto_id is not None:
@@ -80,17 +89,40 @@ class SqlAlchemyMovimientoInventarioRepository(MovimientoInventarioRepositoryPor
                 .where(*filtros)
             )
         ).scalar_one()
-        filas = (
-            (
-                await self._db.execute(
-                    select(MovimientoInventarioModel)
-                    .where(*filtros)
-                    .order_by(MovimientoInventarioModel.created_at.desc())
-                    .offset((page - 1) * page_size)
-                    .limit(page_size)
-                )
+        # JOIN con productos: ver nota en el repo de detalle_solicitud.
+        consulta = (
+            select(
+                MovimientoInventarioModel,
+                ProductoModel.nombre,
+                ProductoModel.codigo,
             )
-            .scalars()
-            .all()
+            .join(
+                ProductoModel,
+                MovimientoInventarioModel.producto_id == ProductoModel.id,
+            )
+            .where(*filtros)
+            # Desempate por PK: sin él, los movimientos del mismo instante
+            # (una venta escribe varias líneas a la vez) no tienen orden
+            # garantizado y se repiten o se pierden entre páginas.
+            .order_by(
+                MovimientoInventarioModel.created_at.desc(),
+                MovimientoInventarioModel.id.desc(),
+            )
+            .limit(page_size)
         )
-        return [_a_entidad(f) for f in filas], total
+        if cursor is not None:
+            # Keyset: cada venta escribe movimientos nuevos por arriba, así que
+            # con OFFSET las páginas se corren mientras el usuario navega.
+            momento, ultimo_id = cursor
+            consulta = consulta.where(
+                tuple_(
+                    MovimientoInventarioModel.created_at,
+                    MovimientoInventarioModel.id,
+                )
+                < (momento, ultimo_id)
+            )
+        else:
+            consulta = consulta.offset((page - 1) * page_size)
+
+        filas = (await self._db.execute(consulta)).all()
+        return [_a_entidad(f, nombre, codigo) for f, nombre, codigo in filas], total

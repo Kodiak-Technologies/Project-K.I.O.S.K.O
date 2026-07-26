@@ -46,6 +46,9 @@ class ProductoRepositoryPort(ABC):
         categoria_id: int | None = None,
         solo_con_stock: bool = False,
         solo_bajo_minimo: bool = False,
+        sin_stock: bool = False,
+        precio_min: Decimal | None = None,
+        precio_max: Decimal | None = None,
         activo: bool | None = None,
         page: int = 1,
         page_size: int = 20,
@@ -77,6 +80,11 @@ class ProductoRepositoryPort(ABC):
         El caller debe haber rechazado `precio`/`precio_compra_actual` con 422."""
 
     @abstractmethod
+    async def eliminar(self, producto_id: int, usuario_id: int) -> Producto:
+        """Borrado lógico (`deleted_at`/`deleted_by`) + `activo = False`.
+        Nunca físico: el histórico referencia al producto con RESTRICT."""
+
+    @abstractmethod
     async def actualizar_precio(
         self,
         producto_id: int,
@@ -96,6 +104,11 @@ class ProductoRepositoryPort(ABC):
         `delta` positivo = entrada, negativo = salida. Si `delta` es negativo,
         exige `stock >= |delta|` (rechaza 0 filas → 409 'Stock insuficiente').
         Al reponer por encima del mínimo rearma la alerta de stock (HU-B13)."""
+
+    @abstractmethod
+    async def marcar_alerta_si_nueva(self, producto_id: int) -> bool:
+        """Marca la alerta de stock mínimo y devuelve True solo la primera vez
+        (candado de la alerta única, HU-B13)."""
 
     @abstractmethod
     async def marcar_alertas_notificadas(self, producto_ids: list[int]) -> int:

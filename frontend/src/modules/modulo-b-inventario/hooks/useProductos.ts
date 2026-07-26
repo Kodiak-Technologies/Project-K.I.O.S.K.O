@@ -5,8 +5,12 @@
 // y `paginados` (respuesta cruda, para PR3b). `recargar` acepta filtros.
 import { useCallback, useEffect, useState } from "react";
 import { mensajeDeError, servicioNoDisponible } from "../../../shared/lib/http-client";
+import { useFiltrosEstables } from "../../../shared/lib/use-filtros-estables";
 import { productosHttpAdapter } from "../services/productos.http-adapter";
 import type {
+  AjusteStock,
+  AjusteStockRespuesta,
+  BajaProducto,
   CambioPrecio,
   CambioPrecioRespuesta,
   EdicionProducto,
@@ -30,6 +34,10 @@ interface EstadoHook {
   crear: (datos: NuevoProducto) => Promise<Producto>;
   actualizar: (id: number, datos: EdicionProducto) => Promise<Producto>;
   cambiarPrecio: (id: number, datos: CambioPrecio) => Promise<CambioPrecioRespuesta>;
+  /** Suma/descuenta stock a mano (solo ADMIN; exige contraseña). */
+  ajustarStock: (id: number, datos: AjusteStock) => Promise<AjusteStockRespuesta>;
+  /** Baja lógica del producto (solo ADMIN; exige contraseña). */
+  eliminar: (id: number, datos: BajaProducto) => Promise<Producto>;
   porReponer: (filtros?: { categoria_id?: number; page?: number; page_size?: number }) => Promise<PaginadosResponse<PorReponerItem>>;
   historialPrecios: (
     id: number,
@@ -59,31 +67,54 @@ export function useProductos(filtrosIniciales?: FiltrosProductos): EstadoHook {
     }
   }, []);
 
+  // El literal `{ page_size: 100 }` es un objeto nuevo en cada render: como
+  // dependencia dispara el efecto en bucle. Dependemos de su CONTENIDO.
+  const { clave: filtrosKey, ref: filtrosRef } = useFiltrosEstables(filtrosIniciales);
+
   useEffect(() => {
-    void recargar(filtrosIniciales);
-  }, [recargar, filtrosIniciales]);
+    void recargar(filtrosRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recargar, filtrosKey]);
 
   const crear = useCallback(
     async (datos: NuevoProducto) => {
       const creado = await productosHttpAdapter.crear(datos);
-      await recargar(filtrosIniciales);
+      await recargar(filtrosRef.current);
       return creado;
     },
-    [recargar, filtrosIniciales]
+    [recargar, filtrosRef]
   );
 
   const actualizar = useCallback(
     async (id: number, datos: EdicionProducto) => {
       const actualizado = await productosHttpAdapter.actualizar(id, datos);
-      await recargar(filtrosIniciales);
+      await recargar(filtrosRef.current);
       return actualizado;
     },
-    [recargar, filtrosIniciales]
+    [recargar, filtrosRef]
   );
 
   const cambiarPrecio = useCallback(
     async (id: number, datos: CambioPrecio) => productosHttpAdapter.cambiarPrecio(id, datos),
     []
+  );
+
+  const ajustarStock = useCallback(
+    async (id: number, datos: AjusteStock) => {
+      const respuesta = await productosHttpAdapter.ajustarStock(id, datos);
+      await recargar(filtrosRef.current);
+      return respuesta;
+    },
+    [recargar, filtrosRef]
+  );
+
+  const eliminar = useCallback(
+    async (id: number, datos: BajaProducto) => {
+      const eliminado = await productosHttpAdapter.eliminar(id, datos);
+      await recargar(filtrosRef.current);
+      return eliminado;
+    },
+    [recargar, filtrosRef]
   );
 
   const porReponer = useCallback(
@@ -108,6 +139,8 @@ export function useProductos(filtrosIniciales?: FiltrosProductos): EstadoHook {
     crear,
     actualizar,
     cambiarPrecio,
+    ajustarStock,
+    eliminar,
     porReponer,
     historialPrecios,
   };

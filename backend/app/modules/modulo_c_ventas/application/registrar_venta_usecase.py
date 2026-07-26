@@ -29,12 +29,15 @@ class RegistrarVentaUseCase:
         stock: ProductoStockPort,
         metodos_repo: MetodoPagoRepositoryPort,
         auditoria: RegistrarAuditoriaUseCase,
+        notificador=None,
     ):
         self._ventas = venta_repo
         self._caja = caja_repo
         self._stock = stock
         self._metodos = metodos_repo
         self._auditoria = auditoria
+        # Opcional (tests con mocks); el contenedor siempre lo inyecta.
+        self._notificador = notificador
 
     async def ejecutar(
         self,
@@ -69,7 +72,7 @@ class RegistrarVentaUseCase:
         if not pagos:
             raise ValidacionError("La venta no tiene método de pago (RF-20).")
 
-        detalles = await self._armar_detalles_y_descontar_stock(
+        detalles, productos = await self._armar_detalles_y_descontar_stock(
             items, usuario_id, nombre_usuario
         )
         total = monto_dinero(sum(d.subtotal for d in detalles))
@@ -106,14 +109,42 @@ class RegistrarVentaUseCase:
             },
             ip=ip, user_agent=user_agent,
         )
+
+        # RF-24: si la venta dejó algún producto en su mínimo, avisar (una sola
+        # vez por producto, hasta que se reponga).
+        await self._avisar_stock_bajo(detalles, productos)
         return venta
+
+    async def _avisar_stock_bajo(self, detalles, productos: dict) -> None:
+        if self._notificador is None:
+            return
+        from app.modules.modulo_d_documentos.domain.value_objects import TipoNotificacion
+
+        for detalle in detalles:
+            producto = productos.get(detalle.producto_id)
+            if producto is None or producto.stock_minimo <= 0:
+                continue
+            restante = producto.stock - detalle.cantidad
+            if restante > producto.stock_minimo:
+                continue
+            if not await self._stock.marcar_alerta_stock(producto.id):
+                continue  # ya se avisó y todavía no se repuso
+            await self._notificador.avisar(
+                TipoNotificacion.STOCK_BAJO,
+                f"Stock bajo: {producto.nombre}",
+                f"Quedan {restante} unidades (mínimo {producto.stock_minimo}). "
+                "Conviene reponer.",
+                entidad_origen="productos",
+                entidad_id=producto.id,
+                producto_id=producto.id,
+            )
 
     async def _armar_detalles_y_descontar_stock(
         self,
         items: list[tuple[int, int]],
         usuario_id: int,
         nombre_usuario: str,
-    ) -> list[DetalleVenta]:
+    ) -> tuple[list[DetalleVenta], dict]:
         # Consolidar repetidos: escanear 2 veces el mismo producto = cantidad 2.
         cantidades: dict[int, int] = {}
         for producto_id, cantidad in items:
@@ -147,7 +178,7 @@ class RegistrarVentaUseCase:
                     cantidad=cantidad,
                 )
             )
-        return detalles
+        return detalles, productos
 
     async def _validar_pagos(self, pagos: list[dict], total: Decimal) -> list[PagoVenta]:
         catalogo = {m.codigo: m for m in await self._metodos.listar(solo_activos=True)}

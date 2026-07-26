@@ -28,6 +28,7 @@ from app.modules.modulo_b_inventario.infrastructure.http.schemas import (
     SolicitudIngresoUpdateRequest,
 )
 from app.shared.database.session import get_db
+from app.shared.http.cursor import codificar_cursor, decodificar_cursor
 
 router = APIRouter(prefix="/ingresos", tags=["Inventario - Ingresos"])
 
@@ -69,6 +70,7 @@ async def listar(
     fecha_hasta: date_type | None = None,
     page: int = 1,
     page_size: int = 20,
+    cursor: str | None = None,
     usuario: Usuario = Depends(require_permission("inventario.ver")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -82,6 +84,7 @@ async def listar(
         page=page,
         page_size=page_size,
         usuario=usuario,
+        cursor=decodificar_cursor(cursor) if cursor else None,
     )
     items = [
         SolicitudIngresoResponse.desde_entidad(
@@ -91,8 +94,13 @@ async def listar(
         )
         for r in resultado
     ]
+    # Página completa ⇒ asumimos que hay más; página corta ⇒ se acabó.
+    ultima = resultado[-1]["solicitud"] if len(resultado) == page_size else None
     return IngresosPaginadosResponse(
-        items=items, total=total, page=page, page_size=page_size, total_pages=total_pages
+        items=items, total=total, page=page, page_size=page_size, total_pages=total_pages,
+        siguiente_cursor=(
+            codificar_cursor(ultima.created_at, ultima.id) if ultima else None
+        ),
     )
 
 

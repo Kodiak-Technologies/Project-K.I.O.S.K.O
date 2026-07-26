@@ -36,7 +36,6 @@ def _a_entidad(fila: ProductoModel, categoria: str | None = None) -> Producto:
         precio=fila.precio,
         precio_compra_actual=fila.precio_compra_actual,
         es_codigo_interno=fila.es_codigo_interno,
-        foto_url=fila.foto_url,
         alerta_stock_notificada=fila.alerta_stock_notificada,
         stock=fila.stock,
         stock_minimo=fila.stock_minimo,
@@ -162,7 +161,6 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
             precio=producto.precio,
             precio_compra_actual=producto.precio_compra_actual,
             es_codigo_interno=producto.es_codigo_interno,
-            foto_url=producto.foto_url,
             stock=producto.stock,
             stock_minimo=producto.stock_minimo,
             activo=producto.activo,
@@ -186,6 +184,9 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
         categoria_id: int | None = None,
         solo_con_stock: bool = False,
         solo_bajo_minimo: bool = False,
+        sin_stock: bool = False,
+        precio_min: Decimal | None = None,
+        precio_max: Decimal | None = None,
         activo: bool | None = None,
         page: int = 1,
         page_size: int = 20,
@@ -193,6 +194,12 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
         filtros: list[Any] = [ProductoModel.deleted_at.is_(None)]
         if categoria_id is not None:
             filtros.append(ProductoModel.categoria_id == categoria_id)
+        if sin_stock:
+            filtros.append(ProductoModel.stock <= 0)
+        if precio_min is not None:
+            filtros.append(ProductoModel.precio >= precio_min)
+        if precio_max is not None:
+            filtros.append(ProductoModel.precio <= precio_max)
         if solo_con_stock:
             filtros.append(ProductoModel.stock > 0)
         if solo_bajo_minimo:
@@ -227,7 +234,10 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
                         isouter=True,
                     )
                     .where(*filtros)
-                    .order_by(ProductoModel.nombre)
+                    # Desempate por PK: hay productos que comparten nombre, y
+                    # sin él el orden entre ellos no está garantizado — la misma
+                    # fila podía aparecer en dos páginas del POS o del catálogo.
+                    .order_by(ProductoModel.nombre, ProductoModel.id)
                     .offset((page - 1) * page_size)
                     .limit(page_size)
                 )
@@ -264,10 +274,13 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
                         isouter=True,
                     )
                     .where(*filtros)
-                    # Orden por faltante DESC
+                    # Orden por faltante DESC, con desempate por PK para que la
+                    # paginación sea determinista (el faltante y el nombre se
+                    # repiten entre productos).
                     .order_by(
                         (ProductoModel.stock_minimo - ProductoModel.stock).desc(),
                         ProductoModel.nombre,
+                        ProductoModel.id,
                     )
                     .offset((page - 1) * page_size)
                     .limit(page_size)
@@ -341,11 +354,10 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
             "stock_minimo",
             "activo",
             "es_codigo_interno",
-            "foto_url",
         }
         # Campos que aceptan NULL explícito: mandar `categoria_id: null` debe
         # DESASIGNAR la categoría (antes el None se descartaba en silencio).
-        anulables = {"categoria_id", "foto_url"}
+        anulables = {"categoria_id"}
         for campo, valor in cambios.items():
             if campo not in editables:
                 continue
@@ -359,6 +371,24 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
         fila.actualizado_por_nombre = usuario_nombre
         await self._db.flush()
         return await self.buscar_por_id(producto_id)  # type: ignore[return-value]
+
+    async def eliminar(self, producto_id: int, usuario_id: int) -> Producto:
+        """Borrado LÓGICO: las FKs del histórico son ON DELETE RESTRICT."""
+        from app.shared.kernel.soft_delete import marcar_borrado
+
+        fila = (
+            await self._db.execute(
+                select(ProductoModel).where(ProductoModel.id == producto_id)
+            )
+        ).scalar_one_or_none()
+        if fila is None or fila.deleted_at is not None:
+            raise NoEncontradoError("Producto no encontrado.")
+        marcar_borrado(fila, usuario_id)
+        # Un producto eliminado tampoco debe seguir apareciendo en el POS.
+        fila.activo = False
+        await self._db.flush()
+        await self._db.refresh(fila)
+        return _a_entidad(fila)
 
     async def actualizar_precio(
         self,
@@ -467,6 +497,23 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
             )
         ).scalar_one()
         return (True, int(fila))
+
+    async def marcar_alerta_si_nueva(self, producto_id: int) -> bool:
+        """Marca la alerta y devuelve True SOLO la primera vez.
+
+        Es el candado de la "alerta única" (HU-B13): al ser un UPDATE
+        condicional, dos ventas simultáneas que dejan el producto bajo mínimo
+        generan un único aviso.
+        """
+        resultado = await self._db.execute(
+            update(ProductoModel)
+            .where(
+                ProductoModel.id == producto_id,
+                ProductoModel.alerta_stock_notificada.is_(False),
+            )
+            .values(alerta_stock_notificada=True)
+        )
+        return (resultado.rowcount or 0) == 1
 
     async def marcar_alertas_notificadas(self, producto_ids: list[int]) -> int:
         """HU-B13: marca los productos cuya alerta de stock mínimo ya se avisó."""

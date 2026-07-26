@@ -22,6 +22,17 @@ class MockVentaDataProvider:
             {"id": 2, "total": 30.0},
         ]
 
+    async def listar_ventas_paginado(
+        self,
+        desde: str | None = None,
+        hasta: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[dict], int]:
+        todas = await self.listar_ventas(desde=desde, hasta=hasta)
+        inicio = (page - 1) * page_size
+        return todas[inicio : inicio + page_size], len(todas)
+
     async def obtener_detalle_venta(self, venta_id: int) -> list[dict]:
         return [
             {"nombre": "Arroz", "cantidad": 2, "precio_unitario": 10.0, "subtotal": 20.0},

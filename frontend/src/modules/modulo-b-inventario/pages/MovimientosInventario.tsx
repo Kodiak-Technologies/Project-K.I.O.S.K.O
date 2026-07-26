@@ -15,9 +15,10 @@ import {
   type Columna,
   type Tono,
 } from "../../../shared/components/ui";
+import { usePaginacionCursor } from "../../../shared/lib/use-paginacion-cursor";
 import { PaginacionControles } from "../components/PaginacionControles";
+import { SelectorProducto } from "../components/SelectorProducto";
 import { useMovimientos } from "../hooks/useMovimientos";
-import { useProductos } from "../hooks/useProductos";
 import type { FiltrosMovimientos, MovimientoInventario, TipoMovimiento } from "../types";
 
 const TONO_TIPO: Record<string, Tono> = {
@@ -38,28 +39,36 @@ const TIPO_LABELS: Record<string, string> = {
 
 export default function MovimientosInventario() {
   const { movimientos, paginados, cargando, error, noDisponible, recargar } = useMovimientos();
-  const { productos } = useProductos({ page_size: 200 });
 
   const [filtroProducto, setFiltroProducto] = useState<number | "">("");
   const [filtroTipo, setFiltroTipo] = useState<TipoMovimiento | "">("");
   const [fechaDesde, setFechaDesde] = useState<string>("");
   const [fechaHasta, setFechaHasta] = useState<string>("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // Cada venta escribe movimientos nuevos por arriba: con `page`/OFFSET las
+  // filas se corrían y aparecían repetidas al pasar de página.
+  const paginacion = usePaginacionCursor(20);
+  const { page, pageSize, cursor, registrarRespuesta, reiniciar } = paginacion;
+
+  // Otro filtro ⇒ otro conjunto: los cursores acumulados dejan de valer.
+  useEffect(() => {
+    reiniciar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroProducto, filtroTipo, fechaDesde, fechaHasta]);
 
   useEffect(() => {
-    const filtros: FiltrosMovimientos = { page, page_size: pageSize };
+    const filtros: FiltrosMovimientos = { page_size: pageSize };
+    if (cursor) filtros.cursor = cursor;
     if (filtroProducto) filtros.producto_id = filtroProducto;
     if (filtroTipo) filtros.tipo = filtroTipo;
     if (fechaDesde) filtros.fecha_desde = fechaDesde;
     if (fechaHasta) filtros.fecha_hasta = fechaHasta;
     void recargar(filtros);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroProducto, filtroTipo, fechaDesde, fechaHasta, page, pageSize]);
+  }, [filtroProducto, filtroTipo, fechaDesde, fechaHasta, page, pageSize, cursor]);
 
-  function nombreProducto(id: number): string {
-    return productos.find((p) => p.id === id)?.nombre ?? `#${id}`;
-  }
+  useEffect(() => {
+    if (paginados) registrarRespuesta(paginados.siguiente_cursor);
+  }, [paginados, registrarRespuesta]);
 
   if (noDisponible) {
     return (
@@ -81,7 +90,7 @@ export default function MovimientosInventario() {
         </span>
       ),
     },
-    { titulo: "Producto", render: (m) => nombreProducto(m.producto_id) },
+    { titulo: "Producto", render: (m) => m.producto_nombre ?? `#${m.producto_id}` },
     {
       titulo: "Tipo",
       render: (m) => {
@@ -128,27 +137,20 @@ export default function MovimientosInventario() {
       />
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Select
+        {/* Búsqueda contra el servidor: ver nota en Mermas.tsx. */}
+        <SelectorProducto
           label="Producto"
-          value={filtroProducto}
-          onChange={(e) => {
-            setFiltroProducto(e.target.value ? Number(e.target.value) : "");
-            setPage(1);
+          value={filtroProducto === "" ? null : filtroProducto}
+          onChange={(id) => {
+            setFiltroProducto(id ?? "");
           }}
-        >
-          <option value="">Todos</option>
-          {productos.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nombre}
-            </option>
-          ))}
-        </Select>
+          soloActivos={false}
+        />
         <Select
           label="Tipo"
           value={filtroTipo}
           onChange={(e) => {
             setFiltroTipo(e.target.value as TipoMovimiento | "");
-            setPage(1);
           }}
         >
           <option value="">Todos</option>
@@ -166,7 +168,6 @@ export default function MovimientosInventario() {
               value={fechaDesde}
               onChange={(e) => {
                 setFechaDesde(e.target.value);
-                setPage(1);
               }}
               className="w-full min-h-tactil rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500"
             />
@@ -180,7 +181,6 @@ export default function MovimientosInventario() {
               value={fechaHasta}
               onChange={(e) => {
                 setFechaHasta(e.target.value);
-                setPage(1);
               }}
               className="w-full min-h-tactil rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500"
             />
@@ -210,8 +210,8 @@ export default function MovimientosInventario() {
             paginados={paginados}
             page={page}
             pageSize={pageSize}
-            onCambiarPage={setPage}
-            onCambiarPageSize={setPageSize}
+            onCambiarPage={paginacion.onCambiarPage}
+            onCambiarPageSize={paginacion.onCambiarPageSize}
             etiqueta="movimientos"
           />
         </Card>

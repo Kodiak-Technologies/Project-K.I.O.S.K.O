@@ -2,8 +2,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.modulo_a_seguridad import module_container as contenedor_a
+from app.modules.modulo_d_documentos import module_container as contenedor_d
 from app.modules.modulo_b_inventario.application.actualizar_producto_usecase import (
     ActualizarProductoUseCase,
+)
+from app.modules.modulo_b_inventario.application.ajustar_stock_usecase import (
+    AjustarStockUseCase,
 )
 from app.modules.modulo_b_inventario.application.aprobar_ingreso_usecase import (
     AprobarIngresoUseCase,
@@ -16,9 +20,6 @@ from app.modules.modulo_b_inventario.application.buscar_producto_por_nombre_usec
 )
 from app.modules.modulo_b_inventario.application.cambiar_precio_usecase import (
     CambiarPrecioUseCase,
-)
-from app.modules.modulo_b_inventario.application.confirmar_merma_usecase import (
-    ConfirmarMermaUseCase,
 )
 from app.modules.modulo_b_inventario.application.crear_categoria_usecase import (
     CrearCategoriaUseCase,
@@ -35,11 +36,11 @@ from app.modules.modulo_b_inventario.application.editar_categoria_usecase import
 from app.modules.modulo_b_inventario.application.editar_ingreso_usecase import (
     EditarIngresoUseCase,
 )
-from app.modules.modulo_b_inventario.application.editar_merma_usecase import (
-    EditarMermaUseCase,
-)
 from app.modules.modulo_b_inventario.application.editar_producto_usecase import (
     EditarProductoUseCase,
+)
+from app.modules.modulo_b_inventario.application.eliminar_producto_usecase import (
+    EliminarProductoUseCase,
 )
 from app.modules.modulo_b_inventario.application.editar_proveedor_usecase import (
     EditarProveedorUseCase,
@@ -49,9 +50,6 @@ from app.modules.modulo_b_inventario.application.listar_historial_precios_usecas
 )
 from app.modules.modulo_b_inventario.application.listar_ingresos_usecase import (
     ListarIngresosUseCase,
-)
-from app.modules.modulo_b_inventario.application.listar_mermas_usecase import (
-    ListarMermasUseCase,
 )
 from app.modules.modulo_b_inventario.application.listar_movimientos_inventario_usecase import (
     ListarMovimientosInventarioUseCase,
@@ -71,17 +69,11 @@ from app.modules.modulo_b_inventario.application.listar_proveedores_usecase impo
 from app.modules.modulo_b_inventario.application.rechazar_ingreso_usecase import (
     RechazarIngresoUseCase,
 )
-from app.modules.modulo_b_inventario.application.rechazar_merma_usecase import (
-    RechazarMermaUseCase,
-)
 from app.modules.modulo_b_inventario.application.registrar_compra_credito_usecase import (
     RegistrarCompraCreditoUseCase,
 )
 from app.modules.modulo_b_inventario.application.registrar_ingreso_usecase import (
     RegistrarIngresoUseCase,
-)
-from app.modules.modulo_b_inventario.application.registrar_merma_usecase import (
-    RegistrarMermaUseCase,
 )
 from app.modules.modulo_b_inventario.application.registrar_pago_proveedor_usecase import (
     RegistrarPagoProveedorUseCase,
@@ -97,9 +89,6 @@ from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy
 )
 from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_historial_precio_repository import (
     SqlAlchemyHistorialPrecioRepository,
-)
-from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_merma_repository import (
-    SqlAlchemyMermaRepository,
 )
 from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_movimiento_inventario_repository import (
     SqlAlchemyMovimientoInventarioRepository,
@@ -157,10 +146,6 @@ def detalle_solicitud_repository(
     return SqlAlchemyDetalleSolicitudRepository(db)
 
 
-def merma_repository(db: AsyncSession) -> SqlAlchemyMermaRepository:
-    return SqlAlchemyMermaRepository(db)
-
-
 def proveedor_repository(db: AsyncSession) -> SqlAlchemyProveedorRepository:
     return SqlAlchemyProveedorRepository(db)
 
@@ -197,6 +182,21 @@ def crear_producto_usecase(db: AsyncSession) -> CrearProductoUseCase:
 
 def editar_producto_usecase(db: AsyncSession) -> EditarProductoUseCase:
     return EditarProductoUseCase(
+        producto_repository(db), contenedor_a.auditoria_usecase(db)
+    )
+
+
+def ajustar_stock_usecase(db: AsyncSession) -> AjustarStockUseCase:
+    return AjustarStockUseCase(
+        producto_repository(db),
+        movimiento_inventario_repository(db),
+        contenedor_a.auditoria_usecase(db),
+        contenedor_d.notificador(db),
+    )
+
+
+def eliminar_producto_usecase(db: AsyncSession) -> EliminarProductoUseCase:
+    return EliminarProductoUseCase(
         producto_repository(db), contenedor_a.auditoria_usecase(db)
     )
 
@@ -261,6 +261,7 @@ def registrar_ingreso_usecase(db: AsyncSession) -> RegistrarIngresoUseCase:
         producto_repository(db),
         proveedor_repository(db),
         contenedor_a.auditoria_usecase(db),
+        contenedor_d.notificador(db),
     )
 
 
@@ -297,43 +298,6 @@ def listar_ingresos_usecase(db: AsyncSession) -> ListarIngresosUseCase:
     return ListarIngresosUseCase(
         solicitud_ingreso_repository(db), detalle_solicitud_repository(db)
     )
-
-
-def registrar_merma_usecase(db: AsyncSession) -> RegistrarMermaUseCase:
-    return RegistrarMermaUseCase(
-        merma_repository(db),
-        producto_repository(db),
-        contenedor_a.auditoria_usecase(db),
-    )
-
-
-def confirmar_merma_usecase(db: AsyncSession) -> ConfirmarMermaUseCase:
-    return ConfirmarMermaUseCase(
-        merma_repository(db),
-        producto_repository(db),
-        movimiento_inventario_repository(db),
-        contenedor_a.auditoria_usecase(db),
-    )
-
-
-def rechazar_merma_usecase(db: AsyncSession) -> RechazarMermaUseCase:
-    return RechazarMermaUseCase(
-        merma_repository(db), contenedor_a.auditoria_usecase(db)
-    )
-
-
-# sdd/modulo-b-aprobaciones-detalle-editar
-def editar_merma_usecase(db: AsyncSession) -> EditarMermaUseCase:
-    return EditarMermaUseCase(
-        merma_repository(db),
-        contenedor_a.auditoria_usecase(db),
-        producto_repository(db),
-        proveedor_repository(db),
-    )
-
-
-def listar_mermas_usecase(db: AsyncSession) -> ListarMermasUseCase:
-    return ListarMermasUseCase(merma_repository(db))
 
 
 def crear_proveedor_usecase(db: AsyncSession) -> CrearProveedorUseCase:

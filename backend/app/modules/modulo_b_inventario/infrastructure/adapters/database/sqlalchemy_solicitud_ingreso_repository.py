@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,6 +19,7 @@ from app.modules.modulo_b_inventario.domain.ports.solicitud_ingreso_repository_p
 )
 from app.modules.modulo_b_inventario.infrastructure.adapters.database.models import (
     DetalleSolicitudModel,
+    ProductoModel,
     SolicitudIngresoModel,
 )
 
@@ -55,6 +56,43 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
     def __init__(self, db: AsyncSession):
         self._db = db
 
+    async def _lineas_de(
+        self, solicitud_ids: list[int]
+    ) -> dict[int, list[DetalleSolicitud]]:
+        """Líneas de las solicitudes pedidas, con nombre y código del producto.
+
+        El JOIN evita que el cliente tenga que cargar el catálogo entero solo
+        para traducir `producto_id` a un nombre.
+        """
+        por_solicitud: dict[int, list[DetalleSolicitud]] = {}
+        if not solicitud_ids:
+            return por_solicitud
+        filas = (
+            await self._db.execute(
+                select(DetalleSolicitudModel, ProductoModel.nombre, ProductoModel.codigo)
+                .join(
+                    ProductoModel,
+                    DetalleSolicitudModel.producto_id == ProductoModel.id,
+                )
+                .where(DetalleSolicitudModel.solicitud_id.in_(solicitud_ids))
+                .order_by(DetalleSolicitudModel.solicitud_id, DetalleSolicitudModel.id)
+            )
+        ).all()
+        for linea, nombre, codigo in filas:
+            por_solicitud.setdefault(linea.solicitud_id, []).append(
+                DetalleSolicitud(
+                    id=linea.id,
+                    solicitud_id=linea.solicitud_id,
+                    producto_id=linea.producto_id,
+                    cantidad=linea.cantidad,
+                    precio_compra_unitario=linea.precio_compra_unitario,
+                    created_at=linea.created_at,
+                    producto_nombre=nombre,
+                    producto_codigo=codigo,
+                )
+            )
+        return por_solicitud
+
     async def crear(self, solicitud: SolicitudIngreso) -> SolicitudIngreso:
         fila = SolicitudIngresoModel(
             proveedor_id=solicitud.proveedor_id,
@@ -78,24 +116,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         if fila is None or fila.deleted_at is not None:
             return None
         # Cargar líneas por separado
-        lineas_filas = (
-            await self._db.execute(
-                select(DetalleSolicitudModel)
-                .where(DetalleSolicitudModel.solicitud_id == solicitud_id)
-                .order_by(DetalleSolicitudModel.id)
-            )
-        ).scalars()
-        lineas = [
-            DetalleSolicitud(
-                id=l.id,
-                solicitud_id=l.solicitud_id,
-                producto_id=l.producto_id,
-                cantidad=l.cantidad,
-                precio_compra_unitario=l.precio_compra_unitario,
-                created_at=l.created_at,
-            )
-            for l in lineas_filas
-        ]
+        lineas = (await self._lineas_de([solicitud_id])).get(solicitud_id, [])
         return _a_entidad(fila, lineas)
 
     async def find_by_id_for_update(
@@ -110,24 +131,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         ).scalar_one_or_none()
         if fila is None or fila.deleted_at is not None:
             return None
-        lineas_filas = (
-            await self._db.execute(
-                select(DetalleSolicitudModel)
-                .where(DetalleSolicitudModel.solicitud_id == solicitud_id)
-                .order_by(DetalleSolicitudModel.id)
-            )
-        ).scalars()
-        lineas = [
-            DetalleSolicitud(
-                id=l.id,
-                solicitud_id=l.solicitud_id,
-                producto_id=l.producto_id,
-                cantidad=l.cantidad,
-                precio_compra_unitario=l.precio_compra_unitario,
-                created_at=l.created_at,
-            )
-            for l in lineas_filas
-        ]
+        lineas = (await self._lineas_de([solicitud_id])).get(solicitud_id, [])
         return _a_entidad(fila, lineas)
 
     async def actualizar(self, solicitud: SolicitudIngreso) -> SolicitudIngreso:
@@ -176,6 +180,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[SolicitudIngreso], int]:
         return await self._listar(
             estado=estado,
@@ -185,6 +190,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
             solicitado_por=None,
             page=page,
             page_size=page_size,
+            cursor=cursor,
         )
 
     async def listar_por_solicitante(
@@ -197,6 +203,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[SolicitudIngreso], int]:
         # Los filtros de proveedor/fecha antes se descartaban para el CAJERO:
         # la API respondía 200 con la lista SIN filtrar.
@@ -208,6 +215,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
             solicitado_por=usuario_id,
             page=page,
             page_size=page_size,
+            cursor=cursor,
         )
 
     async def _listar(
@@ -220,6 +228,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         solicitado_por: int | None,
         page: int,
         page_size: int,
+        cursor: tuple[datetime, int] | None = None,
     ) -> tuple[list[SolicitudIngreso], int]:
         filtros: list[Any] = [SolicitudIngresoModel.deleted_at.is_(None)]
         if estado is not None:
@@ -239,41 +248,32 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
             )
         ).scalar_one()
 
-        filas = (
-            (
-                await self._db.execute(
-                    select(SolicitudIngresoModel)
-                    .where(*filtros)
-                    .order_by(SolicitudIngresoModel.created_at.desc())
-                    .offset((page - 1) * page_size)
-                    .limit(page_size)
-                )
+        consulta = (
+            select(SolicitudIngresoModel)
+            .where(*filtros)
+            # Desempate por PK para que la paginación sea determinista.
+            .order_by(
+                SolicitudIngresoModel.created_at.desc(),
+                SolicitudIngresoModel.id.desc(),
             )
-            .scalars()
-            .all()
+            .limit(page_size)
         )
-        # Cargar líneas en bloque
-        ids = [f.id for f in filas]
-        lineas_por_solicitud: dict[int, list[DetalleSolicitud]] = {}
-        if ids:
-            lineas_filas = (
-                await self._db.execute(
-                    select(DetalleSolicitudModel)
-                    .where(DetalleSolicitudModel.solicitud_id.in_(ids))
-                    .order_by(DetalleSolicitudModel.solicitud_id, DetalleSolicitudModel.id)
+        if cursor is not None:
+            # Keyset: los cajeros registran ingresos mientras la administradora
+            # revisa la cola, y con OFFSET eso le corría las páginas.
+            momento, ultimo_id = cursor
+            consulta = consulta.where(
+                tuple_(
+                    SolicitudIngresoModel.created_at, SolicitudIngresoModel.id
                 )
-            ).scalars()
-            for l in lineas_filas:
-                lineas_por_solicitud.setdefault(l.solicitud_id, []).append(
-                    DetalleSolicitud(
-                        id=l.id,
-                        solicitud_id=l.solicitud_id,
-                        producto_id=l.producto_id,
-                        cantidad=l.cantidad,
-                        precio_compra_unitario=l.precio_compra_unitario,
-                        created_at=l.created_at,
-                    )
-                )
+                < (momento, ultimo_id)
+            )
+        else:
+            consulta = consulta.offset((page - 1) * page_size)
+
+        filas = (await self._db.execute(consulta)).scalars().all()
+        # Cargar líneas en bloque (una sola consulta para toda la página)
+        lineas_por_solicitud = await self._lineas_de([f.id for f in filas])
         return (
             [_a_entidad(f, lineas_por_solicitud.get(f.id, [])) for f in filas],
             total,

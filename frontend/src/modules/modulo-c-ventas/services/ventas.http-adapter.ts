@@ -15,8 +15,10 @@ export const ventasHttpAdapter: VentasPort = {
     const { data } = await httpClient.post(`/ventas/${id}/devolver`, { items, motivo });
     return data;
   },
-  async listar(desde, hasta) {
-    const { data } = await httpClient.get("/ventas", { params: { desde, hasta } });
+  async listar(desde, hasta, page, page_size) {
+    const { data } = await httpClient.get("/ventas", {
+      params: { desde, hasta, page, page_size },
+    });
     return data;
   },
 };

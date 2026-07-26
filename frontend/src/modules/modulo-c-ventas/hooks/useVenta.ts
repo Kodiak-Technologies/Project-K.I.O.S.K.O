@@ -2,19 +2,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { mensajeDeError, servicioNoDisponible } from "../../../shared/lib/http-client";
 import { ventasHttpAdapter } from "../services/ventas.http-adapter";
-import type { NuevaVenta, Venta } from "../types";
+import type { NuevaVenta, Venta, VentasPaginadas } from "../types";
 
 export function useVenta() {
   const [ventas, setVentas] = useState<Venta[]>([]);
+  /** Respuesta paginada cruda: alimenta los controles de la tabla. */
+  const [paginados, setPaginados] = useState<VentasPaginadas | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
 
   // `cargando` es solo para la primera carga; las recargas son silenciosas.
-  const recargar = useCallback(async (desde?: string, hasta?: string) => {
+  const recargar = useCallback(
+    async (desde?: string, hasta?: string, page = 1, pageSize = 20) => {
     setError(null);
     try {
-      setVentas(await ventasHttpAdapter.listar(desde, hasta));
+      const resp = await ventasHttpAdapter.listar(desde, hasta, page, pageSize);
+      setPaginados(resp);
+      setVentas(resp.items);
     } catch (e) {
       if (servicioNoDisponible(e)) setNoDisponible(true);
       else setError(mensajeDeError(e));
@@ -47,5 +52,5 @@ export function useVenta() {
     [recargar]
   );
 
-  return { ventas, cargando, error, noDisponible, recargar, registrar, anular, devolver };
+  return { ventas, paginados, cargando, error, noDisponible, recargar, registrar, anular, devolver };
 }
