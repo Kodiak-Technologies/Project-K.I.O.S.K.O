@@ -1,9 +1,8 @@
 // Una línea del formulario de Ingresos de mercadería: producto + cantidad + precio.
 // Reutilizado en IngresosMercaderia (N líneas dinámicas).
 import { Trash2 } from "lucide-react";
-import { Input, Select } from "../../../shared/components/ui";
+import { Input } from "../../../shared/components/ui";
 import { SelectorProducto } from "./SelectorProducto";
-import type { Producto } from "../types";
 
 export interface LineaIngreso {
   /** `null` o `undefined` = aún no elegida. */
@@ -14,8 +13,6 @@ export interface LineaIngreso {
 
 interface Props {
   linea: LineaIngreso;
-  /** Productos disponibles para mostrar el nombre. Opcional. */
-  productos?: Producto[];
   /** Errores de validación de la línea. */
   errores?: { producto_id?: string; cantidad?: string; precio_compra_unitario?: string };
   /** Si es la única línea, no se puede eliminar. */
@@ -26,18 +23,11 @@ interface Props {
 
 export function FormularioLineaIngreso({
   linea,
-  productos,
   errores,
   esUnica,
   onChange,
   onEliminar,
 }: Props) {
-  // Si nos pasan la lista de productos, derivamos el nombre para mostrar.
-  const productoNombre =
-    productos && linea.producto_id
-      ? productos.find((p) => p.id === linea.producto_id)?.nombre
-      : undefined;
-
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3">
       <div className="mb-2 flex items-center justify-between">
@@ -54,35 +44,15 @@ export function FormularioLineaIngreso({
         )}
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_6rem] lg:grid-cols-[1fr_6rem_9rem]">
-        {productos ? (
-          <Select
-            label="Producto"
-            requerido
-            value={linea.producto_id ?? ""}
-            onChange={(e) =>
-              onChange({ ...linea, producto_id: e.target.value ? Number(e.target.value) : null })
-            }
-            error={errores?.producto_id}
-          >
-            <option value="">Elige…</option>
-            {productos.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre} (stock: {p.stock})
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <SelectorProducto
-            label="Producto"
-            requerido
-            value={linea.producto_id}
-            onChange={(id) => onChange({ ...linea, producto_id: id })}
-            error={errores?.producto_id}
-          />
-        )}
-        {productoNombre && (
-          <span className="sr-only">Producto elegido: {productoNombre}</span>
-        )}
+        {/* Búsqueda contra el servidor: el catálogo puede tener miles de SKUs
+            y traerlo entero rompía la pantalla al pasar el tope de la API. */}
+        <SelectorProducto
+          label="Producto"
+          requerido
+          value={linea.producto_id}
+          onChange={(id) => onChange({ ...linea, producto_id: id })}
+          error={errores?.producto_id}
+        />
         <Input
           label="Cantidad"
           type="number"

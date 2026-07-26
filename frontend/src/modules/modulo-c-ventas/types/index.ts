@@ -142,3 +142,12 @@ export interface VentaPendiente {
   /** Mensaje si el backend la rechazó al sincronizar (ej. sin stock). */
   error?: string;
 }
+
+/** Envoltorio de paginación de `GET /ventas` (igual al del resto del sistema). */
+export interface VentasPaginadas {
+  items: Venta[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}

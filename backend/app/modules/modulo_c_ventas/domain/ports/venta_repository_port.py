@@ -22,8 +22,11 @@ class VentaRepositoryPort(ABC):
         desde: date | None = None,
         hasta: date | None = None,
         turno_id: int | None = None,
-    ) -> list[Venta]:
-        """Ventas más recientes primero, con sus detalles."""
+        page: int | None = None,
+        page_size: int | None = None,
+    ) -> tuple[list[Venta], int]:
+        """(ventas, total). Más recientes primero, con sus detalles.
+        Con `page`/`page_size` la consulta se acota en SQL."""
 
     @abstractmethod
     async def actualizar_estado(

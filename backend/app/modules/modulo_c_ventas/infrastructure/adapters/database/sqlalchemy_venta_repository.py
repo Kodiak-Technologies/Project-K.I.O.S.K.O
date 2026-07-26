@@ -1,8 +1,10 @@
 # Adaptador: implementa VentaRepositoryPort usando SQLAlchemy.
 from datetime import date, datetime, time, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.shared.config.zona_horaria import zona_negocio
 
 from app.modules.modulo_c_ventas.domain.entities import Anulacion, DetalleVenta, PagoVenta, Venta
 from app.modules.modulo_c_ventas.domain.ports.venta_repository_port import VentaRepositoryPort
@@ -130,20 +132,41 @@ class SqlAlchemyVentaRepository(VentaRepositoryPort):
         desde: date | None = None,
         hasta: date | None = None,
         turno_id: int | None = None,
-    ) -> list[Venta]:
-        consulta = select(VentaModel).order_by(VentaModel.id.desc())
+        page: int | None = None,
+        page_size: int | None = None,
+    ) -> tuple[list[Venta], int]:
+        """Devuelve (ventas, total). Con `page`/`page_size` acota en SQL.
+
+        El histórico crece sin techo: traerlo entero en cada consulta hacía que
+        la pantalla acumulara miles de filas y el payload creciera para siempre.
+        """
+        # Los límites del rango se arman en la zona del NEGOCIO, no en UTC: si no,
+        # una venta de las 23:55 en Lima cae en el día siguiente y "las ventas de
+        # hoy" salen incompletas.
+        zona = zona_negocio()
+        filtros = []
         if desde is not None:
-            consulta = consulta.where(
-                VentaModel.created_at >= datetime.combine(desde, time.min, tzinfo=timezone.utc)
+            filtros.append(
+                VentaModel.created_at >= datetime.combine(desde, time.min, tzinfo=zona)
             )
         if hasta is not None:
-            consulta = consulta.where(
-                VentaModel.created_at <= datetime.combine(hasta, time.max, tzinfo=timezone.utc)
+            filtros.append(
+                VentaModel.created_at <= datetime.combine(hasta, time.max, tzinfo=zona)
             )
         if turno_id is not None:
-            consulta = consulta.where(VentaModel.turno_id == turno_id)
+            filtros.append(VentaModel.turno_id == turno_id)
+
+        total = (
+            await self._db.execute(
+                select(func.count()).select_from(VentaModel).where(*filtros)
+            )
+        ).scalar_one()
+
+        consulta = select(VentaModel).where(*filtros).order_by(VentaModel.id.desc())
+        if page is not None and page_size is not None:
+            consulta = consulta.offset((page - 1) * page_size).limit(page_size)
         filas = (await self._db.execute(consulta)).scalars().all()
-        return [_a_entidad(f) for f in filas]
+        return [_a_entidad(f) for f in filas], total
 
     async def actualizar_estado(
         self, venta_id: int, estado: str, motivo: str | None = None

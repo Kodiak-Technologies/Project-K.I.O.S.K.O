@@ -3,7 +3,7 @@
 //   - estado editable (Pendiente / Registrada)
 //   - ADMIN OR row creator
 // Returns `false` (not throw) for downstream UI to gate the "Editar" button.
-import type { Merma, SolicitudIngreso } from "../types";
+import type { SolicitudIngreso } from "../types";
 
 // Re-declare a minimal Usuario shape so this file doesn't depend on the
 // modulo-a-seguridad types (kept narrow to avoid cycles).
@@ -21,11 +21,3 @@ export function canEditIngreso(
   return currentUser.rol === "ADMIN" || s.solicitado_por === currentUser.id;
 }
 
-export function canEditMerma(
-  m: Merma,
-  currentUser: UsuarioMin | null,
-): boolean {
-  if (!currentUser) return false;
-  if (m.estado !== "Registrada") return false;
-  return currentUser.rol === "ADMIN" || m.registrado_por === currentUser.id;
-}

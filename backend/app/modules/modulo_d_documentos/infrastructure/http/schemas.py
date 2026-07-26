@@ -3,6 +3,18 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class NotasVentaPaginadasResponse(BaseModel):
+    """Mismo envoltorio de paginación que el resto de los listados del sistema
+    (`items/total/page/page_size/total_pages`), para que la tabla del frontend
+    pueda elegir cuántas filas ver en vez de acumularlas todas."""
+
+    items: list["NotaVentaResponse"]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class NotaVentaResponse(BaseModel):
     venta_id: int
     identificacion: str
@@ -43,6 +55,7 @@ class ReporteResumenResponse(BaseModel):
     desde: str
     hasta: str
     total_vendido: float
+    total_devuelto: float = 0.0
     total_egresos: float
     numero_ventas: int
     ticket_promedio: float
@@ -55,12 +68,23 @@ class ReporteResumenResponse(BaseModel):
             desde=r.desde,
             hasta=r.hasta,
             total_vendido=r.total_vendido,
+            total_devuelto=getattr(r, "total_devuelto", 0.0),
             total_egresos=r.total_egresos,
             numero_ventas=r.numero_ventas,
             ticket_promedio=r.ticket_promedio,
             top_productos=[TopProductoResponse.desde_entidad(p) for p in r.top_productos],
             metodos_pago=r.metodos_pago,
         )
+
+
+class NotificacionesPaginadasResponse(BaseModel):
+    """Envoltorio de paginación estándar del sistema."""
+
+    items: list["NotificacionResponse"]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class NotificacionResponse(BaseModel):
@@ -89,6 +113,16 @@ class NotificacionResponse(BaseModel):
 
 class MarcarLeidaRequest(BaseModel):
     pass
+
+
+class RespaldosPaginadosResponse(BaseModel):
+    """Envoltorio de paginación estándar del sistema."""
+
+    items: list["RespaldoResponse"]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class RespaldoResponse(BaseModel):

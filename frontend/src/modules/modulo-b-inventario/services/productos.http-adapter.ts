@@ -1,6 +1,9 @@
 // Adaptador: implementa productos.port.ts usando el cliente HTTP compartido (axios).
 import { httpClient } from "../../../shared/lib/http-client";
 import type {
+  AjusteStock,
+  AjusteStockRespuesta,
+  BajaProducto,
   CambioPrecio,
   CambioPrecioRespuesta,
   EdicionProducto,
@@ -57,6 +60,18 @@ export const productosHttpAdapter: ProductosPort = {
   },
   async cambiarPrecio(id, datos: CambioPrecio) {
     const { data } = await httpClient.patch<CambioPrecioRespuesta>(`/productos/${id}/precio`, datos);
+    return data;
+  },
+  async ajustarStock(id, datos: AjusteStock) {
+    const { data } = await httpClient.post<AjusteStockRespuesta>(
+      `/productos/${id}/ajustar-stock`,
+      datos
+    );
+    return data;
+  },
+  async eliminar(id, datos: BajaProducto) {
+    // DELETE con body: axios lo manda en `data`.
+    const { data } = await httpClient.delete<Producto>(`/productos/${id}`, { data: datos });
     return data;
   },
   async historialPrecios(id, filtros) {

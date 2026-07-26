@@ -16,6 +16,7 @@ from app.modules.modulo_c_ventas.infrastructure.http.schemas import (
     DevolverVentaRequest,
     RegistrarVentaRequest,
     VentaResponse,
+    VentasPaginadasResponse,
 )
 from app.shared.database.session import get_db
 
@@ -45,16 +46,40 @@ async def registrar(
     return VentaResponse.desde_entidad(venta)
 
 
-@router.get("", response_model=list[VentaResponse])
+@router.get("", response_model=VentasPaginadasResponse)
 async def listar(
     desde: date | None = None,
     hasta: date | None = None,
     turno_id: int | None = None,
+    page: int = 1,
+    page_size: int = 20,
     usuario: Usuario = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ventas = await contenedor.consultar_ventas_usecase(db).listar(desde, hasta, turno_id)
-    return [VentaResponse.desde_entidad(v) for v in ventas]
+    """Historial paginado. Antes devolvía TODAS las ventas del rango: el
+    histórico crece sin techo y la pantalla las acumulaba sin límite."""
+    ventas, total = await contenedor.consultar_ventas_usecase(db).listar(
+        desde, hasta, turno_id, page, page_size
+    )
+    return VentasPaginadasResponse(
+        items=[VentaResponse.desde_entidad(v) for v in ventas],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=(total + page_size - 1) // page_size if total else 0,
+    )
+
+
+@router.get("/{venta_id}", response_model=VentaResponse)
+async def obtener(
+    venta_id: int,
+    usuario: Usuario = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Una venta con sus items y pagos. Evita tener que recorrer el listado
+    completo para encontrarla (lo que hacía el Módulo D)."""
+    venta = await contenedor.consultar_ventas_usecase(db).obtener(venta_id)
+    return VentaResponse.desde_entidad(venta)
 
 
 @router.post("/{venta_id}/anular", response_model=VentaResponse)

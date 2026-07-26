@@ -5,7 +5,7 @@
 //   - `interface` para objetos, `type` para uniones/aliases.
 //   - Los nombres de campos matchean 1:1 con el backend (snake_case).
 //   - PR3a: se agregaron `PaginadosResponse<T>`, shapes de SolicitudIngreso con
-//     `lineas[]`, Merma, Proveedor, PagoProveedor, MovimientoInventario, StorageResult
+//     `lineas[]`, Proveedor, PagoProveedor, MovimientoInventario, StorageResult
 //     y filtros para los endpoints de listado.
 
 // =============================================================================
@@ -13,7 +13,7 @@
 // =============================================================================
 
 /** Shape de respuesta paginada del backend (`ProductosPaginadosResponse`,
- *  `IngresosPaginadosResponse`, `MermasPaginadosResponse`, etc.). */
+ *  `IngresosPaginadosResponse`, `ProveedoresPaginadosResponse`, etc.). */
 export interface PaginadosResponse<T> {
   items: T[];
   total: number;
@@ -75,7 +75,6 @@ export interface Producto {
   stock_minimo: number;
   activo: boolean;
   es_codigo_interno: boolean;
-  foto_url: string | null;
   creado_por_nombre: string | null;
   actualizado_por_nombre: string | null;
   created_at: string | null;
@@ -92,7 +91,6 @@ export interface NuevoProducto {
   stock_minimo?: number;
   stock_inicial?: number;
   es_codigo_interno?: boolean;
-  foto_url?: string | null;
 }
 
 /** `PATCH /productos/{id}`. NO incluye precios (van por `/precio`). */
@@ -103,10 +101,9 @@ export interface EdicionProducto {
   stock_minimo?: number;
   activo?: boolean;
   es_codigo_interno?: boolean;
-  foto_url?: string | null;
 }
 
-/** `PATCH /productos/{id}/precio`. Hay que enviar al menos uno. */
+/** `PATCH /productos/{id}/precio`. Hay que enviar al menos un precio. */
 export interface CambioPrecio {
   precio_venta?: number;
   precio_compra_actual?: number;
@@ -147,6 +144,10 @@ export interface FiltrosProductos extends FiltrosPaginacion {
   categoria_id?: number;
   solo_con_stock?: boolean;
   solo_bajo_minimo?: boolean;
+  /** Solo los agotados (stock = 0). */
+  sin_stock?: boolean;
+  precio_min?: number;
+  precio_max?: number;
   activo?: boolean;
 }
 
@@ -162,10 +163,14 @@ export type EstadoIngreso = "Pendiente" | "Aprobada" | "Rechazada";
  *  hasta PR3b. */
 export type IngresoMercaderia = SolicitudIngreso;
 
-/** Una línea de la solicitud de ingreso. */
+/** Una línea de la solicitud de ingreso.
+ *  `producto_nombre` / `producto_codigo` los resuelve el backend con un JOIN:
+ *  no hace falta cargar el catálogo para mostrarlos. */
 export interface DetalleSolicitud {
   id: number;
   producto_id: number;
+  producto_nombre: string | null;
+  producto_codigo: string | null;
   cantidad: number;
   precio_compra_unitario: number;
 }
@@ -219,6 +224,27 @@ export interface LineaIngresoUpdate {
   precio_unitario: number;
 }
 
+/** Body de `POST /productos/{id}/ajustar-stock` (solo ADMIN). */
+export interface AjusteStock {
+  /** Positivo suma, negativo descuenta. Distinto de 0. */
+  delta: number;
+  /** Queda en el asiento de `movimientos_inventario` y en la bitácora. */
+  motivo: string;
+}
+
+/** Respuesta de `POST /productos/{id}/ajustar-stock`. */
+export interface AjusteStockRespuesta {
+  producto: Producto;
+  stock_anterior: number;
+  stock_actual: number;
+  delta: number;
+}
+
+/** Body opcional de `DELETE /productos/{id}`. */
+export interface BajaProducto {
+  motivo?: string | null;
+}
+
 /** Códigos de error estructurados del backend (NFR-5). */
 export type ErrorCodeBackend =
   | "EMPTY_PATCH"
@@ -228,11 +254,12 @@ export type ErrorCodeBackend =
   | "PROVEEDOR_NOT_FOUND"
   | "INVALID_LINE_VALUES"
   | "INVALID_CANTIDAD"
+  | "STOCK_INSUFICIENTE"
+  | "MOTIVO_REQUERIDO"
   | "INVALID_MOTIVO"
   | "UNKNOWN_FIELD"
   | "CONCURRENT_EDIT"
   | "INGRESO_NOT_FOUND"
-  | "MERMA_NOT_FOUND"
   | "ALREADY_REJECTED"
   | "MOTIVO_RECHAZO_TOO_SHORT";
 
@@ -255,77 +282,6 @@ export interface AprobacionIngreso {
 export interface FiltrosIngresos extends FiltrosPaginacion {
   estado?: EstadoIngreso;
   proveedor_id?: number;
-  fecha_desde?: string;
-  fecha_hasta?: string;
-}
-
-// =============================================================================
-// Mermas
-// =============================================================================
-
-export type EstadoMerma = "Registrada" | "Confirmada" | "Rechazada";
-
-export type MotivoMerma = "vencimiento" | "rotura" | "otro";
-
-/** `POST /mermas`. */
-export interface NuevaMerma {
-  producto_id: number;
-  cantidad: number;
-  motivo: MotivoMerma;
-  observacion?: string | null;
-  proveedor_id?: number | null;
-}
-
-/** `GET /mermas` (cada item) y `GET /mermas/{id}`. */
-export interface Merma {
-  id: number;
-  producto_id: number;
-  cantidad: number;
-  motivo: MotivoMerma | string;
-  observacion: string | null;
-  estado: EstadoMerma | string;
-  registrado_por: number; // sdd/modulo-b-aprobaciones-detalle-editar (id del creador, para gate)
-  registrado_por_nombre: string;
-  proveedor_id: number | null; // sdd/modulo-b-aprobaciones-detalle-editar
-  confirmado_por_nombre: string | null;
-  confirmado_en: string | null;
-  rechazado_por_nombre: string | null;
-  rechazado_en: string | null;
-  motivo_rechazo: string | null;
-  editado_por: number | null;
-  editado_por_nombre: string | null;
-  editado_en: string | null;
-  created_at: string | null;
-}
-
-/** sdd/modulo-b-aprobaciones-detalle-editar: body para `PATCH /mermas/{id}`. */
-export interface MermaUpdateBody {
-  motivo?: "vencimiento" | "rotura" | "otro";
-  observacion?: string | null;
-  proveedor_id?: number | null;
-  producto_id?: number;
-  cantidad?: number;
-}
-
-/** Body para `POST /mermas/{id}/rechazar`. */
-export interface RechazoMerma {
-  motivo_rechazo: string;
-}
-
-/** Respuesta de `POST /mermas/{id}/confirmar`. */
-export interface ConfirmacionMerma {
-  id: number;
-  estado: string;
-  confirmado_por_nombre: string;
-  confirmado_en: string | null;
-  stock_actualizado: number | null;
-}
-
-/** Filtros para `GET /mermas`. */
-export interface FiltrosMermas extends FiltrosPaginacion {
-  estado?: EstadoMerma;
-  motivo?: MotivoMerma;
-  producto_id?: number;
   fecha_desde?: string;
   fecha_hasta?: string;
 }
@@ -426,6 +382,8 @@ export type TipoMovimiento = "ingreso" | "merma" | "venta" | "devolucion" | "aju
 export interface MovimientoInventario {
   id: number;
   producto_id: number;
+  producto_nombre: string | null;
+  producto_codigo: string | null;
   cantidad: number;
   tipo: TipoMovimiento | string;
   motivo: string | null;

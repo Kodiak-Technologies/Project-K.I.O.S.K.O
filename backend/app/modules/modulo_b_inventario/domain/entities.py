@@ -9,9 +9,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from app.modules.modulo_b_inventario.domain.value_objects import (
-    EstadoMerma,
     EstadoSolicitud,
-    MotivoMerma,
     TipoMovimiento,
     TipoPago,
     TipoPrecio,
@@ -61,7 +59,6 @@ class Producto:
     categoria_nombre: str | None = None  # nombre canónico según design
     precio_compra_actual: Decimal = Decimal("0")
     es_codigo_interno: bool = False
-    foto_url: str | None = None
     # HU-B13: la alerta de stock mínimo se emite UNA sola vez por producto y se
     # rearma sola cuando el stock vuelve a superar el mínimo (ver
     # `incrementar_stock_atomic`).
@@ -264,6 +261,10 @@ class DetalleSolicitud:
     cantidad: int
     precio_compra_unitario: Decimal
     created_at: datetime | None = None
+    # Datos del producto resueltos por JOIN al leer: evitan que el cliente
+    # tenga que cargar el catálogo entero para traducir `producto_id`.
+    producto_nombre: str | None = None
+    producto_codigo: str | None = None
 
     @classmethod
     def desde_dto(
@@ -276,152 +277,6 @@ class DetalleSolicitud:
             cantidad=cantidad,
             precio_compra_unitario=precio,
         )
-
-
-# =============================================================================
-# Mermas y pérdidas (RF-23, HU-B12, CU-B09b/c, D-14)
-# =============================================================================
-
-
-@dataclass(kw_only=True)
-class Merma(EntidadConBorradoLogico):
-    """Pérdida de inventario. Flujo de 2 pasos (D-14): cajero registra, ADMIN valida."""
-
-    id: int | None
-    producto_id: int
-    cantidad: int
-    motivo: MotivoMerma
-    registrado_por: int
-    registrado_por_nombre: str
-    estado: EstadoMerma = field(default_factory=lambda: EstadoMerma("Registrada"))
-    observacion: str | None = None
-    proveedor_id: int | None = None
-    motivo_rechazo: str | None = None
-    confirmado_por: int | None = None
-    confirmado_por_nombre: str | None = None
-    confirmado_en: datetime | None = None
-    rechazado_por: int | None = None
-    rechazado_por_nombre: str | None = None
-    rechazado_en: datetime | None = None
-    created_at: datetime | None = None
-    # sdd/modulo-b-aprobaciones-detalle-editar: edit audit triple.
-    editado_por: int | None = None
-    editado_por_nombre: str | None = None
-    editado_en: datetime | None = None
-
-    def puede_ser_confirmada(self) -> bool:
-        return self.estado == EstadoMerma("Registrada") and not self.eliminado
-
-    def puede_ser_rechazada(self) -> bool:
-        return self.estado == EstadoMerma("Registrada") and not self.eliminado
-
-    def puede_ser_editada_por(self, usuario_id: int, es_admin: bool) -> bool:
-        """FR-4.1 + FR-4.2: editable only in Registrada + (ADMIN or creator)."""
-        return (
-            self.estado == EstadoMerma("Registrada")
-            and not self.eliminado
-            and (es_admin or self.registrado_por == usuario_id)
-        )
-
-    def editar(
-        self,
-        *,
-        editor_id: int,
-        editor_nombre: str,
-        es_admin: bool,
-        motivo: str | None = ...,
-        observacion: str | None = ...,
-        proveedor_id: int | None = ...,
-        producto_id: int | None = ...,
-        cantidad: int | None = ...,
-    ) -> dict:
-        """In-place mutation (FR-4.5). Returns the dict of cabecera changes for the audit diff."""
-        from app.shared.kernel.exceptions import (
-            ConflictoError,
-            ProhibidoError,
-            ValidacionError,
-        )
-        from app.modules.modulo_b_inventario.domain.value_objects import MotivoMerma
-
-        if not self.puede_ser_editada_por(editor_id, es_admin):
-            if self.estado != EstadoMerma("Registrada") or self.eliminado:
-                raise ConflictoError(
-                    "Esta merma ya no se puede editar.",
-                    code="NOT_EDITABLE_STATE",
-                )
-            raise ProhibidoError(
-                "No tenés permiso para editar esta merma.",
-                code="FORBIDDEN",
-            )
-
-        cambios: dict = {}
-        if motivo is not ... and motivo != str(self.motivo):
-            try:
-                nuevo_motivo = MotivoMerma(motivo)  # type: ignore[arg-type]
-            except (ValueError, Exception):  # noqa: BLE001
-                raise ValidacionError(
-                    "El motivo debe ser: vencimiento, rotura u otro.",
-                    code="INVALID_MOTIVO",
-                )
-            cambios["motivo"] = motivo
-            self.motivo = nuevo_motivo
-        if observacion is not ... and observacion != self.observacion:
-            cambios["observacion"] = observacion
-            self.observacion = observacion
-        if proveedor_id is not ... and proveedor_id != self.proveedor_id:
-            cambios["proveedor_id"] = proveedor_id
-            self.proveedor_id = proveedor_id
-        if producto_id is not ... and producto_id != self.producto_id:
-            cambios["producto_id"] = producto_id
-            self.producto_id = producto_id  # type: ignore[assignment]
-        if cantidad is not ... and cantidad != self.cantidad:
-            if cantidad <= 0:
-                raise ValidacionError(
-                    "La cantidad debe ser mayor a 0.",
-                    code="INVALID_CANTIDAD",
-                )
-            cambios["cantidad"] = cantidad
-            self.cantidad = cantidad
-
-        # Always set audit fields (FR-4.5.1: even no-op PATCH sets the editor).
-        cambios["editado_por"] = editor_id
-        cambios["editado_por_nombre"] = editor_nombre
-        cambios["editado_en"] = datetime.now(timezone.utc)
-        self.editado_por = editor_id
-        self.editado_por_nombre = editor_nombre
-        self.editado_en = cambios["editado_en"]
-
-        return cambios
-
-    def confirmar(self, usuario_id: int, nombre: str) -> None:
-        from app.shared.kernel.exceptions import ConflictoError
-
-        if not self.puede_ser_confirmada():
-            raise ConflictoError("La merma ya fue revisada.")
-        self.estado = EstadoMerma("Confirmada")
-        self.confirmado_por = usuario_id
-        self.confirmado_por_nombre = nombre
-        # D-14 + chk_mermas_estado_consistente: una merma confirmada DEBE tener
-        # marca de tiempo de confirmación. Sin esto el UPDATE viola el CHECK y
-        # POST /mermas/{id}/confirmar devuelve 500 (gemelo del bug de rechazar()).
-        self.confirmado_en = datetime.now(timezone.utc)
-
-    def rechazar(self, usuario_id: int, nombre: str, motivo: str) -> None:
-        from app.shared.kernel.exceptions import ConflictoError, ValidacionError
-
-        if not self.puede_ser_rechazada():
-            raise ConflictoError("La merma ya fue revisada.")
-        motivo_limpio = (motivo or "").strip()
-        if len(motivo_limpio) < 5:
-            raise ValidacionError("El motivo de rechazo debe tener al menos 5 caracteres.")
-        self.estado = EstadoMerma("Rechazada")
-        self.motivo_rechazo = motivo_limpio
-        self.rechazado_por = usuario_id
-        self.rechazado_por_nombre = nombre
-        # D-14 + chk_mermas_estado_consistente: a rejected merma MUST have a
-        # rejection timestamp. Setting it here so the DB CHECK constraint is
-        # satisfied (was the root cause of POST /mermas/{id}/rechazar returning 500).
-        self.rechazado_en = datetime.now(timezone.utc)
 
 
 # =============================================================================
@@ -546,6 +401,9 @@ class MovimientoInventario:
     solicitud_ingreso_id: int | None = None
     merma_id: int | None = None
     created_at: datetime | None = None
+    # Resueltos por JOIN al leer (ver DetalleSolicitud).
+    producto_nombre: str | None = None
+    producto_codigo: str | None = None
 
     @classmethod
     def ingreso(

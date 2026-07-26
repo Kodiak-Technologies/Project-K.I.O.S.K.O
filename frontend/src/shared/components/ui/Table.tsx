@@ -16,9 +16,12 @@ interface Props<T> {
   claveDe: (fila: T) => string | number;
   /** Qué mostrar cuando no hay filas (normalmente un <EmptyState/>). */
   vacio?: ReactNode;
+  /** Si se pasa, la fila entera es clickeable (y accesible por teclado).
+   *  Se usa en el POS: tocar una fila agrega ese producto a la venta. */
+  alHacerClicFila?: (fila: T) => void;
 }
 
-export function Table<T>({ columnas, filas, claveDe, vacio }: Props<T>) {
+export function Table<T>({ columnas, filas, claveDe, vacio, alHacerClicFila }: Props<T>) {
   if (filas.length === 0 && vacio) return <>{vacio}</>;
 
   return (
@@ -40,7 +43,25 @@ export function Table<T>({ columnas, filas, claveDe, vacio }: Props<T>) {
         </thead>
         <tbody>
           {filas.map((fila) => (
-            <tr key={claveDe(fila)} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
+            <tr
+              key={claveDe(fila)}
+              onClick={alHacerClicFila ? () => alHacerClicFila(fila) : undefined}
+              onKeyDown={
+                alHacerClicFila
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        alHacerClicFila(fila);
+                      }
+                    }
+                  : undefined
+              }
+              tabIndex={alHacerClicFila ? 0 : undefined}
+              role={alHacerClicFila ? "button" : undefined}
+              className={`border-b border-zinc-100 last:border-0 hover:bg-zinc-50 ${
+                alHacerClicFila ? "cursor-pointer focus:bg-zinc-100 focus:outline-none" : ""
+              }`}
+            >
               {columnas.map((c) => (
                 <td
                   key={c.titulo}

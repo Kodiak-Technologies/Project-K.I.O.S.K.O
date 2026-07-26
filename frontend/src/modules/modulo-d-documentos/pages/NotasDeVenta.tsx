@@ -1,5 +1,9 @@
 // Página de consulta/descarga de notas de venta.
-import { useState, useMemo } from "react";
+//
+// La tabla se pagina contra el servidor y usa los mismos controles que el resto
+// del sistema (elegir cuántas filas ver + Anterior/Siguiente): antes traía TODAS
+// las notas del rango y las acumulaba en una sola lista.
+import { useEffect, useState } from "react";
 import { Download, FileText, X } from "lucide-react";
 import {
   Alert,
@@ -10,7 +14,7 @@ import {
   ModuloPendiente,
   PageHeader,
   PageSpinner,
-  Pagination,
+  PaginacionControles,
   Table,
   type Columna,
 } from "../../../shared/components/ui";
@@ -18,32 +22,32 @@ import { useNotasVenta } from "../hooks/useNotasVenta";
 import { notasVentaHttpAdapter } from "../services/notasVenta.http-adapter";
 import type { NotaVenta } from "../types";
 
-const POR_PAGINA = 20;
-
 export default function NotasDeVenta() {
-  const { notas, cargando, error, noDisponible, recargar } = useNotasVenta();
+  const { notas, paginados, cargando, error, noDisponible, recargar } = useNotasVenta();
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [descargandoId, setDescargandoId] = useState<number | null>(null);
   const [descargandoBatch, setDescargandoBatch] = useState(false);
-  const [paginaActual, setPaginaActual] = useState(1);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  /** Rango efectivamente aplicado (el que viaja al backend). */
+  const [rango, setRango] = useState<{ desde?: string; hasta?: string }>({});
 
-  const totalPaginas = Math.max(1, Math.ceil(notas.length / POR_PAGINA));
-  const notasPagina = useMemo(
-    () => notas.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA),
-    [notas, paginaActual]
-  );
+  useEffect(() => {
+    void recargar({ ...rango, page, page_size: pageSize });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rango, page, pageSize]);
 
   const filtrar = () => {
-    setPaginaActual(1);
-    void recargar(desde || undefined, hasta || undefined);
+    setPage(1);
+    setRango({ desde: desde || undefined, hasta: hasta || undefined });
   };
 
   const limpiarFiltros = () => {
     setDesde("");
     setHasta("");
-    setPaginaActual(1);
-    void recargar();
+    setPage(1);
+    setRango({});
   };
 
   const teclaEnter = (e: React.KeyboardEvent) => {
@@ -177,7 +181,7 @@ export default function NotasDeVenta() {
         <Card sinPadding>
           <Table
             columnas={columnas}
-            filas={notasPagina}
+            filas={notas}
             claveDe={(nv) => nv.venta_id}
             vacio={
               <EmptyState
@@ -187,13 +191,17 @@ export default function NotasDeVenta() {
               />
             }
           />
-          {notas.length > POR_PAGINA && (
-            <Pagination
-              actual={paginaActual}
-              total={totalPaginas}
-              onChange={setPaginaActual}
-            />
-          )}
+          <PaginacionControles
+            paginados={paginados}
+            page={page}
+            pageSize={pageSize}
+            onCambiarPage={setPage}
+            onCambiarPageSize={(n) => {
+              setPageSize(n);
+              setPage(1);
+            }}
+            etiqueta="notas de venta"
+          />
         </Card>
       )}
     </div>

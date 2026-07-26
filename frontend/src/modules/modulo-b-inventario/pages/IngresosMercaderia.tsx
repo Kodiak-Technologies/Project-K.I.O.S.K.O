@@ -1,14 +1,19 @@
 // Página para registrar nuevos ingresos de mercadería. El CAJERO solicita;
 // el ADMIN los aprueba en la página de Aprobaciones.
-import { useEffect, useState } from "react";
+//
+// Escáner (misma regla que el POS): estando en esta pestaña, escanear un código
+// —o escribir el nombre y dar Enter— busca el producto y lo agrega como línea.
+// Si no existe, el aviso lo dice y se desvanece solo a los pocos segundos.
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Truck } from "lucide-react";
+import { Plus, ScanBarcode, Truck } from "lucide-react";
 import {
   Alert,
   Badge,
   Button,
   Card,
   EmptyState,
+  Input,
   ModuloPendiente,
   PageHeader,
   PageSpinner,
@@ -22,9 +27,10 @@ import { FormularioLineaIngreso, type LineaIngreso } from "../components/Formula
 import { PaginacionControles } from "../components/PaginacionControles";
 import { SubirImagen } from "../components/SubirImagen";
 import { useIngresos } from "../hooks/useIngresos";
-import { useProductos } from "../hooks/useProductos";
 import { useProveedores } from "../hooks/useProveedores";
-import type { EstadoIngreso, FiltrosIngresos, SolicitudIngreso } from "../types";
+import { useAvisoTemporal } from "../lib/useAvisoTemporal";
+import { productosHttpAdapter } from "../services/productos.http-adapter";
+import type { EstadoIngreso, FiltrosIngresos, Producto, SolicitudIngreso } from "../types";
 
 const TONO_ESTADO: Record<string, Tono> = {
   Pendiente: "alerta",
@@ -39,10 +45,14 @@ export default function IngresosMercaderia() {
   const productoInicial = searchParams.get("producto_id");
 
   const { ingresos, paginados, cargando, error, noDisponible, recargar, solicitar } = useIngresos();
-  const { productos } = useProductos({ page_size: 200 });
   const { proveedores, error: errorProveedores } = useProveedores({ page_size: 100 });
 
   const [lineas, setLineas] = useState<LineaIngreso[]>([LINEA_VACIA]);
+  // Buscador/lector: el escáner "tipea" acá y termina con Enter.
+  const [busquedaProducto, setBusquedaProducto] = useState("");
+  const [buscando, setBuscando] = useState(false);
+  const inputEscaner = useRef<HTMLInputElement>(null);
+  const { aviso, mostrar: mostrarAviso } = useAvisoTemporal();
   const [proveedorId, setProveedorId] = useState<number | "">("");
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -71,6 +81,80 @@ export default function IngresosMercaderia() {
     void recargar(filtros);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroEstado, page, pageSize]);
+
+  // Estando en esta pestaña, el lector escribe donde esté el cursor: si el foco
+  // quedó suelto (tras un clic en cualquier parte), lo devolvemos al buscador
+  // para no perder el escaneo.
+  useEffect(() => {
+    function recuperarFoco(e: KeyboardEvent) {
+      const objetivo = e.target as HTMLElement;
+      const enCampo = ["INPUT", "TEXTAREA", "SELECT"].includes(objetivo.tagName);
+      if (!enCampo && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        inputEscaner.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", recuperarFoco);
+    return () => window.removeEventListener("keydown", recuperarFoco);
+  }, []);
+
+  /** Suma el producto a las líneas: si ya está, +1; si hay una línea vacía, la usa. */
+  function agregarProductoALinea(p: Producto) {
+    setLineas((actuales) => {
+      const yaEsta = actuales.findIndex((l) => l.producto_id === p.id);
+      if (yaEsta !== -1) {
+        return actuales.map((l, i) => (i === yaEsta ? { ...l, cantidad: l.cantidad + 1 } : l));
+      }
+      const vacia = actuales.findIndex((l) => l.producto_id === null);
+      const nueva: LineaIngreso = {
+        producto_id: p.id,
+        cantidad: 1,
+        precio_compra_unitario: p.precio_compra_actual ?? 0,
+      };
+      if (vacia !== -1) return actuales.map((l, i) => (i === vacia ? nueva : l));
+      return [...actuales, nueva];
+    });
+    mostrarAviso(`"${p.nombre}" agregado a la solicitud.`, "exito");
+  }
+
+  /** Enter en el buscador = fin de un escaneo o de una búsqueda por nombre. */
+  async function buscarYAgregar() {
+    const texto = busquedaProducto.trim();
+    if (!texto || buscando) return;
+    setBuscando(true);
+    try {
+      // 1) por código exacto (es lo que manda el lector)
+      try {
+        const porCodigo = await productosHttpAdapter.buscar(texto);
+        const producto = Array.isArray(porCodigo) ? porCodigo[0] : porCodigo;
+        if (producto) {
+          agregarProductoALinea(producto);
+          setBusquedaProducto("");
+          return;
+        }
+      } catch {
+        // 404: no hay ningún producto con ese código. Probamos por nombre.
+      }
+      // 2) por nombre
+      const porNombre = await productosHttpAdapter.buscar(undefined, texto);
+      const coincidencias = Array.isArray(porNombre) ? porNombre : [porNombre];
+      if (coincidencias.length === 1) {
+        agregarProductoALinea(coincidencias[0]);
+        setBusquedaProducto("");
+      } else if (coincidencias.length > 1) {
+        mostrarAviso(
+          `Hay ${coincidencias.length} productos que coinciden con "${texto}". Escaneá el código o elegilo en la línea.`,
+          "alerta",
+        );
+      } else {
+        mostrarAviso(`No existe ningún producto con "${texto}".`, "peligro");
+      }
+    } catch {
+      mostrarAviso(`No existe ningún producto con "${texto}".`, "peligro");
+    } finally {
+      setBuscando(false);
+      inputEscaner.current?.focus();
+    }
+  }
 
   function agregarLinea() {
     setLineas([...lineas, LINEA_VACIA]);
@@ -220,11 +304,39 @@ export default function IngresosMercaderia() {
             <Alert tono="peligro">No se pudieron cargar los proveedores: {errorProveedores}</Alert>
           )}
           <div className="space-y-3">
+            {/* Buscador + lector: agrega la línea sin tocar el mouse. */}
+            <div>
+              <div className="relative">
+                <ScanBarcode
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+                  aria-hidden
+                />
+                <Input
+                  ref={inputEscaner}
+                  className="pl-9"
+                  autoFocus
+                  label="Escaneá un código o buscá por nombre"
+                  placeholder="El lector agrega el producto automáticamente…"
+                  value={busquedaProducto}
+                  onChange={(e) => setBusquedaProducto(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void buscarYAgregar();
+                    }
+                  }}
+                />
+              </div>
+              {aviso && (
+                <div className="mt-2">
+                  <Alert tono={aviso.tono}>{aviso.texto}</Alert>
+                </div>
+              )}
+            </div>
             {lineas.map((l, i) => (
               <FormularioLineaIngreso
                 key={i}
                 linea={l}
-                productos={productos}
                 esUnica={lineas.length === 1}
                 onChange={(nl) => actualizarLinea(i, nl)}
                 onEliminar={() => eliminarLinea(i)}

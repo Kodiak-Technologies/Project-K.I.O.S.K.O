@@ -1,12 +1,12 @@
 // Componente para subir una imagen a Storage y mostrar preview + URL final.
-// Reutilizado en: GestionProductos (foto del producto), IngresosMercaderia (foto de boleta).
+// Reutilizado en: IngresosMercaderia (foto de la boleta). Los productos NO llevan foto.
 import { useRef, useState, type ChangeEvent } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
 import { useStorage } from "../hooks/useStorage";
 
 interface Props {
   /** Carpeta destino en Storage (`boletas` o `productos`). */
-  carpeta: "productos" | "boletas";
+  carpeta: "boletas";
   /** URL ya subida (modo edición). */
   value?: string | null;
   /** Callback con la URL firmada devuelta por el backend. */

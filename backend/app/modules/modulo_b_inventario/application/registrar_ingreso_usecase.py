@@ -47,12 +47,15 @@ class RegistrarIngresoUseCase:
         producto_repo: ProductoRepositoryPort,
         proveedor_repo: ProveedorRepositoryPort,
         auditoria: RegistrarAuditoriaUseCase,
+        notificador=None,
     ):
         self._solicitudes = solicitud_repo
         self._detalles = detalle_repo
         self._productos = producto_repo
         self._proveedores = proveedor_repo
         self._auditoria = auditoria
+        # Opcional para los tests unitarios; el contenedor siempre lo inyecta.
+        self._notificador = notificador
 
     async def ejecutar(
         self,
@@ -133,4 +136,26 @@ class RegistrarIngresoUseCase:
             ip=ip,
             user_agent=user_agent,
         )
+
+        # HU-B06: la administradora tiene que enterarse de que hay algo por
+        # aprobar sin depender de que entre a mirar la pantalla.
+        if self._notificador is not None:
+            from app.modules.modulo_d_documentos.domain.value_objects import (
+                TipoNotificacion,
+            )
+
+            unidades = sum(l.cantidad for l in lineas)
+            monto = sum(
+                (l.cantidad * l.precio_compra_unitario for l in lineas),
+                start=Decimal("0"),
+            )
+            await self._notificador.avisar(
+                TipoNotificacion.SOLICITUD_INGRESO,
+                f"Ingreso pendiente de aprobación (#{solicitud.id})",
+                f"{usuario_nombre} registró {len(lineas)} producto(s) "
+                f"({unidades} unidades) por S/ {float(monto):.2f}. "
+                "Queda pendiente hasta que lo apruebes.",
+                entidad_origen="solicitudes_ingreso",
+                entidad_id=solicitud.id,
+            )
         return completa  # type: ignore[return-value]

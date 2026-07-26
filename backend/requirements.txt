@@ -77,3 +77,5 @@ PyYAML==6.0.3
 six==1.17.0
 typing-inspection==0.4.2
 typing_extensions==4.16.0
+# Zonas horarias IANA (Windows no las trae; ver shared/config/zona_horaria.py)
+tzdata>=2024.1

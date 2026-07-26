@@ -85,8 +85,8 @@ class ProductoModel(Base, SoftDeleteMixin):
     )
     # PR1: TRUE si el producto no tiene código de barras y se le asignó código interno
     es_codigo_interno: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    # PR1: foto del producto en Supabase Storage (URL pública, bucket `productos`)
-    foto_url: Mapped[str | None] = mapped_column(Text)
+    # Nota: la columna `foto_url` sigue existiendo en la BD pero YA NO se mapea:
+    # los productos no llevan foto (decisión 2026-07-25).
     # HU-B13: alerta única de stock mínimo. Se pone en TRUE cuando se avisa y
     # vuelve a FALSE sola al reponer por encima del mínimo.
     alerta_stock_notificada: Mapped[bool] = mapped_column(
@@ -227,7 +227,14 @@ class DetalleSolicitudModel(Base):
 
 
 class MermaModel(Base, SoftDeleteMixin):
-    """Mermas y pérdidas con flujo de validación 2 pasos (D-14)."""
+    """Tabla HISTÓRICA de mermas. Sin lógica activa desde 2026-07-25.
+
+    El flujo de mermas se reemplazó por el ajuste manual de stock del catálogo
+    (`POST /productos/{id}/ajustar-stock`). El modelo se conserva porque:
+      - `movimientos_inventario.merma_id` la referencia con FK,
+      - las mermas ya registradas son parte del histórico contable.
+    NO hay endpoints, casos de uso ni repositorio que la usen.
+    """
 
     __tablename__ = "mermas"
     __table_args__ = (

@@ -218,6 +218,16 @@ class PagoVentaResponse(BaseModel):
     vuelto: float
 
 
+class VentasPaginadasResponse(BaseModel):
+    """Mismo envoltorio que el resto de los listados del sistema."""
+
+    items: list["VentaResponse"]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class VentaResponse(BaseModel):
     id: int
     items: list[ItemVentaResponse]

@@ -14,10 +14,15 @@ from app.modules.modulo_b_inventario.domain.ports.movimiento_inventario_reposito
 from app.modules.modulo_b_inventario.domain.value_objects import TipoMovimiento
 from app.modules.modulo_b_inventario.infrastructure.adapters.database.models import (
     MovimientoInventarioModel,
+    ProductoModel,
 )
 
 
-def _a_entidad(fila: MovimientoInventarioModel) -> MovimientoInventario:
+def _a_entidad(
+    fila: MovimientoInventarioModel,
+    producto_nombre: str | None = None,
+    producto_codigo: str | None = None,
+) -> MovimientoInventario:
     return MovimientoInventario(
         id=fila.id,
         producto_id=fila.producto_id,
@@ -29,6 +34,8 @@ def _a_entidad(fila: MovimientoInventarioModel) -> MovimientoInventario:
         solicitud_ingreso_id=fila.solicitud_ingreso_id,
         merma_id=fila.merma_id,
         created_at=fila.created_at,
+        producto_nombre=producto_nombre,
+        producto_codigo=producto_codigo,
     )
 
 
@@ -80,17 +87,22 @@ class SqlAlchemyMovimientoInventarioRepository(MovimientoInventarioRepositoryPor
                 .where(*filtros)
             )
         ).scalar_one()
+        # JOIN con productos: ver nota en el repo de detalle_solicitud.
         filas = (
-            (
-                await self._db.execute(
-                    select(MovimientoInventarioModel)
-                    .where(*filtros)
-                    .order_by(MovimientoInventarioModel.created_at.desc())
-                    .offset((page - 1) * page_size)
-                    .limit(page_size)
+            await self._db.execute(
+                select(
+                    MovimientoInventarioModel,
+                    ProductoModel.nombre,
+                    ProductoModel.codigo,
                 )
+                .join(
+                    ProductoModel,
+                    MovimientoInventarioModel.producto_id == ProductoModel.id,
+                )
+                .where(*filtros)
+                .order_by(MovimientoInventarioModel.created_at.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
             )
-            .scalars()
-            .all()
-        )
-        return [_a_entidad(f) for f in filas], total
+        ).all()
+        return [_a_entidad(f, nombre, codigo) for f, nombre, codigo in filas], total

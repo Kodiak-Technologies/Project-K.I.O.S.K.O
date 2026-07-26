@@ -70,7 +70,6 @@ class CrearProductoUseCase:
         stock_minimo: int = 0,
         stock_inicial: int = 0,
         es_codigo_interno: bool = False,
-        foto_url: str | None = None,
         usuario_id: int,
         usuario_nombre: str,
         ip: str = "",
@@ -127,7 +126,6 @@ class CrearProductoUseCase:
                 stock_minimo=stock_minimo,
                 activo=True,
                 es_codigo_interno=es_codigo_interno,
-                foto_url=foto_url,
                 creado_por=usuario_id,
                 creado_por_nombre=usuario_nombre,
             )

@@ -48,6 +48,7 @@ contra la base de pruebas de Supabase**.
 #### B2. `POST /mermas/{id}/confirmar` rompía contra Postgres
 * **Síntoma**: 500 al confirmar; la merma **nunca descontaba stock** (HU-B12 sin cumplir).
 * **Causa**: `Merma.confirmar()` no seteaba `confirmado_en`, y el CHECK
+
   `chk_mermas_estado_consistente` exige ese timestamp cuando `estado='Confirmada'`.
   Era el gemelo exacto del bug que ya se había arreglado en `rechazar()`.
 * **Corrección**: `entities.py:390` setea `confirmado_en = now(utc)` en la transición.
@@ -272,3 +273,365 @@ proveedores/storage, `schemas.py`, `module_container.py`.
 5. Guardar el `path` de la boleta además de la URL permitiría refirmar sin depender de que
    el frontend recuerde el path (hoy `POST /storage/firmar` lo recibe por parámetro).
 
+---
+
+## 7. Anexo — el frontend ya no depende del tamaño del catálogo (2026-07-25, 2ª pasada)
+
+Revisando el log de uvicorn aparecieron dos problemas más, ambos del frontend:
+
+### F1. Bucle infinito de requests
+`useProductos({ page_size: 200 })` crea un objeto **nuevo en cada render** y los hooks
+lo usaban como dependencia del `useEffect` que hace `setState`: efecto → fetch →
+setState → render → objeto nuevo → efecto… El log mostraba `/productos` y
+`/proveedores` repitiéndose sin parar desde 6 conexiones.
+Afectaba a `useProductos`, `useProveedores`, `useMermas`, `useIngresos` y `useMovimientos`.
+
+**Corrección**: `shared/lib/use-filtros-estables.ts` devuelve una clave estable por
+contenido (`JSON.stringify`) más una ref con el último valor; los efectos dependen de
+la clave, no de la identidad del objeto.
+
+### F2. `page_size=200` → 422 y selectores vacíos
+El backend limita `page_size` a 1-100, así que esas 5 pantallas recibían 422, el error
+se descartaba en silencio y los selectores quedaban vacíos. Subir el tope solo movía el
+problema: la causa real era que el front cargaba **todo el catálogo** para dos cosas.
+
+**Corrección de fondo** (independiente del volumen de datos):
+
+1. **El nombre del producto viaja en la respuesta** (JOIN en el repo, sin migración),
+   igual que ya se hace con `solicitado_por_nombre` y compañía:
+
+   | Respuesta | Campos nuevos |
+   |---|---|
+   | `DetalleResponse` (líneas de ingreso) | `producto_nombre`, `producto_codigo` |
+   | `MermaResponse` | `producto_nombre`, `producto_codigo` |
+   | `MovimientoInventarioResponse` | `producto_nombre`, `producto_codigo` |
+
+   Se eliminó el `nombreProducto(id)` de las 4 páginas y los 2 componentes de detalle.
+
+2. **Los filtros y el alta de líneas usan búsqueda server-side**: `SelectorProducto`
+   (debounce 300 ms contra `/productos/buscar`) reemplaza a los `<select>` que
+   volcaban el catálogo completo en `Mermas`, `MovimientosInventario` y
+   `FormularioLineaIngreso`.
+
+Resultado: **ninguna pantalla carga el catálogo entero**, el tope de `page_size` deja de
+importar y el front no vuelve a romperse en silencio cuando el catálogo crezca.
+Verificado contra Supabase: 9/9 comprobaciones de los campos nuevos y `tsc --noEmit` limpio.
+
+### F3. `NameError` al arrancar el servidor
+`lifespan()` llamaba a `_ejecutar_tarea_reintentar()`, cuya definición se había perdido
+en la resolución de conflictos de `1f2f8ec` (en `53f51f5` sí estaba). Se quitó la
+llamada: la tarea, tal como está escrita, re-sube todas las ventas de los últimos 7 días
+cada 5 minutos sin registrar lo ya subido. El módulo `reintentar_subidas.py` queda en el
+repo por si Módulo D quiere arreglar la idempotencia y volver a engancharlo.
+
+---
+
+## 8. Anexo — reestructuración de vistas y baja de mermas (2026-07-25, 3ª pasada)
+
+Cambio de alcance pedido por el equipo. **El flujo de mermas se eliminó** y las
+tres vistas del frontend se reorganizaron en dos.
+
+### Mermas fuera
+Se borraron los 5 casos de uso, el puerto, el repositorio, el router (6 endpoints),
+la entidad `Merma`, sus VOs (`EstadoMerma`, `MotivoMerma`), los schemas, las 2
+páginas, 3 componentes, hook y servicios del frontend, y los permisos
+`mermas.registrar` / `mermas.confirmar` del seed.
+
+**La tabla `mermas` se conserva en la BD** (documentada como histórica en
+`models.py`): `movimientos_inventario.merma_id` la referencia con FK y las mermas
+ya registradas son parte del histórico contable.
+
+Su reemplazo es el **ajuste manual de stock** desde el catálogo:
+`POST /productos/{id}/ajustar-stock` con `delta` (+/-) y `motivo` obligatorio,
+permiso nuevo `inventario.ajustar_stock` (solo ADMIN). Cada ajuste deja su asiento
+en `movimientos_inventario` (`tipo='ajuste'`) y en la bitácora. El stock nunca
+queda negativo: el UPDATE es atómico y devuelve 409 si no alcanza.
+
+También se agregó `DELETE /productos/{id}` (baja lógica; el histórico se conserva,
+las FKs del módulo son `ON DELETE RESTRICT`).
+
+### Las vistas
+| Antes | Ahora |
+|---|---|
+| Catálogo (solo lectura, cartillas en el POS) | **eliminada**: `/catalogo` ahora es la de gestión; `/productos` redirige ahí |
+| Punto de venta (productos como cartillas) | **tabla de consulta**: código, nombre, categoría, precio, stock y estado, con filtros |
+| Productos+ (gestión, solo ADMIN) | **renombrada a Catálogo**, con edición en planilla |
+
+**Punto de venta**: la tabla es la vista de solo lectura del catálogo. Se carga un
+producto a la venta de dos formas: haciendo clic/tap en su fila, o escaneándolo
+(estando en la pestaña, el lector escribe en el buscador y al Enter se agrega). Si
+el código escaneado no está en la página cargada, se lo pide al backend por
+`GET /productos/buscar?codigo=`, así el escaneo no depende de los filtros ni de la
+paginación. Filtros: texto (nombre/código), categoría, estado de stock y rango de
+precio — los tres últimos requirieron `sin_stock`, `precio_min` y `precio_max` en
+`GET /productos`.
+
+**Catálogo (ADMIN)**: edición tipo planilla. El lápiz de la fila la vuelve editable
+en el lugar (código, nombre, categoría, precio, stock y stock mínimo); el lápiz pasa
+a ser un diskette y, al guardarlo, la fila muestra *"¿Seguro que querés hacer este
+cambio?"* con ✓ / ✗. Recién con el ✓ se aplican los cambios, cada uno por su
+endpoint: `PATCH /productos/{id}` (datos), `PATCH /precio` (precio) y
+`ajustar-stock` (diferencia de stock, con motivo automático).
+
+### Verificación
+- Suite del Módulo B: **84 passed** (se fueron los 16 tests de mermas).
+- Contra Supabase: **26 comprobaciones, 0 fallas** (mermas 404 en las 5 rutas,
+  ajuste +/- con sus asientos, tope de stock, permisos ADMIN vs CAJERO, filtros
+  nuevos, escaneo por código y baja lógica con historial conservado).
+- `tsc --noEmit` limpio.
+
+---
+
+## 9. Anexo — sin fotos, escáner en ingresos y alta en planilla (4ª pasada)
+
+### 9.1 Los productos ya no llevan foto
+Se eliminó `foto_url` de la entidad, el modelo, los schemas, el caso de uso, el
+repositorio, los tipos del frontend y la vista de catálogo. `ProductoCreate` pasó
+a `extra="forbid"`, así que mandarlo ahora devuelve **422** en vez de descartarse
+en silencio. La carpeta `productos` salió de `CARPETAS_VALIDAS` del storage: el
+único destino válido es `boletas` (la foto de la boleta de ingreso SÍ sigue siendo
+obligatoria, HU-B06).
+
+La columna `productos.foto_url` se conserva en la BD pero ya **no se mapea** en
+`models.py` (documentado ahí mismo).
+
+### 9.2 Ingresos: misma regla de escaneo que el POS
+En la pestaña de ingresos, escanear un código —o escribir el nombre y dar Enter—
+busca el producto y lo agrega como línea:
+- si ya está en la solicitud, suma 1 a su cantidad;
+- si hay una línea vacía, la ocupa;
+- el precio de compra se pre-carga con el `precio_compra_actual` del producto.
+
+El foco vuelve solo al buscador si se perdió (el lector "tipea" donde esté el
+cursor). Cuando el código no existe, el aviso lo dice y **se desvanece a los 4
+segundos** (`lib/useAvisoTemporal.ts`), para no tapar el siguiente escaneo. Si el
+texto coincide con varios productos por nombre, avisa cuántos son en vez de
+elegir uno al azar.
+
+### 9.3 Catálogo: el alta también es una fila
+"Nuevo producto" ya no abre un modal: inserta una **fila vacía editable arriba de
+la tabla**, con las mismas columnas y el mismo ciclo que la edición
+(diskette → "¿Creamos este producto?" → ✓ / ✗). Enter guarda y Escape descarta,
+para poder cargar sin soltar el teclado.
+
+### Verificación
+- Suite del Módulo B: **84 passed**.
+- Contra Supabase: **13 comprobaciones, 0 fallas** (alta completa en una llamada,
+  `foto_url` rechazado en alta y PATCH, edición de fila por sus tres endpoints,
+  escaneo por código y por nombre, 404 del código inexistente, y `carpeta=productos`
+  rechazada en storage).
+- `tsc --noEmit` limpio.
+
+---
+
+## 10. Anexo — paginación de Notas de Venta (5ª pasada)
+
+`GET /notas-venta` devolvía **todas** las notas del rango en una sola respuesta y
+la página las acumulaba en memoria, cortándolas de a 20 en el cliente: con el
+tiempo la tabla se hacía interminable y cada consulta traía el histórico completo.
+
+- **Backend**: el endpoint acepta `page` / `page_size` (1-100, igual que el resto)
+  y devuelve el envoltorio estándar `{items, total, page, page_size, total_pages}`.
+- **Frontend**: `PaginacionControles` —que ya usaban las tablas de inventario y
+  el POS— se movió a `shared/components/ui` (lo usan los tres módulos) y ahora
+  también lo usa Notas de Venta: selector de "N por página", Anterior/Siguiente y
+  "Mostrando X-Y de Z". El componente quedó desacoplado de los tipos del Módulo B.
+
+Verificado contra Supabase: **8 comprobaciones, 0 fallas** (envoltorio correcto,
+`page_size` respetado, páginas sin solapamiento, `total_pages` coherente, 422 para
+`page_size=500` y `page=0`, y el filtro por fechas intacto). Suite del Módulo B:
+**84 passed**. `tsc --noEmit` limpio.
+
+> **Aparte**: `tests/modulo_d_documentos/test_domain.py` y `test_usecases.py` no
+> compilan desde el commit `c081e8e` (importan `CanalNotificacion` y
+> `generar_boleta_usecase`, eliminados en la reestructuración del Módulo D). Es
+> anterior a estos cambios y queda para quien mantiene ese módulo.
+
+---
+
+## 11. Anexo — paginación en todo el sistema y aprobaciones a dos columnas (6ª pasada)
+
+### 11.1 Los tres listados que faltaban
+Mismo problema que Notas de Venta: el backend devolvía la colección completa y la
+pantalla la acumulaba. Ahora los tres usan el envoltorio estándar
+`{items, total, page, page_size, total_pages}` con `page_size` de 1 a 100 y
+**LIMIT/OFFSET real en SQL** (no recorte en memoria):
+
+| Endpoint | Antes | Ahora |
+|---|---|---|
+| `GET /ventas` | todas las ventas del rango | paginado (+ `GET /ventas/{id}` nuevo) |
+| `GET /notificaciones` | toda la bandeja del usuario | paginado |
+| `GET /respaldos` | todos los respaldos | paginado (había **78** en la BD de pruebas) |
+
+Cambiar la forma de `GET /ventas` obligó a adaptar el proveedor del Módulo D
+(`HttpVentaDataProvider`), que lo consumía como lista plana: ahora recorre las
+páginas para el listado/ZIP de notas, y para buscar UNA venta usa el endpoint
+nuevo `GET /ventas/{id}` en vez de recorrer el histórico entero (eran 3 métodos
+haciendo scan lineal por cada nota generada).
+
+En el frontend, `HistorialVentas`, `Notificaciones` y `Respaldos` usan el mismo
+`PaginacionControles` que el resto.
+
+### 11.2 Aprobaciones: el detalle se despliega en dos columnas
+El detalle se abría en un modal que tapaba todo. Ahora la cola sigue siendo una
+**tabla de filas a todo el ancho** y, al pedir el detalle, este se **despliega
+debajo** en dos columnas:
+
+- **Izquierda**: los productos por ingresar en una tabla propia —producto (con su
+  código), cantidad, costo unitario y subtotal—, con la fila de totales
+  (unidades y monto).
+- **Derecha**: la boleta grande (fija al hacer scroll), con clic para abrirla en
+  tamaño completo.
+
+Así se contrasta lo declarado contra la boleta de un vistazo. Se elige una
+solicitud tocando cualquier parte de su fila y la vista baja sola hasta el
+detalle; los botones de aprobar/rechazar/editar quedan al pie del panel.
+
+### Verificación
+- Contra Supabase: **19 comprobaciones, 0 fallas** (envoltorio, `page_size`
+  respetado, `total_pages` coherente, páginas sin solapamiento, 422 fuera de
+  rango, notas de venta funcionando sobre el `/ventas` paginado y el nuevo
+  `GET /ventas/{id}` con su 404).
+- Suite del Módulo B: **84 passed**. `tsc --noEmit` limpio.
+- Nota: `tests/modulo_c_ventas/` está vacío — el Módulo C no tiene tests propios,
+  así que estos cambios se validaron con el script contra la BD real.
+
+---
+
+## 12. Anexo — reportes con datos reales y zona horaria del negocio (7ª pasada)
+
+### 12.1 Los mockups de reportes
+`infrastructure/dependencies.py` del Módulo D tenía dos proveedores inventados que
+alimentaban `GET /reportes/resumen` y la exportación a Excel:
+
+```python
+class MockEgresosDataProvider:   # 1200 "Compra mercadería" + 150 luz + 80 agua
+class MockMetodoPagoProvider:    # EFECTIVO 850, YAPE 320, PLIN 180, TARJETA 200
+```
+
+Reemplazados por consultas reales:
+
+- **`SqlEgresosDataProvider`**: el egreso sale del **costo de la mercadería que
+  entró**, o sea de las líneas (`detalle_solicitud`) de las solicitudes de
+  ingreso **Aprobadas** — `SUM(cantidad × precio_compra_unitario)` — fechadas por
+  `revisado_en` (cuándo impactó el inventario). Las pendientes y rechazadas no
+  cuentan: no movieron ni stock ni plata.
+- **`SqlMetodoPagoProvider`**: el desglose sale de `pagos_venta` (renglón por
+  método, con su snapshot de código), no del resumen `ventas.metodo_pago`, que
+  dice "MIXTO" cuando la venta se pagó con más de uno. Excluye las anuladas.
+
+### 12.2 El bug que apareció verificando: todo el sistema fechaba en UTC
+Al aprobar un ingreso a las 23:55 de Lima, el reporte del día NO lo contaba: la
+BD guarda `timestamptz` y las consultas truncaban con `::date` en **UTC**, donde
+ya era el día siguiente. Lo mismo pasaba con el filtro de fechas de `GET /ventas`
+(`datetime.combine(..., tzinfo=timezone.utc)`), así que "las ventas de hoy" salían
+incompletas todas las tardes-noche.
+
+Se agregó `settings.zona_horaria_negocio` (`America/Lima` por defecto) y ahora el
+día se calcula en esa zona: `(campo AT TIME ZONE :tz)::date` en los reportes y
+límites de rango con `ZoneInfo` en el repositorio de ventas.
+
+### Verificación
+Contra Supabase: **8 comprobaciones, 0 fallas** — el resumen ya no devuelve los
+montos del mock; una solicitud **pendiente** no suma egresos; al **aprobarla** el
+egreso sube exactamente por su costo (4 × 250 = 1000); un rango sin movimientos da
+0; más-vendidos y la exportación a Excel siguen funcionando.
+Suite del Módulo B: **84 passed**. `tsc --noEmit` limpio.
+
+### 12.3 Notificaciones: no hay ningún disparador
+Revisado a pedido. El Módulo D tiene todo el andamiaje —tipos (`STOCK_BAJO`,
+`APERTURA_CAJA`, `CIERRE_CAJA`, `SOLICITUD_INGRESO`, `SISTEMA`), envío a Telegram
+y correo, configuración de nivel de detalle, bandeja y campanita— pero **nadie lo
+llama**: `EnviarNotificacionUseCase` solo se ejecuta desde `POST /notificaciones`
+(manual, solo ADMIN, y el frontend ni siquiera expone ese endpoint). Los módulos B
+y C no mencionan notificaciones en ninguna línea, y en la BD no hay triggers para
+esto (los únicos triggers son los de inmutabilidad de bitácora e historial de
+precios). Las notificaciones que existen en la BD de pruebas son inserciones
+manuales. **Cableado en la 8ª pasada (sección 13).**
+
+---
+
+## 13. Anexo — disparadores de notificaciones (8ª pasada)
+
+El andamiaje del Módulo D ya existía; faltaba que alguien lo llamara. Se cableó
+sin que B y C conozcan Telegram, correo ni la tabla `notificaciones`.
+
+### El contrato
+`modulo_d_documentos/notificador.py` expone `Notificador.avisar(...)`, que los
+contenedores de B y C inyectan igual que ya inyectan la auditoría del Módulo A
+(`contenedor_d.notificador(db)`). Regla central: **una notificación caída nunca
+rompe la operación** — `avisar()` atrapa cualquier error y lo loguea, así que un
+Telegram sin token no tumba una venta.
+
+### Los cuatro eventos
+
+| Evento | Dónde | Qué avisa |
+|---|---|---|
+| `SOLICITUD_INGRESO` | `RegistrarIngresoUseCase` (B) | El cajero registró un ingreso: productos, unidades y monto, pendiente de aprobación |
+| `STOCK_BAJO` | `AjustarStockUseCase` (B) y `RegistrarVentaUseCase` (C) | El producto quedó en su mínimo o por debajo, con las unidades restantes |
+| `APERTURA_CAJA` | `AbrirCajaUseCase` (C) | Quién abrió y con cuánto monto inicial |
+| `CIERRE_CAJA` | `CerrarCajaUseCase` (C) | Vendido, efectivo esperado vs contado y **si hubo descuadre** |
+
+Los cuatro van con `usuario_id=None`, es decir a la administradora: quedan en la
+bandeja y además salen por Telegram y correo.
+
+### La alerta de stock no se repite
+`STOCK_BAJO` usa la marca `productos.alerta_stock_notificada` a través de un
+**UPDATE condicional** (`... WHERE id = :id AND alerta_stock_notificada = FALSE`)
+que devuelve si realmente cambió la fila. Así, dos ventas simultáneas que dejan el
+mismo producto bajo mínimo generan **un solo aviso**, y el aviso se rearma solo
+cuando el stock vuelve a superar el mínimo (al aprobar un ingreso o reponer por
+devolución). Para eso `ProductoVendible` (Módulo C) ahora también trae
+`stock_minimo`.
+
+### Verificación
+Contra Supabase: **11 comprobaciones, 0 fallas** — la solicitud del cajero
+dispara su aviso; el ajuste que deja el producto en el mínimo dispara
+`STOCK_BAJO`; un segundo ajuste **no** repite el aviso; tras reponer y volver a
+bajar **sí** vuelve a avisar; abrir y cerrar caja disparan los suyos con el
+detalle del arqueo; y una **venta** que deja el producto en su mínimo también
+avisa (stock 3 → 2 con mínimo 2). Suite del Módulo B: **84 passed**.
+
+---
+
+## 14. Anexo — reportes que no mostraban nada y detalle en pop-up (9ª pasada)
+
+### 14.1 El bug que dejaba los reportes en cero (regresión propia)
+Al agregar la zona horaria del negocio (sección 12.2) usé `ZoneInfo("America/Lima")`
+en el filtro de fechas de `GET /ventas`. **Windows no trae la base IANA de zonas
+horarias**, así que sin el paquete `tzdata` eso levanta `ZoneInfoNotFoundError`:
+el endpoint respondía 500, el proveedor del Módulo D se lo tragaba (devuelve `[]`
+ante cualquier error) y el reporte mostraba **0 ventas, 0 productos vendidos y
+ticket promedio 0**. Los egresos, que salen por SQL directo, sí funcionaban — de
+ahí que el síntoma fuera parcial.
+
+Corrección: `tzdata` declarado en `pyproject.toml` y `requirements.txt`, y un
+helper `app/shared/config/zona_horaria.py` que degrada a UTC con un error claro en
+el log si la zona no está disponible, en vez de tumbar el endpoint.
+
+### 14.2 Ventas anuladas y devoluciones contaban como vendidas
+Verificando lo anterior apareció que el resumen sumaba **todas** las ventas del
+rango, incluidas las **ANULADAS** (que ya repusieron stock y devolvieron la plata),
+y que el top de productos contaba unidades que habían vuelto al inventario por
+**devoluciones parciales**. Ahora:
+
+- Las ventas `ANULADA` se excluyen del total, del número de ventas y del top.
+- Las cantidades se calculan netas (`cantidad − cantidad_devuelta`), tanto en el
+  resumen como en `/reportes/mas-vendidos`.
+- El resumen expone `total_devuelto` y el frontend lo muestra como indicador
+  "Devoluciones"; el gráfico pasó a llamarse **"Cobrado por método de pago"**,
+  porque sale de `pagos_venta` y es bruto. La relación queda cerrada y
+  verificable: **cobrado = vendido + devoluciones**.
+
+### 14.3 Aprobaciones: el detalle vuelve a ser pop-up
+El detalle desplegado debajo obligaba a bajar la pantalla. Ahora abre en un
+**pop-up ancho dividido en dos**: a la izquierda los productos por ingresar
+(cantidad, costo unitario y subtotal) y a la derecha la boleta, sin scroll de
+página y sin perder de vista ninguna de las dos.
+
+### Verificación
+Contra Supabase: **11 comprobaciones, 0 fallas** — la venta nueva suma y la
+anulada no; el producto aparece en más vendidos con sus unidades; la devolución
+parcial descuenta del producto y del total; `cobrado = vendido + devoluciones`;
+el egreso sube por el costo del ingreso aprobado (+600); y la exportación a Excel
+sigue funcionando. Suite del Módulo B: **84 passed**. `tsc --noEmit` limpio.

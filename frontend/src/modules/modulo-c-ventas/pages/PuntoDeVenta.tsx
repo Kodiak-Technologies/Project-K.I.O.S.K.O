@@ -1,6 +1,11 @@
-// Página del punto de venta (POS): registrar una venta. Pensada para uso
-// táctil: productos como botones grandes a la izquierda, carrito a la derecha.
+// Página del punto de venta (POS): registrar una venta Y consultar el catálogo.
+// La tabla de la izquierda es la vista de solo lectura de todo lo disponible
+// (código, nombre, categoría, precio, stock y estado); el carrito va a la derecha.
 // El catálogo viene del módulo B (puerto de productos).
+//
+// Cómo se carga un producto a la venta:
+//   1. escaneándolo (el lector escribe en el buscador y termina con Enter), o
+//   2. haciendo clic/tap en su fila de la tabla.
 //
 // Escáner (HU-C01): el lector de barras/QR emula un teclado y termina con Enter.
 // El buscador mantiene el foco (se recupera solo si se pierde), y al recibir
@@ -13,9 +18,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CloudUpload,
   Minus,
+  Package,
   Plus,
   ScanBarcode,
-  Search,
   ShoppingCart,
   Trash2,
   Wifi,
@@ -31,11 +36,17 @@ import {
   ModuloPendiente,
   PageHeader,
   PageSpinner,
+  Select,
+  Table,
+  type Columna,
 } from "../../../shared/components/ui";
 import { useAuthContext } from "../../../shared/lib/auth-context";
 import { mensajeDeError } from "../../../shared/lib/http-client";
+import { PaginacionControles } from "../../modulo-b-inventario/components/PaginacionControles";
+import { useCategorias } from "../../modulo-b-inventario/hooks/useCategorias";
 import { useProductos } from "../../modulo-b-inventario/hooks/useProductos";
-import type { Producto } from "../../modulo-b-inventario/types";
+import { productosHttpAdapter } from "../../modulo-b-inventario/services/productos.http-adapter";
+import type { FiltrosProductos, Producto } from "../../modulo-b-inventario/types";
 import { ModalCobro } from "../components/ModalCobro";
 import { ModalVentaRegistrada } from "../components/ModalVentaRegistrada";
 import { useCaja } from "../hooks/useCaja";
@@ -43,6 +54,16 @@ import { useConexion } from "../hooks/useConexion";
 import { useVenta } from "../hooks/useVenta";
 import { cacheOffline, colaOffline } from "../services/ventas-offline";
 import type { ItemVenta, NuevoPago, Venta } from "../types";
+
+const DEBOUNCE_MS = 300;
+
+/** Estado del producto según su stock (columna "Estado" de la tabla). */
+function badgeDeStock(p: Producto) {
+  if (p.stock <= 0) return <Badge tono="peligro">Sin stock</Badge>;
+  if (p.stock_minimo > 0 && p.stock <= p.stock_minimo)
+    return <Badge tono="alerta">Bajo stock</Badge>;
+  return <Badge tono="exito">Disponible</Badge>;
+}
 
 /** Vuelto local para ventas offline: solo EFECTIVO reparte vuelto. */
 function vueltoLocal(pagos: NuevoPago[], total: number): number {
@@ -56,7 +77,14 @@ function vueltoLocal(pagos: NuevoPago[], total: number): number {
 export default function PuntoDeVenta() {
   const { usuario } = useAuthContext();
   const { online } = useConexion();
-  const { productos, cargando, noDisponible, recargar: recargarProductos } = useProductos();
+  const {
+    productos,
+    paginados,
+    cargando,
+    noDisponible,
+    recargar: recargarProductos,
+  } = useProductos();
+  const { categorias } = useCategorias();
   const { turno: turnoRemoto, noDisponible: cajaNoDisponible } = useCaja();
   const { registrar } = useVenta();
 
@@ -108,6 +136,13 @@ export default function PuntoDeVenta() {
   }, [online, recargarProductos]);
 
   const [busqueda, setBusqueda] = useState("");
+  // Filtros de la tabla-catálogo (se aplican en el servidor cuando hay conexión).
+  const [filtroCategoria, setFiltroCategoria] = useState<number | "">("");
+  const [filtroEstado, setFiltroEstado] = useState<"todos" | "disponible" | "bajo_minimo" | "sin_stock">("todos");
+  const [precioMin, setPrecioMin] = useState("");
+  const [precioMax, setPrecioMax] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [carrito, setCarrito] = useState<ItemVenta[]>([]);
   const [modalCobro, setModalCobro] = useState(false);
   // HU-C05: venta recién cerrada, para ofrecer el ticket opcional y mostrar el vuelto
@@ -135,12 +170,42 @@ export default function PuntoDeVenta() {
     return () => window.removeEventListener("keydown", recuperarFoco);
   }, []);
 
+  // Los filtros viajan al backend (así no dependemos de cuántos productos haya).
+  // Sin conexión se filtra sobre el caché local para poder seguir vendiendo.
+  useEffect(() => {
+    if (!online) return;
+    const handle = window.setTimeout(() => {
+      const filtros: FiltrosProductos = { page, page_size: pageSize, activo: true };
+      if (busqueda.trim()) filtros.search = busqueda.trim();
+      if (filtroCategoria !== "") filtros.categoria_id = filtroCategoria;
+      if (filtroEstado === "disponible") filtros.solo_con_stock = true;
+      if (filtroEstado === "bajo_minimo") filtros.solo_bajo_minimo = true;
+      if (filtroEstado === "sin_stock") filtros.sin_stock = true;
+      if (precioMin.trim()) filtros.precio_min = Number(precioMin);
+      if (precioMax.trim()) filtros.precio_max = Number(precioMax);
+      void recargarProductos(filtros);
+    }, DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busqueda, filtroCategoria, filtroEstado, precioMin, precioMax, page, pageSize, online]);
+
   const visibles = useMemo(() => {
+    if (online) return catalogo;
+    // Offline: mismos filtros, resueltos en memoria sobre el caché.
     const q = busqueda.trim().toLowerCase();
-    const activos = catalogo.filter((p) => p.activo && p.stock > 0);
-    if (!q) return activos;
-    return activos.filter((p) => p.nombre.toLowerCase().includes(q) || p.codigo.includes(q));
-  }, [catalogo, busqueda]);
+    return catalogo.filter((p) => {
+      if (!p.activo) return false;
+      if (q && !(p.nombre.toLowerCase().includes(q) || p.codigo.includes(q))) return false;
+      if (filtroCategoria !== "" && p.categoria_id !== filtroCategoria) return false;
+      if (filtroEstado === "disponible" && p.stock <= 0) return false;
+      if (filtroEstado === "sin_stock" && p.stock > 0) return false;
+      if (filtroEstado === "bajo_minimo" && !(p.stock_minimo > 0 && p.stock <= p.stock_minimo))
+        return false;
+      if (precioMin.trim() && p.precio < Number(precioMin)) return false;
+      if (precioMax.trim() && p.precio > Number(precioMax)) return false;
+      return true;
+    });
+  }, [online, catalogo, busqueda, filtroCategoria, filtroEstado, precioMin, precioMax]);
 
   const total = carrito.reduce((suma, i) => suma + i.precio_unitario * i.cantidad, 0);
 
@@ -163,18 +228,29 @@ export default function PuntoDeVenta() {
   // Enter en el buscador = fin de un escaneo (o búsqueda manual): si el texto
   // coincide exacto con un código, ese producto entra al carrito al instante;
   // si no, entra la sugerencia seleccionada del desplegable.
-  function manejarEnterBusqueda() {
+  //
+  // Estando en esta pantalla, escanear SIEMPRE agrega: si el código no está en
+  // la página cargada de la tabla, se lo pide al backend (búsqueda por código,
+  // indexada). Así el escaneo no depende de los filtros ni de la paginación.
+  async function manejarEnterBusqueda() {
     const texto = busqueda.trim();
     if (!texto) return;
     const porCodigo = catalogo.find((p) => p.codigo === texto);
     if (porCodigo) {
-      if (!porCodigo.activo || porCodigo.stock <= 0) {
-        setAvisoEscaneo(`'${porCodigo.nombre}' no tiene stock disponible.`);
-        setBusqueda("");
-        return;
-      }
-      agregarYLimpiar(porCodigo);
+      agregarSiHayStock(porCodigo);
       return;
+    }
+    if (online) {
+      try {
+        const encontrado = await productosHttpAdapter.buscar(texto);
+        const producto = Array.isArray(encontrado) ? encontrado[0] : encontrado;
+        if (producto) {
+          agregarSiHayStock(producto);
+          return;
+        }
+      } catch {
+        // 404 del backend: no existe ese código. Cae al mensaje de abajo.
+      }
     }
     if (sugerencias.length > 0) {
       agregarYLimpiar(sugerencias[Math.min(indiceSugerencia, sugerencias.length - 1)]);
@@ -183,10 +259,20 @@ export default function PuntoDeVenta() {
     setAvisoEscaneo(`No hay ningún producto que coincida con "${texto}".`);
   }
 
+  /** Agrega al carrito si el producto está activo y tiene stock. */
+  function agregarSiHayStock(p: Producto) {
+    if (!p.activo || p.stock <= 0) {
+      setAvisoEscaneo(`'${p.nombre}' no tiene stock disponible.`);
+      setBusqueda("");
+      return;
+    }
+    agregarYLimpiar(p);
+  }
+
   function manejarTeclasBusqueda(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
       e.preventDefault();
-      manejarEnterBusqueda();
+      void manejarEnterBusqueda();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       setIndiceSugerencia((i) => Math.min(i + 1, sugerencias.length - 1));
@@ -315,6 +401,30 @@ export default function PuntoDeVenta() {
   }
   if (cargando) return <PageSpinner texto="Cargando productos…" />;
 
+  // Catálogo de consulta: código, nombre, categoría, precio, stock y estado.
+  const columnasCatalogo: Columna<Producto>[] = [
+    {
+      titulo: "Código",
+      render: (p) => <span className="font-mono text-xs text-zinc-500">{p.codigo}</span>,
+    },
+    {
+      titulo: "Producto",
+      render: (p) => <span className="font-medium text-zinc-800">{p.nombre}</span>,
+    },
+    { titulo: "Categoría", soloEscritorio: true, render: (p) => p.categoria_nombre ?? "—" },
+    {
+      titulo: "Precio",
+      alinear: "derecha",
+      render: (p) => <span className="tabular-nums">S/ {p.precio.toFixed(2)}</span>,
+    },
+    {
+      titulo: "Stock",
+      alinear: "derecha",
+      render: (p) => <span className="tabular-nums">{p.stock}</span>,
+    },
+    { titulo: "Estado", render: badgeDeStock },
+  ];
+
   return (
     <div>
       <PageHeader
@@ -421,31 +531,93 @@ export default function PuntoDeVenta() {
               <Alert tono="alerta">{avisoEscaneo}</Alert>
             </div>
           )}
-          {visibles.length === 0 ? (
-            <Card sinPadding>
-              <EmptyState
-                icono={Search}
-                titulo="Sin resultados"
-                descripcion="Ningún producto activo con stock coincide."
-              />
-            </Card>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
-              {visibles.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => agregar(p)}
-                  className="min-h-tactil rounded-xl border border-zinc-200 bg-white p-3 text-left shadow-tarjeta transition-colors hover:border-zinc-400 active:bg-zinc-50"
-                >
-                  <p className="line-clamp-2 text-sm font-medium text-zinc-800">{p.nombre}</p>
-                  <p className="mt-1 text-sm font-semibold tabular-nums text-zinc-900">
-                    S/ {p.precio.toFixed(2)}
-                  </p>
-                  <p className="text-xs text-zinc-400">stock: {p.stock}</p>
-                </button>
+
+          {/* Filtros del catálogo: categoría, estado de stock y rango de precio.
+              (la búsqueda por nombre/código es el mismo campo que usa el lector) */}
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <Select
+              aria-label="Filtrar por categoría"
+              value={filtroCategoria}
+              onChange={(e) => {
+                setFiltroCategoria(e.target.value ? Number(e.target.value) : "");
+                setPage(1);
+              }}
+            >
+              <option value="">Todas las categorías</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
               ))}
-            </div>
-          )}
+            </Select>
+            <Select
+              aria-label="Filtrar por estado de stock"
+              value={filtroEstado}
+              onChange={(e) => {
+                setFiltroEstado(e.target.value as typeof filtroEstado);
+                setPage(1);
+              }}
+            >
+              <option value="todos">Todo el stock</option>
+              <option value="disponible">Disponible</option>
+              <option value="bajo_minimo">Bajo mínimo</option>
+              <option value="sin_stock">Sin stock</option>
+            </Select>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              placeholder="Precio desde"
+              aria-label="Precio mínimo"
+              value={precioMin}
+              onChange={(e) => {
+                setPrecioMin(e.target.value);
+                setPage(1);
+              }}
+            />
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              placeholder="Precio hasta"
+              aria-label="Precio máximo"
+              value={precioMax}
+              onChange={(e) => {
+                setPrecioMax(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+
+          {/* Catálogo en tabla (solo lectura). Un clic en la fila lo agrega a la venta. */}
+          <Card sinPadding>
+            <Table
+              columnas={columnasCatalogo}
+              filas={visibles}
+              claveDe={(p) => p.id}
+              alHacerClicFila={(p) => agregarSiHayStock(p)}
+              vacio={
+                <EmptyState
+                  icono={Package}
+                  titulo="Sin resultados"
+                  descripcion="Ningún producto coincide con la búsqueda o los filtros."
+                />
+              }
+            />
+            {online && (
+              <PaginacionControles
+                paginados={paginados}
+                page={page}
+                pageSize={pageSize}
+                onCambiarPage={setPage}
+                onCambiarPageSize={(n) => {
+                  setPageSize(n);
+                  setPage(1);
+                }}
+                etiqueta="productos"
+              />
+            )}
+          </Card>
         </div>
 
         {/* Carrito */}

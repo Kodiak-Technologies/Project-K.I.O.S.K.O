@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock
 from app.modules.modulo_b_inventario.domain.entities import (
     Categoria,
     HistorialPrecio,
-    Merma,
     MovimientoInventario,
     PagoProveedor,
     Producto,
@@ -73,6 +72,13 @@ class MockProductoRepository:
                 if sufijo.isdigit():
                     maximo = max(maximo, int(sufijo))
         return maximo + 1
+
+    async def marcar_alerta_si_nueva(self, producto_id: int) -> bool:
+        producto = self._productos.get(producto_id)
+        if producto is None or producto.alerta_stock_notificada:
+            return False
+        producto.alerta_stock_notificada = True
+        return True
 
     async def marcar_alertas_notificadas(self, producto_ids: list[int]) -> int:
         marcados = 0
@@ -377,56 +383,6 @@ class MockPagoProveedorRepository:
 
     async def sum_tipo(self, proveedor_id: int, tipo: str) -> Decimal:  # pragma: no cover
         raise NotImplementedError("Mock no configurado para sum_tipo — drift de Port")
-
-
-# =============================================================================
-# Merma
-# =============================================================================
-
-
-class MockMermaRepository:
-    """Mock del `MermaRepositoryPort` con estado en memoria."""
-
-    def __init__(self) -> None:
-        self._mermas: dict[int, Merma] = {}
-        self._contador = 0
-        self.find_by_id_for_update_call_count = 0
-        self.actualizar_call_count = 0
-        self.actualizar_last_merma: Merma | None = None
-
-    def add_merma(self, merma: Merma) -> Merma:
-        self._contador += 1
-        merma.id = self._contador
-        self._mermas[merma.id] = merma
-        return merma
-
-    async def crear(self, merma: Merma) -> Merma:  # pragma: no cover
-        raise NotImplementedError("Mock no configurado para crear — drift de Port")
-
-    async def find_by_id(self, merma_id: int) -> Merma | None:
-        return self._mermas.get(merma_id)
-
-    async def find_by_id_for_update(self, merma_id: int) -> Merma | None:
-        self.find_by_id_for_update_call_count += 1
-        return self._mermas.get(merma_id)
-
-    async def actualizar(self, merma: Merma) -> Merma:
-        self.actualizar_call_count += 1
-        self.actualizar_last_merma = merma
-        self._mermas[merma.id] = merma
-        return merma
-
-    async def actualizar_cabecera(self, merma_id: int, cambios: dict) -> Merma:
-        m = self._mermas.get(merma_id)
-        if m is None:
-            return None  # type: ignore[return-value]
-        for k, v in cambios.items():
-            if hasattr(m, k):
-                setattr(m, k, v)
-        return m
-
-    async def listar_paginado(self, **_kwargs: Any) -> tuple[list[Merma], int]:  # pragma: no cover
-        raise NotImplementedError("Mock no configurado para listar_paginado — drift de Port")
 
 
 # =============================================================================

@@ -10,23 +10,19 @@ from decimal import Decimal
 
 import pytest
 
-from app.modules.modulo_b_inventario.application.confirmar_merma_usecase import (
-    ConfirmarMermaUseCase,
+from app.modules.modulo_b_inventario.application.ajustar_stock_usecase import (
+    AjustarStockUseCase,
 )
 from app.modules.modulo_b_inventario.application.crear_producto_usecase import (
     CrearProductoUseCase,
 )
-from app.modules.modulo_b_inventario.application.editar_merma_usecase import (
-    EditarMermaUseCase,
-)
 from app.modules.modulo_b_inventario.application.editar_proveedor_usecase import (
     EditarProveedorUseCase,
 )
-from app.modules.modulo_b_inventario.domain.entities import Merma, Producto
-from app.modules.modulo_b_inventario.domain.value_objects import EstadoMerma, MotivoMerma
+from app.modules.modulo_b_inventario.domain.entities import Producto
 from app.modules.modulo_b_inventario.infrastructure.http.schemas import (
+    AjustarStockRequest,
     CambiarPrecioRequest,
-    MermaUpdateRequest,
     PagoProveedorCreate,
     ProductoUpdate,
     ProveedorUpdate,
@@ -41,60 +37,11 @@ from app.shared.kernel.exceptions import (
 from ._mocks import (
     MockCategoriaRepository,
     MockHistorialPrecioRepository,
-    MockMermaRepository,
     MockMovimientoInventarioRepository,
     MockProductoRepository,
     MockProveedorRepository,
     make_auditoria_mock,
 )
-
-
-def _merma_registrada(producto_id: int = 1, registrado_por: int = 7) -> Merma:
-    return Merma(
-        id=None,
-        producto_id=producto_id,
-        cantidad=2,
-        motivo=MotivoMerma("rotura"),
-        registrado_por=registrado_por,
-        registrado_por_nombre="Cajero",
-        estado=EstadoMerma("Registrada"),
-    )
-
-
-# =============================================================================
-# HU-B12: confirmar merma
-# =============================================================================
-
-
-def test_confirmar_merma_setea_confirmado_en() -> None:
-    """Sin `confirmado_en`, el UPDATE viola chk_mermas_estado_consistente (500)."""
-    merma = _merma_registrada()
-    merma.confirmar(usuario_id=1, nombre="Admin")
-    assert merma.confirmado_en is not None
-    assert str(merma.estado) == "Confirmada"
-
-
-def test_cajero_no_confirma_su_propia_merma() -> None:
-    """D-14: flujo de 2 pasos; quien registra no valida (salvo ADMIN)."""
-
-    async def _run():
-        mermas = MockMermaRepository()
-        merma = mermas.add_merma(_merma_registrada(registrado_por=7))
-        use_case = ConfirmarMermaUseCase(
-            mermas,
-            MockProductoRepository(),
-            MockMovimientoInventarioRepository(),
-            make_auditoria_mock(),
-        )
-        with pytest.raises(ProhibidoError):
-            await use_case.ejecutar(
-                merma_id=merma.id,
-                usuario_id=7,
-                usuario_nombre="Cajero",
-                es_admin=False,
-            )
-
-    asyncio.run(_run())
 
 
 # =============================================================================
@@ -206,36 +153,6 @@ def test_producto_sin_stock_minimo_no_requiere_reposicion() -> None:
 
 
 # =============================================================================
-# FKs en las ediciones
-# =============================================================================
-
-
-def test_editar_merma_valida_producto_inexistente() -> None:
-    """Antes llegaba al UPDATE y Postgres devolvía violación de FK (500)."""
-
-    async def _run():
-        mermas = MockMermaRepository()
-        merma = mermas.add_merma(_merma_registrada())
-        use_case = EditarMermaUseCase(
-            mermas,
-            make_auditoria_mock(),
-            producto_repo=MockProductoRepository(),  # vacío: nada existe
-            proveedor_repo=MockProveedorRepository(),
-        )
-        with pytest.raises(ValidacionError) as exc:
-            await use_case.ejecutar(
-                merma_id=merma.id,
-                editor_id=1,
-                editor_nombre="Admin",
-                es_admin=True,
-                producto_id=999999,
-            )
-        assert exc.value.code == "PRODUCTO_NOT_FOUND"
-
-    asyncio.run(_run())
-
-
-# =============================================================================
 # HU-B14: proveedores
 # =============================================================================
 
@@ -307,3 +224,108 @@ def test_patch_parcial_no_pisa_los_campos_ausentes() -> None:
 
     with pytest.raises(Exception):
         MermaUpdateRequest()  # body vacío
+
+
+def test_patch_parcial_no_pisa_los_campos_ausentes() -> None:
+    """PATCH {"motivo": "x"} no debe interpretarse como "proveedor_id = None".
+
+    Antes, un PATCH de solo `lineas` borraba el proveedor de la solicitud.
+    """
+    ingreso = SolicitudIngresoUpdateRequest(
+        lineas=[{"producto_id": 1, "cantidad": 2, "precio_unitario": 3}]
+    )
+    assert ingreso.valor("proveedor_id") is ...
+    assert ingreso.valor("motivo") is ...
+    assert SolicitudIngresoUpdateRequest(motivo=None).valor("motivo") is None
+
+    with pytest.raises(Exception):
+        SolicitudIngresoUpdateRequest()  # body vacío
+
+
+# =============================================================================
+# Catálogo del ADMIN: ajuste de stock (reemplaza al flujo de mermas)
+# =============================================================================
+
+
+def test_ajuste_de_stock_registra_movimiento_y_auditoria() -> None:
+    """El ajuste descuenta stock, deja asiento `tipo='ajuste'` y audita."""
+
+    async def _run():
+        productos = MockProductoRepository()
+        movimientos = MockMovimientoInventarioRepository()
+        auditoria = make_auditoria_mock()
+        producto = await productos.crear(
+            Producto(id=None, codigo="AJ-1", nombre="Gaseosa", categoria_id=None,
+                     precio=Decimal("10"), stock=10, stock_minimo=2)
+        )
+        productos.incrementar_stock_atomic_return_value = (True, 8)
+        use_case = AjustarStockUseCase(productos, movimientos, auditoria)
+
+        resultado = await use_case.ejecutar(
+            producto_id=producto.id,
+            delta=-2,
+            motivo="Producto roto",
+            usuario_id=1,
+            usuario_nombre="Admin",
+        )
+        assert resultado.stock_anterior == 10
+        assert resultado.stock_actual == 8
+        assert movimientos.append_call_count == 1
+        asiento = movimientos.append_last_movimiento
+        assert str(asiento.tipo) == "ajuste"
+        assert asiento.cantidad == -2
+        assert asiento.motivo == "Producto roto"
+        assert auditoria.ejecutar.await_args.kwargs["accion"] == "ajustar_stock"
+
+    asyncio.run(_run())
+
+
+def test_ajuste_sin_motivo_o_en_cero_se_rechaza() -> None:
+    async def _run():
+        productos = MockProductoRepository()
+        producto = await productos.crear(
+            Producto(id=None, codigo="AJ-2", nombre="X", categoria_id=None,
+                     precio=Decimal("10"), stock=5)
+        )
+        use_case = AjustarStockUseCase(
+            productos, MockMovimientoInventarioRepository(), make_auditoria_mock()
+        )
+        with pytest.raises(ValidacionError):
+            await use_case.ejecutar(producto_id=producto.id, delta=0, motivo="Algo",
+                                    usuario_id=1, usuario_nombre="Admin")
+        with pytest.raises(ValidacionError):
+            await use_case.ejecutar(producto_id=producto.id, delta=-1, motivo="  ",
+                                    usuario_id=1, usuario_nombre="Admin")
+
+    asyncio.run(_run())
+
+
+def test_ajuste_no_deja_el_stock_negativo() -> None:
+    """Si el UPDATE atómico no afecta filas, el ajuste falla con 409."""
+
+    async def _run():
+        from app.shared.kernel.exceptions import ConflictoError
+
+        productos = MockProductoRepository()
+        producto = await productos.crear(
+            Producto(id=None, codigo="AJ-3", nombre="X", categoria_id=None,
+                     precio=Decimal("10"), stock=1)
+        )
+        productos.incrementar_stock_atomic_return_value = (False, None)
+        movimientos = MockMovimientoInventarioRepository()
+        use_case = AjustarStockUseCase(productos, movimientos, make_auditoria_mock())
+        with pytest.raises(ConflictoError):
+            await use_case.ejecutar(producto_id=producto.id, delta=-99, motivo="Rotura",
+                                    usuario_id=1, usuario_nombre="Admin")
+        assert movimientos.append_call_count == 0
+
+    asyncio.run(_run())
+
+
+def test_ajuste_exige_motivo_y_delta_distinto_de_cero() -> None:
+    """El motivo del ajuste es obligatorio: queda en la bitácora y el movimiento."""
+    with pytest.raises(Exception):
+        AjustarStockRequest(delta=0, motivo="Conteo físico")
+    with pytest.raises(Exception):
+        AjustarStockRequest(delta=1, motivo="ab")  # motivo demasiado corto
+    assert AjustarStockRequest(delta=1, motivo="Conteo físico").delta == 1

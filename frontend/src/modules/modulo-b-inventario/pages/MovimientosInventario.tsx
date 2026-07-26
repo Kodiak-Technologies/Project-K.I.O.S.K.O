@@ -16,8 +16,8 @@ import {
   type Tono,
 } from "../../../shared/components/ui";
 import { PaginacionControles } from "../components/PaginacionControles";
+import { SelectorProducto } from "../components/SelectorProducto";
 import { useMovimientos } from "../hooks/useMovimientos";
-import { useProductos } from "../hooks/useProductos";
 import type { FiltrosMovimientos, MovimientoInventario, TipoMovimiento } from "../types";
 
 const TONO_TIPO: Record<string, Tono> = {
@@ -38,7 +38,6 @@ const TIPO_LABELS: Record<string, string> = {
 
 export default function MovimientosInventario() {
   const { movimientos, paginados, cargando, error, noDisponible, recargar } = useMovimientos();
-  const { productos } = useProductos({ page_size: 200 });
 
   const [filtroProducto, setFiltroProducto] = useState<number | "">("");
   const [filtroTipo, setFiltroTipo] = useState<TipoMovimiento | "">("");
@@ -56,10 +55,6 @@ export default function MovimientosInventario() {
     void recargar(filtros);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroProducto, filtroTipo, fechaDesde, fechaHasta, page, pageSize]);
-
-  function nombreProducto(id: number): string {
-    return productos.find((p) => p.id === id)?.nombre ?? `#${id}`;
-  }
 
   if (noDisponible) {
     return (
@@ -81,7 +76,7 @@ export default function MovimientosInventario() {
         </span>
       ),
     },
-    { titulo: "Producto", render: (m) => nombreProducto(m.producto_id) },
+    { titulo: "Producto", render: (m) => m.producto_nombre ?? `#${m.producto_id}` },
     {
       titulo: "Tipo",
       render: (m) => {
@@ -128,21 +123,16 @@ export default function MovimientosInventario() {
       />
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Select
+        {/* Búsqueda contra el servidor: ver nota en Mermas.tsx. */}
+        <SelectorProducto
           label="Producto"
-          value={filtroProducto}
-          onChange={(e) => {
-            setFiltroProducto(e.target.value ? Number(e.target.value) : "");
+          value={filtroProducto === "" ? null : filtroProducto}
+          onChange={(id) => {
+            setFiltroProducto(id ?? "");
             setPage(1);
           }}
-        >
-          <option value="">Todos</option>
-          {productos.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nombre}
-            </option>
-          ))}
-        </Select>
+          soloActivos={false}
+        />
         <Select
           label="Tipo"
           value={filtroTipo}

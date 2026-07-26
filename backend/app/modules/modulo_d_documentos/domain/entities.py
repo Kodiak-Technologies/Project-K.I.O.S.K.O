@@ -115,6 +115,10 @@ class ResumenReporte:
     desde: str
     hasta: str
     total_vendido: float = 0.0
+    # Lo devuelto en devoluciones PARCIALES del período. `total_vendido` ya es
+    # neto de esto; sirve para explicar por qué los cobros por método (que son
+    # brutos) suman más que lo vendido.
+    total_devuelto: float = 0.0
     total_egresos: float = 0.0
     numero_ventas: int = 0
     ticket_promedio: float = 0.0

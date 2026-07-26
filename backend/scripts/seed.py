@@ -37,9 +37,9 @@ PERMISOS = [
     ("categorias.gestionar", "Crear y editar categorías del catálogo", False),
     ("precios.editar", "Modificar precios", False),
     ("historial_precios.ver", "Consultar el historial de cambios de precio", False),
-    # El cajero registra la merma (D-14, flujo de 2 pasos); la administradora valida.
-    ("mermas.registrar", "Registrar mermas, vencimientos y roturas", True),
-    ("mermas.confirmar", "Confirmar o rechazar mermas", False),
+    # Ajuste manual de stock desde el catálogo: solo ADMIN (el cajero mueve
+    # stock por solicitudes de ingreso y por ventas, nunca a mano).
+    ("inventario.ajustar_stock", "Ajustar el stock a mano desde el catálogo", False),
     # El cajero necesita subir la foto de la boleta para poder enviar la solicitud (HU-B06).
     ("storage.upload", "Subir archivos (fotos de boleta y de producto)", True),
     ("inventario.aprobar_ingreso", "Aprobar ingresos de mercadería", False),

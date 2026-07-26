@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState  } from "react";
 import { AlertTriangle, Database, Download, ExternalLink, Plus, RotateCcw } from "lucide-react";
 import {
   Alert,
@@ -11,6 +11,7 @@ import {
   PageSpinner,
   Table,
   type Columna,
+  PaginacionControles,
 } from "../../../shared/components/ui";
 import { useRespaldos } from "../hooks/useRespaldos";
 import { httpClient } from "../../../shared/lib/http-client";
@@ -29,7 +30,15 @@ function formatearTamano(bytes: number): string {
 }
 
 export default function Respaldos() {
-  const { respaldos, cargando, error, noDisponible, crear, descargar, restaurar } = useRespaldos();
+  const { respaldos, paginados, cargando, error, noDisponible, recargar, crear, descargar, restaurar } =
+    useRespaldos();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  useEffect(() => {
+    void recargar(page, pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
   const [driveAutorizado, setDriveAutorizado] = useState<boolean | null>(null);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
 
@@ -184,6 +193,17 @@ export default function Respaldos() {
                 descripcion="Aún no se ha generado ningún respaldo."
               />
             }
+          />
+          <PaginacionControles
+            paginados={paginados}
+            page={page}
+            pageSize={pageSize}
+            onCambiarPage={setPage}
+            onCambiarPageSize={(n) => {
+              setPageSize(n);
+              setPage(1);
+            }}
+            etiqueta="respaldos"
           />
         </Card>
       )}

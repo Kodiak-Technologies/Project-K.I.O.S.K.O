@@ -49,47 +49,9 @@ class EstadoSolicitud:
         return self.valor
 
 
-@dataclass(frozen=True)
-class EstadoMerma:
-    """Estado de una merma (CU-B09, CU-B09b, CU-B09c, D-14).
-
-    Transiciones válidas (validadas en la entidad `Merma`):
-        Registrada -> Confirmada | Rechazada (terminal)
-    """
-
-    valor: str
-    REGISTRADA: ClassVar[str] = "Registrada"
-    CONFIRMADA: ClassVar[str] = "Confirmada"
-    RECHAZADA: ClassVar[str] = "Rechazada"
-    VALORES: ClassVar[tuple[str, ...]] = (REGISTRADA, CONFIRMADA, RECHAZADA)
-
-    def __post_init__(self) -> None:
-        _validar_pertenencia(self.valor, self.VALORES, "EstadoMerma")
-
-    def __str__(self) -> str:
-        return self.valor
-
-
 # =============================================================================
 # Catálogos cerrados
 # =============================================================================
-
-
-@dataclass(frozen=True)
-class MotivoMerma:
-    """Motivo de una merma (RF-23). Catálogo cerrado."""
-
-    valor: str
-    VENCIMIENTO: ClassVar[str] = "vencimiento"
-    ROTURA: ClassVar[str] = "rotura"
-    OTRO: ClassVar[str] = "otro"
-    VALORES: ClassVar[tuple[str, ...]] = (VENCIMIENTO, ROTURA, OTRO)
-
-    def __post_init__(self) -> None:
-        _validar_pertenencia(self.valor, self.VALORES, "MotivoMerma")
-
-    def __str__(self) -> str:
-        return self.valor
 
 
 @dataclass(frozen=True)

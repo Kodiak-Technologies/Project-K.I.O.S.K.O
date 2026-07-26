@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     environment: str = "local"
     database_url: str = "postgresql+asyncpg://tienda:tienda@localhost:5432/tienda_sistema"
 
+    # Zona horaria del negocio. Los reportes agrupan "por día" según ESTA zona:
+    # una venta de las 23:55 en Lima pertenece a ese día, no al siguiente en UTC.
+    zona_horaria_negocio: str = "America/Lima"
+
     # Firma de los JWT. En producción viene de Secret Manager, nunca del repo.
     secret_key: str = "change-me"
     jwt_algorithm: str = "HS256"

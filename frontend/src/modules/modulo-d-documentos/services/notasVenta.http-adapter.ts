@@ -3,8 +3,12 @@ import { httpClient } from "../../../shared/lib/http-client";
 import type { NotasVentaPort } from "./notasVenta.port";
 
 export const notasVentaHttpAdapter: NotasVentaPort = {
-  async listar(desde, hasta) {
-    const { data } = await httpClient.get("/notas-venta", { params: { desde, hasta } });
+  async listar(filtros) {
+    const params: Record<string, unknown> = {};
+    for (const [clave, valor] of Object.entries(filtros ?? {})) {
+      if (valor !== undefined && valor !== null && valor !== "") params[clave] = valor;
+    }
+    const { data } = await httpClient.get("/notas-venta", { params });
     return data;
   },
 

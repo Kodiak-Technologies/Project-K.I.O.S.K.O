@@ -1,6 +1,7 @@
 // Hook: consultar la bitácora de movimientos de inventario.
 import { useCallback, useEffect, useState } from "react";
 import { mensajeDeError, servicioNoDisponible } from "../../../shared/lib/http-client";
+import { useFiltrosEstables } from "../../../shared/lib/use-filtros-estables";
 import { movimientosHttpAdapter } from "../services/movimientos.http-adapter";
 import type { FiltrosMovimientos, MovimientoInventario, PaginadosResponse } from "../types";
 
@@ -34,9 +35,14 @@ export function useMovimientos(filtrosIniciales?: FiltrosMovimientos): EstadoHoo
     }
   }, []);
 
+  // El literal `{ page_size: 100 }` es un objeto nuevo en cada render: como
+  // dependencia dispara el efecto en bucle. Dependemos de su CONTENIDO.
+  const { clave: filtrosKey, ref: filtrosRef } = useFiltrosEstables(filtrosIniciales);
+
   useEffect(() => {
-    void recargar(filtrosIniciales);
-  }, [recargar, filtrosIniciales]);
+    void recargar(filtrosRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recargar, filtrosKey]);
 
   return { movimientos, paginados, cargando, error, noDisponible, recargar };
 }

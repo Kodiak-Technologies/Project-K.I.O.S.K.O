@@ -4,6 +4,7 @@ from app.modules.modulo_d_documentos.application.generar_reporte_ventas_usecase 
 from app.modules.modulo_d_documentos.application.generar_reporte_mas_vendidos_usecase import GenerarReporteMasVendidosUseCase
 from app.modules.modulo_d_documentos.application.exportar_reporte_excel_usecase import ExportarReporteExcelUseCase
 from app.modules.modulo_d_documentos.application.enviar_notificacion_usecase import EnviarNotificacionUseCase
+from app.modules.modulo_d_documentos.notificador import Notificador
 from app.modules.modulo_d_documentos.application.crear_respaldo_usecase import CrearRespaldoUseCase, RestaurarRespaldoUseCase
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_notificacion_repository import (
     SqlAlchemyNotificacionRepository,
@@ -35,9 +36,11 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.composite_
 )
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.excel_generator import ExcelGenerator
 from app.modules.modulo_d_documentos.infrastructure.adapters.document_generators.nota_venta_png_generator import NotaVentaPngGenerator
-from app.modules.modulo_d_documentos.infrastructure.dependencies import (
-    _egresos_data_provider,
-    _metodo_pago_provider,
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.sql_egresos_data_provider import (
+    SqlEgresosDataProvider,
+)
+from app.modules.modulo_d_documentos.infrastructure.adapters.external.sql_metodo_pago_provider import (
+    SqlMetodoPagoProvider,
 )
 
 _notificacion_sender = CompositeNotificationSender([
@@ -51,7 +54,12 @@ _configuracion_provider = HttpConfiguracionProvider()
 
 
 def generar_reporte_ventas_usecase(db: AsyncSession) -> GenerarReporteVentasUseCase:
-    return GenerarReporteVentasUseCase(_venta_data_provider)
+    # Egresos y métodos de pago salen de la BD (necesitan la sesión).
+    return GenerarReporteVentasUseCase(
+        _venta_data_provider,
+        SqlEgresosDataProvider(db),
+        SqlMetodoPagoProvider(db),
+    )
 
 
 def generar_reporte_mas_vendidos_usecase(db: AsyncSession) -> GenerarReporteMasVendidosUseCase:
@@ -63,7 +71,7 @@ def exportar_reporte_excel_usecase(db: AsyncSession) -> ExportarReporteExcelUseC
         _reporte_generator,
         _venta_data_provider,
         _configuracion_provider,
-        _egresos_data_provider,
+        SqlEgresosDataProvider(db),
     )
 
 
@@ -73,6 +81,11 @@ def enviar_notificacion_usecase(db: AsyncSession) -> EnviarNotificacionUseCase:
         SqlAlchemyNotificacionRepository(db),
         SqlAlchemyConfigNotificacionesRepository(db),
     )
+
+
+def notificador(db: AsyncSession) -> Notificador:
+    """Contrato público: lo usan los módulos B y C para avisar eventos."""
+    return Notificador(enviar_notificacion_usecase(db))
 
 
 def restaurar_respaldo_usecase(db: AsyncSession) -> RestaurarRespaldoUseCase:

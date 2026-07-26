@@ -13,9 +13,16 @@ from app.shared.kernel.exceptions import ConflictoError
 
 
 class AbrirCajaUseCase:
-    def __init__(self, caja_repo: CajaRepositoryPort, auditoria: RegistrarAuditoriaUseCase):
+    def __init__(
+        self,
+        caja_repo: CajaRepositoryPort,
+        auditoria: RegistrarAuditoriaUseCase,
+        notificador=None,
+    ):
         self._caja = caja_repo
         self._auditoria = auditoria
+        # Opcional (tests con mocks); el contenedor siempre lo inyecta.
+        self._notificador = notificador
 
     async def ejecutar(
         self,
@@ -49,4 +56,18 @@ class AbrirCajaUseCase:
             valor_nuevo={"monto_inicial": float(monto)},
             ip=ip, user_agent=user_agent,
         )
+
+        # La administradora se entera de que se abrió caja aunque no esté en el local.
+        if self._notificador is not None:
+            from app.modules.modulo_d_documentos.domain.value_objects import (
+                TipoNotificacion,
+            )
+
+            await self._notificador.avisar(
+                TipoNotificacion.APERTURA_CAJA,
+                f"Caja abierta por {nombre_usuario}",
+                f"Turno #{turno.id} abierto con S/ {float(monto):.2f} de monto inicial.",
+                entidad_origen="turnos_caja",
+                entidad_id=turno.id,
+            )
         return turno

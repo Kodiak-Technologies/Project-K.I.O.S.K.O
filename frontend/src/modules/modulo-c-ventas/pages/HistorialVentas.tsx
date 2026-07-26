@@ -2,7 +2,7 @@
 // también el cajero (HU-C08): no se pide autorización previa, pero TODO deja
 // rastro que la administradora revisa desde su panel de caja y la bitácora.
 // El backend valida los permisos (ventas.anular / ventas.devolver) en servidor.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { History, Printer, Undo2 } from "lucide-react";
 import {
   Alert,
@@ -17,6 +17,7 @@ import {
   PageSpinner,
   Table,
   type Columna,
+  PaginacionControles,
 } from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
 import { useTema } from "../../../shared/lib/theme-context";
@@ -27,7 +28,17 @@ import type { Venta } from "../types";
 
 export default function HistorialVentas() {
   const { tema } = useTema();
-  const { ventas, cargando, error, noDisponible, recargar, anular, devolver } = useVenta();
+  const { ventas, paginados, cargando, error, noDisponible, recargar, anular, devolver } =
+    useVenta();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  /** Rango efectivamente aplicado (el que viaja al backend). */
+  const [rango, setRango] = useState<{ desde?: string; hasta?: string }>({});
+
+  useEffect(() => {
+    void recargar(rango.desde, rango.hasta, page, pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rango, page, pageSize]);
 
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -192,7 +203,10 @@ export default function HistorialVentas() {
           </div>
           <Button
             variante="secundario"
-            onClick={() => void recargar(desde || undefined, hasta || undefined)}
+            onClick={() => {
+              setPage(1);
+              setRango({ desde: desde || undefined, hasta: hasta || undefined });
+            }}
           >
             Filtrar
           </Button>
@@ -220,6 +234,17 @@ export default function HistorialVentas() {
                 descripcion="Aún no hay ventas en el período elegido."
               />
             }
+          />
+          <PaginacionControles
+            paginados={paginados}
+            page={page}
+            pageSize={pageSize}
+            onCambiarPage={setPage}
+            onCambiarPageSize={(n) => {
+              setPageSize(n);
+              setPage(1);
+            }}
+            etiqueta="ventas"
           />
         </Card>
       )}

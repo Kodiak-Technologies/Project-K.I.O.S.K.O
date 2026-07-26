@@ -44,6 +44,8 @@ async def listar(
             MovimientoInventarioResponse(
                 id=m.id,  # type: ignore[arg-type]
                 producto_id=m.producto_id,
+                producto_nombre=m.producto_nombre,
+                producto_codigo=m.producto_codigo,
                 cantidad=m.cantidad,
                 tipo=str(m.tipo),
                 motivo=m.motivo,

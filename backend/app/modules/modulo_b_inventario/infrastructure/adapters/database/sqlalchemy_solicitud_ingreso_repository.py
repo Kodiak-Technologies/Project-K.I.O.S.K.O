@@ -19,6 +19,7 @@ from app.modules.modulo_b_inventario.domain.ports.solicitud_ingreso_repository_p
 )
 from app.modules.modulo_b_inventario.infrastructure.adapters.database.models import (
     DetalleSolicitudModel,
+    ProductoModel,
     SolicitudIngresoModel,
 )
 
@@ -55,6 +56,43 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
     def __init__(self, db: AsyncSession):
         self._db = db
 
+    async def _lineas_de(
+        self, solicitud_ids: list[int]
+    ) -> dict[int, list[DetalleSolicitud]]:
+        """Líneas de las solicitudes pedidas, con nombre y código del producto.
+
+        El JOIN evita que el cliente tenga que cargar el catálogo entero solo
+        para traducir `producto_id` a un nombre.
+        """
+        por_solicitud: dict[int, list[DetalleSolicitud]] = {}
+        if not solicitud_ids:
+            return por_solicitud
+        filas = (
+            await self._db.execute(
+                select(DetalleSolicitudModel, ProductoModel.nombre, ProductoModel.codigo)
+                .join(
+                    ProductoModel,
+                    DetalleSolicitudModel.producto_id == ProductoModel.id,
+                )
+                .where(DetalleSolicitudModel.solicitud_id.in_(solicitud_ids))
+                .order_by(DetalleSolicitudModel.solicitud_id, DetalleSolicitudModel.id)
+            )
+        ).all()
+        for linea, nombre, codigo in filas:
+            por_solicitud.setdefault(linea.solicitud_id, []).append(
+                DetalleSolicitud(
+                    id=linea.id,
+                    solicitud_id=linea.solicitud_id,
+                    producto_id=linea.producto_id,
+                    cantidad=linea.cantidad,
+                    precio_compra_unitario=linea.precio_compra_unitario,
+                    created_at=linea.created_at,
+                    producto_nombre=nombre,
+                    producto_codigo=codigo,
+                )
+            )
+        return por_solicitud
+
     async def crear(self, solicitud: SolicitudIngreso) -> SolicitudIngreso:
         fila = SolicitudIngresoModel(
             proveedor_id=solicitud.proveedor_id,
@@ -78,24 +116,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         if fila is None or fila.deleted_at is not None:
             return None
         # Cargar líneas por separado
-        lineas_filas = (
-            await self._db.execute(
-                select(DetalleSolicitudModel)
-                .where(DetalleSolicitudModel.solicitud_id == solicitud_id)
-                .order_by(DetalleSolicitudModel.id)
-            )
-        ).scalars()
-        lineas = [
-            DetalleSolicitud(
-                id=l.id,
-                solicitud_id=l.solicitud_id,
-                producto_id=l.producto_id,
-                cantidad=l.cantidad,
-                precio_compra_unitario=l.precio_compra_unitario,
-                created_at=l.created_at,
-            )
-            for l in lineas_filas
-        ]
+        lineas = (await self._lineas_de([solicitud_id])).get(solicitud_id, [])
         return _a_entidad(fila, lineas)
 
     async def find_by_id_for_update(
@@ -110,24 +131,7 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         ).scalar_one_or_none()
         if fila is None or fila.deleted_at is not None:
             return None
-        lineas_filas = (
-            await self._db.execute(
-                select(DetalleSolicitudModel)
-                .where(DetalleSolicitudModel.solicitud_id == solicitud_id)
-                .order_by(DetalleSolicitudModel.id)
-            )
-        ).scalars()
-        lineas = [
-            DetalleSolicitud(
-                id=l.id,
-                solicitud_id=l.solicitud_id,
-                producto_id=l.producto_id,
-                cantidad=l.cantidad,
-                precio_compra_unitario=l.precio_compra_unitario,
-                created_at=l.created_at,
-            )
-            for l in lineas_filas
-        ]
+        lineas = (await self._lineas_de([solicitud_id])).get(solicitud_id, [])
         return _a_entidad(fila, lineas)
 
     async def actualizar(self, solicitud: SolicitudIngreso) -> SolicitudIngreso:
@@ -252,28 +256,8 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
             .scalars()
             .all()
         )
-        # Cargar líneas en bloque
-        ids = [f.id for f in filas]
-        lineas_por_solicitud: dict[int, list[DetalleSolicitud]] = {}
-        if ids:
-            lineas_filas = (
-                await self._db.execute(
-                    select(DetalleSolicitudModel)
-                    .where(DetalleSolicitudModel.solicitud_id.in_(ids))
-                    .order_by(DetalleSolicitudModel.solicitud_id, DetalleSolicitudModel.id)
-                )
-            ).scalars()
-            for l in lineas_filas:
-                lineas_por_solicitud.setdefault(l.solicitud_id, []).append(
-                    DetalleSolicitud(
-                        id=l.id,
-                        solicitud_id=l.solicitud_id,
-                        producto_id=l.producto_id,
-                        cantidad=l.cantidad,
-                        precio_compra_unitario=l.precio_compra_unitario,
-                        created_at=l.created_at,
-                    )
-                )
+        # Cargar líneas en bloque (una sola consulta para toda la página)
+        lineas_por_solicitud = await self._lineas_de([f.id for f in filas])
         return (
             [_a_entidad(f, lineas_por_solicitud.get(f.id, [])) for f in filas],
             total,

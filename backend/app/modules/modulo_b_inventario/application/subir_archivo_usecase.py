@@ -18,7 +18,8 @@ from app.shared.kernel.exceptions import ValidacionError
 class SubirArchivoUseCase:
     TAMANO_MAXIMO_BYTES = 10 * 1024 * 1024  # 10 MB
     MIMES_PERMITIDOS = {"image/jpeg", "image/png"}
-    CARPETAS_VALIDAS = ("boletas", "productos")
+    # Solo boletas: los productos ya no llevan foto (decisión 2026-07-25).
+    CARPETAS_VALIDAS = ("boletas",)
     EXTENSION_POR_MIME = {
         "image/jpeg": "jpg",
         "image/png": "png",

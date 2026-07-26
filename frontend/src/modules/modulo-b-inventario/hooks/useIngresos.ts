@@ -5,6 +5,7 @@
 // (items aplanados, compat con páginas actuales) y `paginados` (cruda).
 import { useCallback, useEffect, useState } from "react";
 import { mensajeDeError, servicioNoDisponible } from "../../../shared/lib/http-client";
+import { useFiltrosEstables } from "../../../shared/lib/use-filtros-estables";
 import { ingresosHttpAdapter } from "../services/ingresos.http-adapter";
 import type {
   AprobacionIngreso,
@@ -51,9 +52,14 @@ export function useIngresos(filtrosIniciales?: FiltrosIngresos): EstadoHook {
     }
   }, []);
 
+  // El literal `{ page_size: 100 }` es un objeto nuevo en cada render: como
+  // dependencia dispara el efecto en bucle. Dependemos de su CONTENIDO.
+  const { clave: filtrosKey, ref: filtrosRef } = useFiltrosEstables(filtrosIniciales);
+
   useEffect(() => {
-    void recargar(filtrosIniciales);
-  }, [recargar, filtrosIniciales]);
+    void recargar(filtrosRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recargar, filtrosKey]);
 
   const obtener = useCallback(async (id: number) => {
     return ingresosHttpAdapter.obtener(id);
@@ -62,37 +68,37 @@ export function useIngresos(filtrosIniciales?: FiltrosIngresos): EstadoHook {
   const solicitar = useCallback(
     async (datos: NuevaSolicitudIngreso) => {
       const creada = await ingresosHttpAdapter.solicitar(datos);
-      await recargar(filtrosIniciales);
+      await recargar(filtrosRef.current);
       return creada;
     },
-    [recargar, filtrosIniciales]
+    [recargar, filtrosRef]
   );
 
   const aprobar = useCallback(
     async (id: number) => {
       const resp = await ingresosHttpAdapter.aprobar(id);
-      await recargar(filtrosIniciales);
+      await recargar(filtrosRef.current);
       return resp;
     },
-    [recargar, filtrosIniciales]
+    [recargar, filtrosRef]
   );
 
   const rechazar = useCallback(
     async (id: number, datos: RechazoIngreso) => {
       const resp = await ingresosHttpAdapter.rechazar(id, datos);
-      await recargar(filtrosIniciales);
+      await recargar(filtrosRef.current);
       return resp;
     },
-    [recargar, filtrosIniciales]
+    [recargar, filtrosRef]
   );
 
   const editar = useCallback(
     async (id: number, body: SolicitudIngresoUpdateBody) => {
       const actualizada = await ingresosHttpAdapter.editar(id, body);
-      await recargar(filtrosIniciales);
+      await recargar(filtrosRef.current);
       return actualizada;
     },
-    [recargar, filtrosIniciales]
+    [recargar, filtrosRef]
   );
 
   return {

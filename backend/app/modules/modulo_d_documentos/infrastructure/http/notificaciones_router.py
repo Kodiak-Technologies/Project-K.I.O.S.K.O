@@ -12,24 +12,40 @@ from app.modules.modulo_d_documentos.infrastructure.dependencies import (
 )
 from app.modules.modulo_d_documentos.infrastructure.http.schemas import (
     NotificacionResponse,
+    NotificacionesPaginadasResponse,
     MarcarLeidaRequest,
     ConfigNotificacionesResponse,
     ConfigNotificacionesRequest,
     CrearNotificacionRequest,
 )
 from app.modules.modulo_d_documentos.domain.entities import Notificacion, ConfigNotificaciones
-from app.shared.kernel.exceptions import NoEncontradoError
+from app.shared.kernel.exceptions import NoEncontradoError, ValidacionError
 
 router = APIRouter(prefix="/notificaciones", tags=["Documentos"])
 
 
-@router.get("", response_model=list[NotificacionResponse])
+@router.get("", response_model=NotificacionesPaginadasResponse)
 async def listar_notificaciones(
+    page: int = 1,
+    page_size: int = 20,
     usuario: Usuario = Depends(get_current_user),
     notificacion_repo=Depends(get_notificacion_repository),
 ):
-    notificaciones = await notificacion_repo.listar_por_usuario(usuario.id)
-    return [NotificacionResponse.desde_entidad(n) for n in notificaciones]
+    """Bandeja paginada (antes devolvía todas las notificaciones del usuario)."""
+    if page < 1:
+        raise ValidacionError("page debe ser >= 1.")
+    if page_size < 1 or page_size > 100:
+        raise ValidacionError("page_size debe estar entre 1 y 100.")
+    notificaciones, total = await notificacion_repo.listar_por_usuario(
+        usuario.id, page, page_size
+    )
+    return NotificacionesPaginadasResponse(
+        items=[NotificacionResponse.desde_entidad(n) for n in notificaciones],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=(total + page_size - 1) // page_size if total else 0,
+    )
 
 
 @router.post("/{notificacion_id}/leida", status_code=200)

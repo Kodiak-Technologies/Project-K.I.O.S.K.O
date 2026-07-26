@@ -17,16 +17,13 @@ from app.modules.modulo_b_inventario.domain.entities import (
     Categoria,
     DetalleSolicitud,
     HistorialPrecio,
-    Merma,
     PagoProveedor,
     Producto,
     Proveedor,
     SolicitudIngreso,
 )
 from app.modules.modulo_b_inventario.domain.value_objects import (
-    EstadoMerma,
     EstadoSolicitud,
-    MotivoMerma,
     TipoMovimiento,
     TipoPago,
     TipoPrecio,
@@ -87,6 +84,11 @@ class CategoriaResponse(BaseModel):
 
 
 class ProductoCreate(BaseModel):
+    """Alta de producto. `extra="forbid"`: campos que ya no existen (p. ej.
+    `foto_url`) se rechazan con 422 en vez de descartarse en silencio."""
+
+    model_config = ConfigDict(extra="forbid")
+
     codigo: str | None = Field(default=None, max_length=60)
     nombre: Annotated[str, Field(min_length=1, max_length=150)]
     categoria_id: int | None = None
@@ -97,7 +99,6 @@ class ProductoCreate(BaseModel):
     stock_minimo: int = Field(default=0, ge=0)
     stock_inicial: int = Field(default=0, ge=0)
     es_codigo_interno: bool = False
-    foto_url: str | None = None
 
     @model_validator(mode="after")
     def _validar_codigo(self) -> "ProductoCreate":
@@ -124,7 +125,10 @@ class ProductoUpdate(BaseModel):
     stock_minimo: int | None = Field(default=None, ge=0)
     activo: bool | None = None
     es_codigo_interno: bool | None = None
-    foto_url: str | None = None
+
+    def cambios(self) -> dict:
+        """Campos realmente enviados (los ausentes no se tocan)."""
+        return self.model_dump(exclude_unset=True)
 
 
 class ProductoResponse(BaseModel):
@@ -139,7 +143,6 @@ class ProductoResponse(BaseModel):
     stock_minimo: int
     activo: bool
     es_codigo_interno: bool
-    foto_url: str | None = None
     creado_por_nombre: str | None = None
     actualizado_por_nombre: str | None = None
     created_at: datetime | None = None
@@ -159,7 +162,6 @@ class ProductoResponse(BaseModel):
             stock_minimo=p.stock_minimo,
             activo=p.activo,
             es_codigo_interno=p.es_codigo_interno,
-            foto_url=p.foto_url,
             creado_por_nombre=p.creado_por_nombre,
             actualizado_por_nombre=p.actualizado_por_nombre,
             created_at=p.created_at,
@@ -205,6 +207,45 @@ class MarcarAlertasRequest(BaseModel):
 
 class MarcarAlertasResponse(BaseModel):
     marcados: int
+
+
+# =============================================================================
+# Catálogo del ADMIN: ajuste manual de stock y baja de producto
+# =============================================================================
+
+
+class AjustarStockRequest(BaseModel):
+    """`POST /productos/{id}/ajustar-stock` (solo ADMIN).
+
+    `delta` positivo suma, negativo descuenta. El motivo queda en el asiento de
+    `movimientos_inventario` y en la bitácora.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    delta: int = Field(description="Unidades a sumar (+) o descontar (-). Distinto de 0.")
+    motivo: Annotated[str, Field(min_length=3, max_length=200)]
+
+    @model_validator(mode="after")
+    def _delta_no_cero(self) -> "AjustarStockRequest":
+        if self.delta == 0:
+            raise ValueError("El ajuste debe ser distinto de 0.")
+        return self
+
+
+class AjusteStockResponse(BaseModel):
+    producto: ProductoResponse
+    stock_anterior: int
+    stock_actual: int
+    delta: int
+
+
+class EliminarProductoRequest(BaseModel):
+    """Body opcional de `DELETE /productos/{id}`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    motivo: str | None = Field(default=None, max_length=200)
 
 
 class ProductosPaginadosResponse(BaseModel):
@@ -323,6 +364,10 @@ class SolicitudIngresoCreate(BaseModel):
 class DetalleResponse(BaseModel):
     id: int
     producto_id: int
+    # Resueltos por JOIN: el cliente no necesita cargar el catálogo para
+    # mostrar el nombre de la línea.
+    producto_nombre: str | None = None
+    producto_codigo: str | None = None
     cantidad: int
     precio_compra_unitario: float
 
@@ -331,6 +376,8 @@ class DetalleResponse(BaseModel):
         return cls(
             id=d.id,  # type: ignore[arg-type]
             producto_id=d.producto_id,
+            producto_nombre=d.producto_nombre,
+            producto_codigo=d.producto_codigo,
             cantidad=d.cantidad,
             precio_compra_unitario=float(d.precio_compra_unitario),
         )
@@ -458,111 +505,6 @@ class SolicitudIngresoUpdateRequest(BaseModel):
         # comprobación anterior (todos None), mandar `{"motivo": null}` para
         # limpiar el campo se rechazaba, y peor: los campos ausentes viajaban
         # como None al use case y BORRABAN el valor guardado.
-        if not self.model_fields_set:
-            raise ValueError("Debes enviar al menos un campo para editar.")
-        return self
-
-    def valor(self, campo: str):
-        """Valor del campo si vino en el body; `...` (sentinel) si no vino."""
-        return getattr(self, campo) if campo in self.model_fields_set else ...
-
-
-# =============================================================================
-# Mermas
-# =============================================================================
-
-
-class MermaCreate(BaseModel):
-    producto_id: int = Field(gt=0)
-    cantidad: int = Field(gt=0)
-    motivo: str = Field(pattern="^(vencimiento|rotura|otro)$")
-    observacion: str | None = Field(default=None, max_length=2000)
-    proveedor_id: int | None = None
-
-
-class MermaResponse(BaseModel):
-    id: int
-    producto_id: int
-    cantidad: int
-    motivo: str
-    observacion: str | None
-    estado: str
-    registrado_por: int  # sdd/modulo-b-aprobaciones-detalle-editar: id (gate)
-    registrado_por_nombre: str
-    confirmado_por_nombre: str | None = None
-    confirmado_en: datetime | None = None
-    rechazado_por_nombre: str | None = None
-    rechazado_en: datetime | None = None
-    motivo_rechazo: str | None = None
-    editado_por: int | None = None
-    editado_por_nombre: str | None = None
-    editado_en: datetime | None = None
-    created_at: datetime | None = None
-
-    @classmethod
-    def desde_entidad(cls, m: Merma) -> "MermaResponse":
-        return cls(
-            id=m.id,  # type: ignore[arg-type]
-            producto_id=m.producto_id,
-            cantidad=m.cantidad,
-            motivo=str(m.motivo),
-            observacion=m.observacion,
-            estado=str(m.estado),
-            registrado_por=m.registrado_por,
-            registrado_por_nombre=m.registrado_por_nombre,
-            confirmado_por_nombre=m.confirmado_por_nombre,
-            confirmado_en=m.confirmado_en,
-            rechazado_por_nombre=m.rechazado_por_nombre,
-            rechazado_en=m.rechazado_en,
-            motivo_rechazo=m.motivo_rechazo,
-            editado_por=m.editado_por,
-            editado_por_nombre=m.editado_por_nombre,
-            editado_en=m.editado_en,
-            created_at=m.created_at,
-        )
-
-
-class MermasPaginadosResponse(BaseModel):
-    items: list[MermaResponse]
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
-
-
-class MermaConfirmarResponse(BaseModel):
-    id: int
-    estado: str
-    confirmado_por_nombre: str
-    confirmado_en: datetime | None
-    stock_actualizado: int | None = None
-
-
-class RechazarMermaRequest(BaseModel):
-    motivo_rechazo: Annotated[str, Field(min_length=5, max_length=2000)]
-
-
-# =============================================================================
-# sdd/modulo-b-aprobaciones-detalle-editar: PATCH /mermas/{id}
-# =============================================================================
-
-
-class MermaUpdateRequest(BaseModel):
-    """PATCH /mermas/{id}. Allowlist cerrada (NFR-4). At least 1 field required."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    motivo: str | None = Field(default=None, pattern="^(vencimiento|rotura|otro)$")
-    observacion: str | None = Field(default=None, max_length=1000)
-    proveedor_id: int | None = None
-    producto_id: int | None = Field(default=None, gt=0)
-    cantidad: int | None = Field(default=None, gt=0)
-
-    @model_validator(mode="after")
-    def _at_least_one_field(self) -> "MermaUpdateRequest":
-        # Ver nota en SolicitudIngresoUpdateRequest: los campos ausentes NO
-        # deben viajar como None (PATCH {"cantidad": 2} daba 422 INVALID_MOTIVO
-        # porque `motivo=None` se interpretaba como "cambiar el motivo a None").
         if not self.model_fields_set:
             raise ValueError("Debes enviar al menos un campo para editar.")
         return self
@@ -722,6 +664,8 @@ class PagosPaginadosResponse(BaseModel):
 class MovimientoInventarioResponse(BaseModel):
     id: int
     producto_id: int
+    producto_nombre: str | None = None
+    producto_codigo: str | None = None
     cantidad: int
     tipo: str
     motivo: str | None
