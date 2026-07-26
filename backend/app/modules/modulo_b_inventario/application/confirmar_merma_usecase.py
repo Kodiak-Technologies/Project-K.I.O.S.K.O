@@ -51,6 +51,7 @@ class ConfirmarMermaUseCase:
         merma_id: int,
         usuario_id: int,
         usuario_nombre: str,
+        es_admin: bool = True,
         ip: str = "",
         user_agent: str = "",
     ) -> ConfirmacionMermaResultado:
@@ -59,6 +60,15 @@ class ConfirmarMermaUseCase:
             raise NoEncontradoError("La merma no existe.")
         if not merma.puede_ser_confirmada():
             raise ConflictoError("La merma ya fue revisada.")
+        # D-14: flujo de 2 pasos. Quien registra no valida su propia merma
+        # (salvo la administradora, que en HU-B12 registra y valida ella misma).
+        if not es_admin and merma.registrado_por == usuario_id:
+            from app.shared.kernel.exceptions import ProhibidoError
+
+            raise ProhibidoError(
+                "No podés confirmar una merma que registraste vos mismo.",
+                code="SELF_CONFIRM_FORBIDDEN",
+            )
 
         # UPDATE atómico: stock = stock - :cant WHERE stock >= :cant
         ok, stock_actual = await self._productos.incrementar_stock_atomic(

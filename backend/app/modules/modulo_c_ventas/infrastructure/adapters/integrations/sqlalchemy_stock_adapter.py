@@ -34,7 +34,13 @@ class SqlAlchemyStockAdapter(ProductoStockPort):
             for fila in filas
         }
 
-    async def descontar_stock(self, producto_id: int, cantidad: int) -> bool:
+    async def descontar_stock(
+        self,
+        producto_id: int,
+        cantidad: int,
+        usuario_id: int | None = None,
+        usuario_nombre: str = "",
+    ) -> bool:
         # UPDATE condicional: atómico a nivel de fila. Si dos cajas compiten por
         # las últimas unidades, solo una gana; la otra recibe rowcount 0.
         resultado = await self._db.execute(
@@ -44,13 +50,64 @@ class SqlAlchemyStockAdapter(ProductoStockPort):
             ),
             {"id": producto_id, "cantidad": cantidad},
         )
-        return resultado.rowcount == 1
+        if resultado.rowcount != 1:
+            return False
+        # D-07: `movimientos_inventario` es la bitácora de TODA variación de
+        # stock. Las ventas no dejaban rastro ahí (solo cambiaban `productos`).
+        await self._registrar_movimiento(
+            producto_id, -cantidad, "venta", None, usuario_id, usuario_nombre
+        )
+        return True
 
-    async def reponer_stock(self, producto_id: int, cantidad: int) -> None:
+    async def reponer_stock(
+        self,
+        producto_id: int,
+        cantidad: int,
+        usuario_id: int | None = None,
+        usuario_nombre: str = "",
+        motivo: str | None = None,
+    ) -> None:
         await self._db.execute(
             text(
-                "UPDATE productos SET stock = stock + :cantidad, updated_at = now() "
+                "UPDATE productos SET stock = stock + :cantidad, updated_at = now(), "
+                "alerta_stock_notificada = CASE WHEN stock + :cantidad > stock_minimo "
+                "THEN FALSE ELSE alerta_stock_notificada END "
                 "WHERE id = :id"
             ),
             {"id": producto_id, "cantidad": cantidad},
+        )
+        await self._registrar_movimiento(
+            producto_id, cantidad, "devolucion", motivo, usuario_id, usuario_nombre
+        )
+
+    async def _registrar_movimiento(
+        self,
+        producto_id: int,
+        cantidad: int,
+        tipo: str,
+        motivo: str | None,
+        usuario_id: int | None,
+        usuario_nombre: str,
+    ) -> None:
+        """INSERT en la bitácora del Módulo B (misma transacción, por SQL).
+
+        Sin `usuario_id` no se puede cumplir el NOT NULL de `registrado_por`;
+        en ese caso se omite el asiento en vez de romper la venta.
+        """
+        if usuario_id is None:
+            return
+        await self._db.execute(
+            text(
+                "INSERT INTO movimientos_inventario "
+                "(producto_id, cantidad, tipo, motivo, registrado_por, registrado_por_nombre) "
+                "VALUES (:producto_id, :cantidad, :tipo, :motivo, :usuario_id, :usuario_nombre)"
+            ),
+            {
+                "producto_id": producto_id,
+                "cantidad": cantidad,
+                "tipo": tipo,
+                "motivo": motivo,
+                "usuario_id": usuario_id,
+                "usuario_nombre": usuario_nombre or "",
+            },
         )

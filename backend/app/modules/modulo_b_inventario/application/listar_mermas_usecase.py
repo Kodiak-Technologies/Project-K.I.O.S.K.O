@@ -20,17 +20,25 @@ class ListarMermasUseCase:
         fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        usuario=None,
     ) -> tuple[list[Merma], int, int, int, int]:
         if page < 1:
             raise ValidacionError("page debe ser >= 1.")
         if page_size < 1 or page_size > 100:
             raise ValidacionError("page_size debe estar entre 1 y 100.")
+        # Simetría con /ingresos: el CAJERO solo ve las mermas que registró.
+        registrado_por = (
+            usuario.id
+            if usuario is not None and getattr(usuario, "rol_nombre", None) == "CAJERO"
+            else None
+        )
         items, total = await self._mermas.listar_paginado(
             estado=estado,
             motivo=motivo,
             producto_id=producto_id,
             fecha_desde=fecha_desde,
             fecha_hasta=fecha_hasta,
+            registrado_por=registrado_por,
             page=page,
             page_size=page_size,
         )

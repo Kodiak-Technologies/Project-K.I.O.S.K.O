@@ -28,9 +28,15 @@ class EditarMermaUseCase:
         self,
         merma_repo: MermaRepositoryPort,
         auditoria: RegistrarAuditoriaUseCase,
+        producto_repo=None,
+        proveedor_repo=None,
     ):
         self._mermas = merma_repo
         self._auditoria = auditoria
+        # Opcionales solo para los tests unitarios con mocks; el contenedor
+        # siempre los inyecta y sin ellos no se validan las FKs.
+        self._productos = producto_repo
+        self._proveedores = proveedor_repo
 
     async def ejecutar(
         self,
@@ -56,6 +62,21 @@ class EditarMermaUseCase:
                 "Debes enviar al menos un campo para editar.",
                 code="EMPTY_PATCH",
             )
+
+        # 1.b Validación de FKs: un producto_id/proveedor_id inexistente daba
+        #     violación de FK en Postgres (500) en vez de 422.
+        if producto_id is not ... and producto_id is not None and self._productos:
+            producto = await self._productos.buscar_por_id(producto_id)
+            if producto is None or producto.deleted_at is not None:
+                raise ValidacionError(
+                    "El producto indicado no existe.", code="PRODUCTO_NOT_FOUND"
+                )
+        if proveedor_id is not ... and proveedor_id is not None and self._proveedores:
+            prov = await self._proveedores.find_by_id(proveedor_id)
+            if prov is None:
+                raise ValidacionError(
+                    "El proveedor indicado no existe.", code="PROVEEDOR_NOT_FOUND"
+                )
 
         # 2. FOR UPDATE lock
         merma = await self._mermas.find_by_id_for_update(merma_id)

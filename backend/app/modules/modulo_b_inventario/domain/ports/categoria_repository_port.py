@@ -12,7 +12,9 @@ class CategoriaRepositoryPort(ABC):
     async def listar(self) -> list[Categoria]: ...
 
     @abstractmethod
-    async def crear(self, nombre: str) -> Categoria: ...
+    async def crear(self, categoria: Categoria) -> Categoria:
+        """Inserta la categoría COMPLETA (nombre, descripción y snapshots de
+        autoría) en un solo INSERT. Valida unicidad del nombre."""
 
     # ----- Métodos nuevos (PR1: declarados como abstractos, implementación en PR2) -----
 

@@ -77,7 +77,10 @@ class AnularVentaUseCase:
             restante = detalle.cantidad - detalle.cantidad_devuelta
             if restante <= 0:
                 continue
-            await self._stock.reponer_stock(detalle.producto_id, restante)
+            await self._stock.reponer_stock(
+                detalle.producto_id, restante, usuario_id, nombre_usuario,
+                motivo=f"Anulación de venta #{venta_id}",
+            )
             await self._ventas.registrar_devolucion_detalle(detalle.id, restante)
             items.append(
                 {"producto_id": detalle.producto_id, "nombre": detalle.nombre, "cantidad": restante}
@@ -135,7 +138,10 @@ class AnularVentaUseCase:
                 raise ValidacionError(
                     f"De '{detalle.nombre}' solo quedan {restante} unidades por devolver."
                 )
-            await self._stock.reponer_stock(detalle.producto_id, cantidad)
+            await self._stock.reponer_stock(
+                detalle.producto_id, cantidad, usuario_id, nombre_usuario,
+                motivo=f"Devolución de venta #{venta_id}",
+            )
             await self._ventas.registrar_devolucion_detalle(detalle_id, cantidad)
             items_rastro.append(
                 {"producto_id": detalle.producto_id, "nombre": detalle.nombre, "cantidad": cantidad}

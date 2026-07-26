@@ -43,10 +43,16 @@ class EditarIngresoUseCase:
         solicitud_repo: SolicitudIngresoRepositoryPort,
         detalle_repo: DetalleSolicitudRepositoryPort,
         auditoria: RegistrarAuditoriaUseCase,
+        producto_repo=None,
+        proveedor_repo=None,
     ):
         self._solicitudes = solicitud_repo
         self._detalles = detalle_repo
         self._auditoria = auditoria
+        # Opcionales solo para los tests unitarios con mocks; el contenedor
+        # siempre los inyecta y sin ellos no se validan las FKs.
+        self._productos = producto_repo
+        self._proveedores = proveedor_repo
 
     async def ejecutar(
         self,
@@ -89,6 +95,24 @@ class EditarIngresoUseCase:
                         code="INVALID_LINE_VALUES",
                     )
                 lineas_payload.append((int(pid), int(cant), precio))
+
+        # 2.b Validación de FKs ANTES de tocar nada: sin esto un producto_id o
+        #     proveedor_id inexistente llegaba al INSERT y Postgres respondía
+        #     con violación de FK (500) en vez de un 422 entendible.
+        if proveedor_id is not ... and proveedor_id is not None and self._proveedores:
+            prov = await self._proveedores.find_by_id(proveedor_id)
+            if prov is None:
+                raise ValidacionError(
+                    "El proveedor indicado no existe.", code="PROVEEDOR_NOT_FOUND"
+                )
+        if lineas_payload and self._productos:
+            for idx, (pid, _cant, _precio) in enumerate(lineas_payload, start=1):
+                producto = await self._productos.buscar_por_id(pid)
+                if producto is None or producto.deleted_at is not None:
+                    raise ValidacionError(
+                        f"Línea {idx}: el producto {pid} no existe.",
+                        code="PRODUCTO_NOT_FOUND",
+                    )
 
         # 3. FOR UPDATE lock
         solicitud = await self._solicitudes.find_by_id_for_update(ingreso_id)

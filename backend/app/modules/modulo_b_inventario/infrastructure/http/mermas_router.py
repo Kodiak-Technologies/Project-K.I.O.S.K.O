@@ -57,7 +57,7 @@ async def listar(
     fecha_hasta: date_type | None = None,
     page: int = 1,
     page_size: int = 20,
-    _usuario: Usuario = Depends(require_permission("inventario.ver")),
+    usuario: Usuario = Depends(require_permission("inventario.ver")),
     db: AsyncSession = Depends(get_db),
 ):
     items, total, page, page_size, total_pages = await contenedor.listar_mermas_usecase(
@@ -70,6 +70,7 @@ async def listar(
         fecha_hasta=fecha_hasta.isoformat() if fecha_hasta else None,
         page=page,
         page_size=page_size,
+        usuario=usuario,
     )
     return MermasPaginadosResponse(
         items=[MermaResponse.desde_entidad(m) for m in items],
@@ -80,7 +81,7 @@ async def listar(
 @router.get("/{merma_id}", response_model=MermaResponse)
 async def obtener(
     merma_id: int,
-    _usuario: Usuario = Depends(require_permission("inventario.ver")),
+    usuario: Usuario = Depends(require_permission("inventario.ver")),
     db: AsyncSession = Depends(get_db),
 ):
     from app.modules.modulo_b_inventario.infrastructure.adapters.database.sqlalchemy_merma_repository import (
@@ -92,6 +93,10 @@ async def obtener(
     if m is None:
         from app.shared.kernel.exceptions import NoEncontradoError
         raise NoEncontradoError("Merma no encontrada.")
+    # Simetría con /ingresos: el CAJERO solo ve lo que él registró.
+    if usuario.rol_nombre == "CAJERO" and m.registrado_por != usuario.id:
+        from app.shared.kernel.exceptions import ProhibidoError
+        raise ProhibidoError("No tiene permisos para ver esta merma.")
     return MermaResponse.desde_entidad(m)
 
 
@@ -108,6 +113,7 @@ async def confirmar(
         merma_id=merma_id,
         usuario_id=usuario.id,  # type: ignore[union-attr]
         usuario_nombre=usuario.nombre,
+        es_admin=usuario.rol_nombre == "ADMIN",
         ip=ip,
         user_agent=user_agent,
     )
@@ -163,17 +169,18 @@ async def editar(
 ):
     ip, user_agent = contexto_request(request)
     es_admin = usuario.rol_nombre == "ADMIN"
+    # `body.valor(campo)` devuelve `...` cuando el campo NO vino en el body:
+    # así un PATCH parcial no pisa con None los campos que no se mandaron.
     resultado = await contenedor.editar_merma_usecase(db).ejecutar(
         merma_id=merma_id,
         editor_id=usuario.id,  # type: ignore[union-attr]
         editor_nombre=usuario.nombre,
         es_admin=es_admin,
-        motivo=body.motivo,
-        observacion=body.observacion,
-        foto_url=...,  # no expuesto (decisión §10)
-        proveedor_id=body.proveedor_id,
-        producto_id=body.producto_id,
-        cantidad=body.cantidad,
+        motivo=body.valor("motivo"),
+        observacion=body.valor("observacion"),
+        proveedor_id=body.valor("proveedor_id"),
+        producto_id=body.valor("producto_id"),
+        cantidad=body.valor("cantidad"),
         ip=ip,
         user_agent=user_agent,
     )

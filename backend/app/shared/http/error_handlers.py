@@ -6,6 +6,7 @@
 import logging
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -48,7 +49,21 @@ def registrar_error_handlers(app: FastAPI) -> None:
     async def _manejar_validacion_request(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+        # Cuando el error viene de un validador propio que levanta ValueError,
+        # Pydantic mete la excepción en `ctx["error"]`. Ese objeto NO es
+        # serializable a JSON: JSONResponse fallaba dentro del handler y el
+        # 422 terminaba saliendo como 500 (p. ej. PATCH /proveedores con un
+        # email inválido). Normalizamos `ctx` a texto.
+        errores = []
+        for error in exc.errors():
+            limpio = {clave: valor for clave, valor in error.items() if clave != "ctx"}
+            contexto = error.get("ctx")
+            if contexto:
+                limpio["ctx"] = {c: str(v) for c, v in contexto.items()}
+            errores.append(limpio)
+        return JSONResponse(
+            status_code=422, content=jsonable_encoder({"detail": errores})
+        )
 
     # HTTPException generadas por FastAPI (401 del bearer, 404 de rutas, etc.).
     @app.exception_handler(StarletteHTTPException)

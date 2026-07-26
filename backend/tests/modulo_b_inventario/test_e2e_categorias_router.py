@@ -3,10 +3,9 @@
 Cubre los 3 endpoints del scope: GET, POST, PATCH contra la BD real `kiosko-test`.
 Async discipline (CN-2): todo test es sync `def test_*` que envuelve `correr(_run())`.
 
-KNOWN BUG: `sqlalchemy_categoria_repository.actualizar()` uses `scalar_one()` which
-raises `NoResultFound` (HTTP 500) when the categoria doesn't exist, instead of
-`NoEncontradoError` (404). The 2 PATCH tests are marked xfail until the production
-code is fixed (see discovered/modulo-b-tests-coverage-subset in Engram).
+BUG CORREGIDO: `sqlalchemy_categoria_repository.actualizar()` usaba `scalar_one()`
+(500 en vez de 404) y leía `updated_at` tras el flush sin refrescar (MissingGreenlet,
+500 en el camino feliz). Los 2 tests de PATCH ya no son xfail: son la regresión.
 """
 from __future__ import annotations
 
@@ -98,10 +97,6 @@ def test_post_categorias_duplicado_409() -> None:
     correr(_run())
 
 
-@pytest.mark.xfail(
-    reason="Production bug: sqlalchemy_categoria_repository.actualizar uses scalar_one(); see discovered/modulo-b-tests-coverage-subset",
-    strict=False,
-)
 def test_patch_categorias_happy_200() -> None:
     """PATCH /categorias/{id} con nombre nuevo responde 200 con la categoría actualizada."""
 
@@ -127,10 +122,6 @@ def test_patch_categorias_happy_200() -> None:
     correr(_run())
 
 
-@pytest.mark.xfail(
-    reason="Production bug: actual returns 500 (NoResultFound) instead of 404 (NoEncontradoError); see discovered/modulo-b-tests-coverage-subset",
-    strict=False,
-)
 def test_patch_categorias_id_inexistente_404() -> None:
     """PATCH /categorias/99999 responde 404 (NoEncontradoError)."""
 

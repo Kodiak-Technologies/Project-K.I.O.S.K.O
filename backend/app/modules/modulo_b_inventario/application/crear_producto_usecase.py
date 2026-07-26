@@ -27,7 +27,26 @@ from app.shared.kernel.exceptions import (
 )
 
 
+def _tiene_formato_de_codigo_interno(codigo: str, prefijo: str) -> bool:
+    """True si `codigo` puede confundirse con un código interno del sistema.
+
+    Solo colisionan los que usan EL MISMO prefijo que genera el backend
+    (`PAP-001`): un código manual tipo `BC-12345` es válido como código de
+    barras y no se bloquea.
+    """
+    if not codigo.upper().startswith(f"{prefijo}-"):
+        return False
+    try:
+        CodigoInterno(codigo.upper())
+    except ValidacionError:
+        return False
+    return True
+
+
 class CrearProductoUseCase:
+    # D-T02: prefijo de los códigos internos (PAP-001, PAP-002, ...).
+    PREFIJO = "PAP"
+
     def __init__(
         self,
         producto_repo: ProductoRepositoryPort,
@@ -76,18 +95,18 @@ class CrearProductoUseCase:
                     "El código de barras es obligatorio cuando no es código interno."
                 )
             codigo = codigo.strip()
-            # Valida que el barcode no parezca un código interno (defensa)
-            try:
-                CodigoInterno(codigo)
+            # HU-B03: el código de barras NO puede colisionar con el formato de
+            # los códigos internos (PAP-001). Antes el `raise` estaba dentro del
+            # `try` y lo capturaba su propio `except ValidacionError`, así que la
+            # validación nunca se aplicaba.
+            if _tiene_formato_de_codigo_interno(codigo, self.PREFIJO):
                 raise ValidacionError(
-                    "El código enviado tiene formato de código interno; "
-                    "marca es_codigo_interno=true."
+                    "El código enviado tiene formato de código interno "
+                    f"({self.PREFIJO}-NNN); marca es_codigo_interno=true."
                 )
-            except ValidacionError:
-                pass  # no es código interno, OK
 
-        # Unicidad
-        if await self._productos.buscar_por_codigo(codigo) is not None:
+        # Unicidad (incluye borrados lógicos: el UNIQUE de la tabla es global)
+        if await self._productos.existe_codigo(codigo):
             raise ConflictoError(f"Ya existe un producto con el código '{codigo}'.")
 
         # Validar categoría si se da
@@ -160,15 +179,13 @@ class CrearProductoUseCase:
         return creado
 
     async def _generar_codigo_interno(self) -> str:
-        # D-T02: prefijo configurable (default "PAP"). Correlativo = count actual + 1.
-        # Simple: usamos la fecha YYYYMMDD-HHmm como sufijo. Determinístico y único
-        # dentro del mismo segundo para el prefijo "PAP" del backend.
-        prefijo = "PAP"
-        ahora = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-        candidato = f"{prefijo}-{ahora[-6:]}"
-        # Validar contra el VO
-        CodigoInterno(candidato)
-        # Garantizar unicidad: si existe, agregar sufijo
-        while await self._productos.buscar_por_codigo(candidato) is not None:
-            candidato = f"{candidato}X"
+        """D-T02 / HU-B03: `PREFIJO-CORRELATIVO` real (PAP-001, PAP-002, ...).
+
+        Antes se usaba `PAP-{HHMMSS}` y, ante colisión, se concatenaba una "X"
+        (`PAP-223902X`), que ni es correlativo ni cumple el patrón del VO.
+        """
+        correlativo = await self._productos.siguiente_correlativo_interno(self.PREFIJO)
+        # 3 dígitos mientras alcance; a partir de 1000 crece solo (el VO admite 3-6).
+        candidato = f"{self.PREFIJO}-{correlativo:03d}"
+        CodigoInterno(candidato)  # valida el formato antes de persistir
         return candidato

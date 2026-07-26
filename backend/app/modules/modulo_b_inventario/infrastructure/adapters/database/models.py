@@ -87,6 +87,11 @@ class ProductoModel(Base, SoftDeleteMixin):
     es_codigo_interno: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # PR1: foto del producto en Supabase Storage (URL pública, bucket `productos`)
     foto_url: Mapped[str | None] = mapped_column(Text)
+    # HU-B13: alerta única de stock mínimo. Se pone en TRUE cuando se avisa y
+    # vuelve a FALSE sola al reponer por encima del mínimo.
+    alerta_stock_notificada: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa.false(), nullable=False
+    )
     stock: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     stock_minimo: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

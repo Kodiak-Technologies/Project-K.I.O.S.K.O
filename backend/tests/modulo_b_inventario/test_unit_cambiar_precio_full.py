@@ -81,7 +81,7 @@ def test_cambio_real_precio_venta_happy() -> None:
 
 
 def test_precio_venta_negativo_levanta_validacion_error() -> None:
-    """precio_venta<0 levanta ValidacionError y NO llama productos.actualizar_precio."""
+    """precio_venta <= 0 levanta ValidacionError (igual que el alta) y NO persiste."""
 
     async def _run():
         productos = MockProductoRepository()
@@ -99,7 +99,7 @@ def test_precio_venta_negativo_levanta_validacion_error() -> None:
                 usuario_id=1,
                 usuario_nombre="X",
             )
-        assert "precio_venta" in str(exc.value)
+        assert "mayor a 0" in str(exc.value)
         assert auditoria.ejecutar.await_count == 0
 
     asyncio.run(_run())

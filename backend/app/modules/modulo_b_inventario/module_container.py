@@ -271,6 +271,8 @@ def aprobar_ingreso_usecase(db: AsyncSession) -> AprobarIngresoUseCase:
         producto_repository(db),
         movimiento_inventario_repository(db),
         contenedor_a.auditoria_usecase(db),
+        # HU-B14: permite cargar la compra a crédito en la misma transacción.
+        registrar_compra_credito_usecase(db),
     )
 
 
@@ -286,6 +288,8 @@ def editar_ingreso_usecase(db: AsyncSession) -> EditarIngresoUseCase:
         solicitud_ingreso_repository(db),
         detalle_solicitud_repository(db),
         contenedor_a.auditoria_usecase(db),
+        producto_repository(db),
+        proveedor_repository(db),
     )
 
 
@@ -321,7 +325,10 @@ def rechazar_merma_usecase(db: AsyncSession) -> RechazarMermaUseCase:
 # sdd/modulo-b-aprobaciones-detalle-editar
 def editar_merma_usecase(db: AsyncSession) -> EditarMermaUseCase:
     return EditarMermaUseCase(
-        merma_repository(db), contenedor_a.auditoria_usecase(db)
+        merma_repository(db),
+        contenedor_a.auditoria_usecase(db),
+        producto_repository(db),
+        proveedor_repository(db),
     )
 
 
@@ -382,3 +389,8 @@ def listar_movimientos_inventario_usecase(
 
 def subir_archivo_usecase(db: AsyncSession) -> SubirArchivoUseCase:
     return SubirArchivoUseCase(_storage(), contenedor_a.auditoria_usecase(db))
+
+
+async def refirmar_archivo(carpeta: str, path: str):
+    """Regenera la URL firmada de un archivo ya subido (HU-B07)."""
+    return await _storage().refirmar(carpeta, path)  # type: ignore[arg-type]

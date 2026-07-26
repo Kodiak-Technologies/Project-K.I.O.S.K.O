@@ -7,14 +7,10 @@ Recortado (diferido a follow-up): "PATCH rechaza deuda_actual 422" — la defens
 en el router YA existe (líneas 105-109), pero el spec lo cubría como escenario
 E2E independiente. La validación queda en unit tests del EditarProveedorUseCase.
 
-KNOWN BUGS (see discovered/modulo-b-tests-coverage-subset):
-- (1) `proveedores.ver` does NOT exist in `kiosko-test` BD; the seed creates it
-      but the test DB was stamped before the latest seed. → test_get_proveedores_paginado_200
-      is marked xfail. Workaround: re-run the seed.
-- (2) PATCH /proveedores/{id} returns HTTP 500 (sqlalchemy.exc.MissingGreenlet)
-      in the response serialization / lazy-loading after flush. Needs a deeper
-      SQLAlchemy 2.0 async session management review. → test_patch_proveedores_happy_200
-      is marked xfail.
+BUGS CORREGIDOS:
+- (1) `proveedores.ver` ya se crea y se asigna (seed + db/schema_modulo_b_completo.sql).
+- (2) PATCH /proveedores/{id} devolvía 500 (MissingGreenlet) al leer `updated_at`
+      después del flush: el repo ahora refresca la fila antes de mapearla.
 
 Async discipline (CN-2): todo test es sync `def test_*` que envuelve `correr(_run())`.
 """
@@ -72,10 +68,6 @@ async def _pago_proveedor_directo(
         return fila.id
 
 
-@pytest.mark.xfail(
-    reason="Production bug: proveedores.ver permission missing from kiosko-test BD; see discovered/modulo-b-tests-coverage-subset",
-    strict=False,
-)
 def test_get_proveedores_paginado_200() -> None:
     """GET /proveedores?page=1&page_size=20 con 2 proveedores responde 200."""
 
@@ -120,10 +112,6 @@ def test_get_proveedores_id_inexistente_404() -> None:
     correr(_run())
 
 
-@pytest.mark.xfail(
-    reason="Production bug: PATCH returns 500 (sqlalchemy.exc.MissingGreenlet) in _a_entidad/flush; see discovered/modulo-b-tests-coverage-subset",
-    strict=False,
-)
 def test_patch_proveedores_happy_200() -> None:
     """PATCH /proveedores/{id} con telefono nuevo responde 200 con telefono actualizado."""
 

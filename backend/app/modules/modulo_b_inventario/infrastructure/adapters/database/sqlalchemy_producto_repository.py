@@ -4,7 +4,7 @@
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.modulo_b_inventario.domain.entities import (
@@ -37,6 +37,7 @@ def _a_entidad(fila: ProductoModel, categoria: str | None = None) -> Producto:
         precio_compra_actual=fila.precio_compra_actual,
         es_codigo_interno=fila.es_codigo_interno,
         foto_url=fila.foto_url,
+        alerta_stock_notificada=fila.alerta_stock_notificada,
         stock=fila.stock,
         stock_minimo=fila.stock_minimo,
         activo=fila.activo,
@@ -112,6 +113,47 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
         ).first()
         return _a_entidad(fila[0], fila[1]) if fila else None
 
+    async def existe_codigo(self, codigo: str) -> bool:
+        # El UNIQUE de `productos.codigo` es global (no excluye borrados
+        # lógicos): para validar unicidad hay que mirar TAMBIÉN los borrados,
+        # si no el INSERT explota con IntegrityError (500) en vez de 409.
+        fila = (
+            await self._db.execute(
+                select(ProductoModel.id).where(ProductoModel.codigo == codigo)
+            )
+        ).first()
+        return fila is not None
+
+    async def siguiente_correlativo_interno(self, prefijo: str) -> int:
+        # Lock consultivo por prefijo: serializa la generación del correlativo
+        # entre transacciones concurrentes (se libera al terminar la tx). Sin
+        # esto, dos altas simultáneas calculan el mismo número y una explota
+        # con violación de UNIQUE.
+        try:
+            await self._db.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:clave))"),
+                {"clave": f"producto_codigo_interno:{prefijo}"},
+            )
+        except Exception:  # noqa: BLE001 - motores sin advisory locks
+            pass
+        codigos = (
+            (
+                await self._db.execute(
+                    select(ProductoModel.codigo).where(
+                        ProductoModel.codigo.like(f"{prefijo}-%")
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        maximo = 0
+        for codigo in codigos:
+            sufijo = codigo.split("-", 1)[1] if "-" in codigo else ""
+            if sufijo.isdigit():
+                maximo = max(maximo, int(sufijo))
+        return maximo + 1
+
     async def crear(self, producto: Producto) -> Producto:
         fila = ProductoModel(
             codigo=producto.codigo,
@@ -154,6 +196,8 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
         if solo_con_stock:
             filtros.append(ProductoModel.stock > 0)
         if solo_bajo_minimo:
+            # `stock_minimo = 0` = sin umbral definido → no cuenta como "por reponer".
+            filtros.append(ProductoModel.stock_minimo > 0)
             filtros.append(ProductoModel.stock <= ProductoModel.stock_minimo)
         if activo is not None:
             filtros.append(ProductoModel.activo == activo)
@@ -195,16 +239,21 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
         self,
         *,
         categoria_id: int | None = None,
+        solo_no_notificadas: bool = False,
         page: int = 1,
         page_size: int = 20,
     ) -> list[Producto]:
         filtros: list[Any] = [
             ProductoModel.deleted_at.is_(None),
             ProductoModel.activo.is_(True),
+            ProductoModel.stock_minimo > 0,
             ProductoModel.stock <= ProductoModel.stock_minimo,
         ]
         if categoria_id is not None:
             filtros.append(ProductoModel.categoria_id == categoria_id)
+        if solo_no_notificadas:
+            # HU-B13: alerta única por producto hasta su reposición.
+            filtros.append(ProductoModel.alerta_stock_notificada.is_(False))
         filas = (
             (
                 await self._db.execute(
@@ -294,9 +343,18 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
             "es_codigo_interno",
             "foto_url",
         }
+        # Campos que aceptan NULL explícito: mandar `categoria_id: null` debe
+        # DESASIGNAR la categoría (antes el None se descartaba en silencio).
+        anulables = {"categoria_id", "foto_url"}
         for campo, valor in cambios.items():
-            if campo in editables and valor is not None:
-                setattr(fila, campo, valor)
+            if campo not in editables:
+                continue
+            if valor is None and campo not in anulables:
+                continue
+            setattr(fila, campo, valor)
+        # Si el stock quedó por encima del nuevo mínimo, rearmamos la alerta.
+        if fila.stock > fila.stock_minimo:
+            fila.alerta_stock_notificada = False
         fila.actualizado_por = usuario_id
         fila.actualizado_por_nombre = usuario_nombre
         await self._db.flush()
@@ -393,9 +451,33 @@ class SqlAlchemyProductoRepository(ProductoRepositoryPort):
         )
         if (resultado.rowcount or 0) == 0:
             return (False, None)
+        # HU-B13: al reponer por encima del mínimo, la alerta se rearma sola.
+        if delta > 0:
+            await self._db.execute(
+                update(ProductoModel)
+                .where(
+                    ProductoModel.id == producto_id,
+                    ProductoModel.stock > ProductoModel.stock_minimo,
+                )
+                .values(alerta_stock_notificada=False)
+            )
         fila = (
             await self._db.execute(
                 select(ProductoModel.stock).where(ProductoModel.id == producto_id)
             )
         ).scalar_one()
         return (True, int(fila))
+
+    async def marcar_alertas_notificadas(self, producto_ids: list[int]) -> int:
+        """HU-B13: marca los productos cuya alerta de stock mínimo ya se avisó."""
+        if not producto_ids:
+            return 0
+        resultado = await self._db.execute(
+            update(ProductoModel)
+            .where(
+                ProductoModel.id.in_(producto_ids),
+                ProductoModel.deleted_at.is_(None),
+            )
+            .values(alerta_stock_notificada=True)
+        )
+        return resultado.rowcount or 0

@@ -77,7 +77,9 @@ async def crear(
 @router.get("/{proveedor_id}", response_model=ProveedorResponse)
 async def obtener(
     proveedor_id: int,
-    _usuario: Usuario = Depends(require_permission("proveedores.gestionar")),
+    # Mismo permiso que el listado: antes el cajero listaba proveedores pero
+    # recibía 403 al abrir el detalle.
+    _usuario: Usuario = Depends(require_permission("proveedores.ver")),
     db: AsyncSession = Depends(get_db),
 ):
     from app.shared.kernel.exceptions import NoEncontradoError
@@ -164,6 +166,14 @@ async def registrar_pago(
     db: AsyncSession = Depends(get_db),
     auditoria=Depends(get_auditoria),
 ):
+    # `solicitud_ingreso_id` solo aplica a compras a crédito (CHECK
+    # chk_pagos_solicitud_solo_en_compra). Antes se aceptaba y se descartaba.
+    if datos.solicitud_ingreso_id is not None:
+        from app.shared.kernel.exceptions import ValidacionError
+
+        raise ValidacionError(
+            "solicitud_ingreso_id solo se puede enviar en una compra a crédito."
+        )
     ip, user_agent = contexto_request(request)
     pago = await contenedor.registrar_pago_proveedor_usecase(db).ejecutar(
         proveedor_id=proveedor_id,

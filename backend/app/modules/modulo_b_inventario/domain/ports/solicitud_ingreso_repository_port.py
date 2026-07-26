@@ -48,7 +48,11 @@ class SolicitudIngresoRepositoryPort(ABC):
         usuario_id: int,
         *,
         estado: str | None = None,
+        proveedor_id: int | None = None,
+        fecha_desde: str | None = None,
+        fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[SolicitudIngreso], int]:
-        """Lista las solicitudes creadas por un usuario específico (CAJERO)."""
+        """Lista las solicitudes creadas por un usuario específico (CAJERO),
+        aplicando los mismos filtros que el listado general."""

@@ -18,10 +18,25 @@ class ProductoStockPort(ABC):
         """Datos de venta (nombre, precio, stock) de los productos pedidos."""
 
     @abstractmethod
-    async def descontar_stock(self, producto_id: int, cantidad: int) -> bool:
+    async def descontar_stock(
+        self,
+        producto_id: int,
+        cantidad: int,
+        usuario_id: int | None = None,
+        usuario_nombre: str = "",
+    ) -> bool:
         """Descuenta stock de forma atómica. False si no hay existencias suficientes
-        (el stock nunca queda negativo, RF-08)."""
+        (el stock nunca queda negativo, RF-08). El usuario se usa para dejar el
+        asiento en `movimientos_inventario` (D-07)."""
 
     @abstractmethod
-    async def reponer_stock(self, producto_id: int, cantidad: int) -> None:
-        """Devuelve unidades al inventario (anulaciones y devoluciones, RF-22)."""
+    async def reponer_stock(
+        self,
+        producto_id: int,
+        cantidad: int,
+        usuario_id: int | None = None,
+        usuario_nombre: str = "",
+        motivo: str | None = None,
+    ) -> None:
+        """Devuelve unidades al inventario (anulaciones y devoluciones, RF-22),
+        dejando el asiento correspondiente en `movimientos_inventario`."""

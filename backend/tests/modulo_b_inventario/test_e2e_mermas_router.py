@@ -5,7 +5,7 @@ Async discipline (CN-2): todo test es sync `def test_*` que envuelve `correr(_ru
 
 KNOWN BUG: `Merma.rechazar()` does not set `rechazado_en`, so the DB CHECK
 constraint `chk_mermas_estado_consistente` fails. The rechazar test is marked
-xfail until the production code is fixed (see discovered/modulo-b-tests-coverage-subset).
+corregido: `Merma.rechazar()` setea `rechazado_en` (CHECK chk_mermas_estado_consistente).
 """
 from __future__ import annotations
 
@@ -91,10 +91,6 @@ def test_get_mermas_id_inexistente_404() -> None:
     correr(_run())
 
 
-@pytest.mark.xfail(
-    reason="Production bug: Merma.rechazar() does not set rechazado_en; CHECK constraint fails; see discovered/modulo-b-tests-coverage-subset",
-    strict=False,
-)
 def test_post_mermas_id_rechazar_happy_200() -> None:
     """POST /mermas/{id}/rechazar con motivo >=5 chars responde 200 con estado='Rechazada'."""
 
