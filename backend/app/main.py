@@ -64,6 +64,15 @@ logger = logging.getLogger(__name__)
 
 TAREA_RESPALDO_INTERVALO = 604800  # 7 días (una semana)
 
+# Nota: la tarea periódica de reintento de subidas a Drive
+# (`modulo_d_documentos/infrastructure/tasks/reintentar_subidas.py`) NO se
+# lanza en el arranque. Su definición se había perdido en la resolución de
+# conflictos de `1f2f8ec` mientras `lifespan()` seguía llamándola, y el
+# servidor no arrancaba (`NameError: _ejecutar_tarea_reintentar`). Se decidió
+# dejarla apagada porque, tal como está, re-sube TODAS las ventas de los
+# últimos 7 días cada 5 minutos (no lleva registro de lo ya subido) y duplica
+# archivos en Drive. Las notas se siguen subiendo al registrar cada venta.
+
 
 async def _ejecutar_tarea_respaldos() -> None:
     from app.modules.modulo_d_documentos.infrastructure.tasks.respaldo_automatico import (
@@ -119,12 +128,8 @@ async def _ejecutar_cierre_automatico_background() -> None:
 async def lifespan(app: FastAPI):
     # Iniciamos todas las tareas en segundo plano que provienen de ambos lados
     logger.info("Iniciando tareas en segundo plano...")
-    
+
     task_cierre = asyncio.create_task(_ejecutar_cierre_automatico_background())
-    
-    # Si la tarea de reintentar existe en tu proyecto, la ejecutamos aquí
-    task_reintentar = asyncio.create_task(_ejecutar_tarea_reintentar())
-    
     task_respaldos = asyncio.create_task(_ejecutar_tarea_respaldos())
 
     try:
@@ -133,7 +138,6 @@ async def lifespan(app: FastAPI):
         # Se asegura de cancelar absolutamente todas al apagar el server
         logger.info("Deteniendo tareas en segundo plano...")
         task_cierre.cancel()
-        task_reintentar.cancel()
         task_respaldos.cancel()
 
 
