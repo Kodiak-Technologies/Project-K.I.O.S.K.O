@@ -26,17 +26,17 @@ class CrearCategoriaUseCase:
         ip: str = "",
         user_agent: str = "",
     ) -> Categoria:
-        # El repo valida unicidad y longitud en `crear`. La validación de longitud
-        # ya la hace el Pydantic, pero la hacemos defensiva acá también.
-        creada = await self._categorias.crear(nombre.strip())
-        if descripcion is not None:
-            await self._categorias.actualizar(
-                creada.id,  # type: ignore[arg-type]
-                {"descripcion": descripcion},
-                usuario_id=usuario_id,
-                usuario_nombre=usuario_nombre,
+        # Un solo INSERT con nombre + descripción + autoría (antes se insertaba
+        # solo el nombre y se hacía un UPDATE extra que perdía `creado_por`).
+        creada = await self._categorias.crear(
+            Categoria(
+                id=None,
+                nombre=nombre.strip(),
+                descripcion=descripcion,
+                creado_por=usuario_id,
+                creado_por_nombre=usuario_nombre,
             )
-            creada = await self._categorias.find_by_id(creada.id)  # type: ignore[arg-type]
+        )
         await self._auditoria.ejecutar(
             accion="categoria_creada",
             entidad="categorias",

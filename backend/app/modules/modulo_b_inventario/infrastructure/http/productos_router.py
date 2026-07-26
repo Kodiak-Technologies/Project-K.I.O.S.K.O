@@ -21,6 +21,8 @@ from app.modules.modulo_b_inventario.infrastructure.http.schemas import (
     CrearProductoRequest,
     HistorialPaginadosResponse,
     HistorialPrecioResponse,
+    MarcarAlertasRequest,
+    MarcarAlertasResponse,
     PorReponerItemResponse,
     PorReponerPaginadosResponse,
     ProductoResponse,
@@ -89,18 +91,40 @@ async def buscar(
 @router.get("/por-reponer", response_model=PorReponerPaginadosResponse)
 async def listar_por_reponer(
     categoria_id: int | None = None,
+    solo_no_notificadas: bool = False,
     page: int = 1,
     page_size: int = 20,
     _usuario: Usuario = Depends(require_permission("inventario.ver")),
     db: AsyncSession = Depends(get_db),
 ):
+    """HU-B13. Con `solo_no_notificadas=true` devuelve únicamente los productos
+    cuya alerta todavía no se avisó (alerta única hasta la reposición)."""
     items, total, page, page_size, total_pages = await contenedor.listar_productos_por_reponer_usecase(
         db
-    ).ejecutar(categoria_id=categoria_id, page=page, page_size=page_size)
+    ).ejecutar(
+        categoria_id=categoria_id,
+        solo_no_notificadas=solo_no_notificadas,
+        page=page,
+        page_size=page_size,
+    )
     return PorReponerPaginadosResponse(
         items=[PorReponerItemResponse.desde_item(i) for i in items],
         total=total, page=page, page_size=page_size, total_pages=total_pages,
     )
+
+
+@router.post("/por-reponer/marcar-notificadas", response_model=MarcarAlertasResponse)
+async def marcar_alertas_notificadas(
+    datos: MarcarAlertasRequest,
+    _usuario: Usuario = Depends(require_permission("inventario.ver")),
+    db: AsyncSession = Depends(get_db),
+):
+    """HU-B13: marca las alertas ya mostradas. Se rearman solas cuando el
+    producto se repone por encima de su stock mínimo."""
+    marcados = await contenedor.listar_productos_por_reponer_usecase(
+        db
+    ).marcar_notificadas(datos.producto_ids)
+    return MarcarAlertasResponse(marcados=marcados)
 
 
 @router.get("/{producto_id}", response_model=ProductoResponse)
@@ -153,12 +177,8 @@ async def editar(
     db: AsyncSession = Depends(get_db),
     auditoria=Depends(get_auditoria),
 ):
-    # Defensa explícita: rechazar precio/precio_compra_actual
-    if "precio" in datos.model_dump(exclude_unset=True) or "precio_compra_actual" in datos.model_dump(exclude_unset=True):
-        from app.shared.kernel.exceptions import ValidacionError
-        raise ValidacionError(
-            "Use PATCH /productos/{id}/precio para cambiar precios."
-        )
+    # `ProductoUpdate` tiene extra="forbid": mandar precio/precio_compra_actual
+    # ya devuelve 422 en la validación del body (antes se ignoraba en silencio).
     cambios = datos.model_dump(exclude_unset=True)
     ip, user_agent = contexto_request(request)
     actualizado = await contenedor.editar_producto_usecase(db).ejecutar(

@@ -56,6 +56,12 @@ class RegistrarCompraCreditoUseCase:
         prov = await self._proveedores.find_by_id_for_update(proveedor_id)
         if prov is None:
             raise NoEncontradoError("El proveedor no existe.")
+        # No se le puede seguir comprando a un proveedor dado de baja (los
+        # pagos SÍ se permiten, para poder saldar la deuda existente).
+        if not prov.activo:
+            raise ValidacionError(
+                "El proveedor está inactivo: no se pueden registrar compras a crédito."
+            )
         if solicitud_ingreso_id is not None:
             sol = await self._solicitudes.find_by_id(solicitud_ingreso_id)
             if sol is None:

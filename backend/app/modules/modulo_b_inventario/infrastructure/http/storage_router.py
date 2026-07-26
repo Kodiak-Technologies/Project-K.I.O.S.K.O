@@ -9,6 +9,7 @@ from app.modules.modulo_a_seguridad.infrastructure.dependencies import (
 )
 from app.modules.modulo_b_inventario import module_container as contenedor
 from app.modules.modulo_b_inventario.infrastructure.http.schemas import (
+    RefirmarRequest,
     StorageUploadResponse,
 )
 
@@ -36,6 +37,24 @@ async def upload(
         ip=ip,
         user_agent=user_agent,
     )
+    return StorageUploadResponse(
+        url=resultado.url,
+        path=resultado.path,
+        filename=resultado.filename,
+        mime=resultado.mime,
+        size_bytes=resultado.size_bytes,
+        expires_at=resultado.expires_at,
+    )
+
+
+@router.post("/firmar", response_model=StorageUploadResponse)
+async def refirmar(
+    datos: RefirmarRequest,
+    _usuario: Usuario = Depends(require_permission("inventario.ver")),
+):
+    """Regenera la URL de un archivo ya subido (HU-B07: ver la boleta de una
+    solicitud vieja aunque su URL firmada haya vencido)."""
+    resultado = await contenedor.refirmar_archivo(datos.carpeta, datos.path)
     return StorageUploadResponse(
         url=resultado.url,
         path=resultado.path,

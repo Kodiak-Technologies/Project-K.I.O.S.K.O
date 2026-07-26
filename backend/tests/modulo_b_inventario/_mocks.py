@@ -62,6 +62,27 @@ class MockProductoRepository:
     def set_buscar_por_codigo_return(self, codigo: str, producto: Producto | None) -> None:
         self._buscar_por_codigo_retorno[codigo] = producto
 
+    async def existe_codigo(self, codigo: str) -> bool:
+        return await self.buscar_por_codigo(codigo) is not None
+
+    async def siguiente_correlativo_interno(self, prefijo: str) -> int:
+        maximo = 0
+        for p in self._productos.values():
+            if p.codigo.startswith(f"{prefijo}-"):
+                sufijo = p.codigo.split("-", 1)[1]
+                if sufijo.isdigit():
+                    maximo = max(maximo, int(sufijo))
+        return maximo + 1
+
+    async def marcar_alertas_notificadas(self, producto_ids: list[int]) -> int:
+        marcados = 0
+        for pid in producto_ids:
+            producto = self._productos.get(pid)
+            if producto is not None:
+                producto.alerta_stock_notificada = True
+                marcados += 1
+        return marcados
+
     async def buscar_por_id(self, producto_id: int) -> Producto | None:
         return self._productos.get(producto_id)
 
@@ -135,12 +156,12 @@ class MockCategoriaRepository:
         self._categorias[categoria.id] = categoria
         return categoria
 
-    async def crear(self, nombre: str) -> Categoria:
+    async def crear(self, categoria: Categoria) -> Categoria:
         self._contador += 1
-        cat = Categoria(id=self._contador, nombre=nombre)
-        self._categorias[cat.id] = cat
+        categoria.id = self._contador
+        self._categorias[categoria.id] = categoria
         self.crear_call_count += 1
-        return cat
+        return categoria
 
     async def actualizar(
         self,

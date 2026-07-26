@@ -69,7 +69,9 @@ class RegistrarVentaUseCase:
         if not pagos:
             raise ValidacionError("La venta no tiene método de pago (RF-20).")
 
-        detalles = await self._armar_detalles_y_descontar_stock(items)
+        detalles = await self._armar_detalles_y_descontar_stock(
+            items, usuario_id, nombre_usuario
+        )
         total = monto_dinero(sum(d.subtotal for d in detalles))
 
         pagos_venta = await self._validar_pagos(pagos, total)
@@ -107,7 +109,10 @@ class RegistrarVentaUseCase:
         return venta
 
     async def _armar_detalles_y_descontar_stock(
-        self, items: list[tuple[int, int]]
+        self,
+        items: list[tuple[int, int]],
+        usuario_id: int,
+        nombre_usuario: str,
     ) -> list[DetalleVenta]:
         # Consolidar repetidos: escanear 2 veces el mismo producto = cantidad 2.
         cantidades: dict[int, int] = {}
@@ -127,7 +132,9 @@ class RegistrarVentaUseCase:
                 raise ValidacionError(f"'{producto.nombre}' está inactivo y no se puede vender.")
             # Descuento atómico: si otra venta ganó las últimas unidades, esto
             # devuelve False y toda la operación se revierte (RNF-03).
-            if not await self._stock.descontar_stock(producto_id, cantidad):
+            if not await self._stock.descontar_stock(
+                producto_id, cantidad, usuario_id, nombre_usuario
+            ):
                 raise ConflictoError(
                     f"Stock insuficiente de '{producto.nombre}': quedan {producto.stock}."
                 )

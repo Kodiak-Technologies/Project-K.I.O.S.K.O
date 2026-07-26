@@ -7,7 +7,7 @@ from app.modules.modulo_b_inventario.domain.entities import Proveedor
 from app.modules.modulo_b_inventario.domain.ports.proveedor_repository_port import (
     ProveedorRepositoryPort,
 )
-from app.shared.kernel.exceptions import ValidacionError
+from app.shared.kernel.exceptions import NoEncontradoError, ValidacionError
 
 
 class EditarProveedorUseCase:
@@ -33,18 +33,24 @@ class EditarProveedorUseCase:
                 "deuda_actual solo se modifica vía compras a crédito o pagos."
             )
         anterior = await self._proveedores.find_by_id(proveedor_id)
+        # Antes, si el proveedor no existía (o estaba borrado lógicamente) se
+        # construía una entidad con "" / None y el UPDATE PISABA los datos reales.
+        if anterior is None:
+            raise NoEncontradoError("Proveedor no encontrado.")
         actualizado = await self._proveedores.actualizar(
             Proveedor(
                 id=proveedor_id,
-                razon_social=cambios.get("razon_social", anterior.razon_social if anterior else ""),
-                creado_por=anterior.creado_por if anterior else 0,
-                creado_por_nombre=anterior.creado_por_nombre if anterior else "",
-                ruc=cambios.get("ruc", anterior.ruc if anterior else None),
-                telefono=cambios.get("telefono", anterior.telefono if anterior else None),
-                email=cambios.get("email", anterior.email if anterior else None),
-                direccion=cambios.get("direccion", anterior.direccion if anterior else None),
-                activo=cambios.get("activo", anterior.activo if anterior else True),
-                deuda_actual=anterior.deuda_actual if anterior else None,
+                razon_social=cambios.get("razon_social") or anterior.razon_social,
+                creado_por=anterior.creado_por,
+                creado_por_nombre=anterior.creado_por_nombre,
+                ruc=cambios.get("ruc", anterior.ruc),
+                telefono=cambios.get("telefono", anterior.telefono),
+                email=cambios.get("email", anterior.email),
+                direccion=cambios.get("direccion", anterior.direccion),
+                activo=cambios.get("activo", anterior.activo)
+                if cambios.get("activo") is not None
+                else anterior.activo,
+                deuda_actual=anterior.deuda_actual,
             )
         )
         await self._auditoria.ejecutar(

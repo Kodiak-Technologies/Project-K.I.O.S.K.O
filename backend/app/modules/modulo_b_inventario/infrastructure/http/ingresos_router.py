@@ -129,7 +129,7 @@ async def obtener(
 @router.post("/{solicitud_id}/aprobar", response_model=AprobacionResponse)
 async def aprobar(
     solicitud_id: int,
-    _body: AprobarIngresoRequest | None = None,
+    body: AprobarIngresoRequest | None = None,
     request: Request = None,  # type: ignore[assignment]
     usuario: Usuario = Depends(require_permission("inventario.aprobar_ingreso")),
     db: AsyncSession = Depends(get_db),
@@ -140,6 +140,7 @@ async def aprobar(
         solicitud_id=solicitud_id,
         usuario_id=usuario.id,  # type: ignore[union-attr]
         usuario_nombre=usuario.nombre,
+        registrar_credito=bool(body and body.registrar_credito),
         ip=ip,
         user_agent=user_agent,
     )
@@ -150,6 +151,8 @@ async def aprobar(
         revisado_en=resultado.solicitud.revisado_en,
         productos_actualizados=resultado.productos_actualizados,
         unidades_agregadas=resultado.unidades_agregadas,
+        monto_total=float(resultado.monto_total),
+        credito_registrado=resultado.credito_registrado,
     )
 
 
@@ -201,14 +204,17 @@ async def editar(
 
     # Pydantic v2 ya parsea y valida el body. Acá pasamos los kwargs al use case
     # con `...` (Ellipsis) como sentinel para "no presente".
+    # `body.valor(campo)` devuelve `...` cuando el campo NO vino en el body: sin
+    # esto, un PATCH de solo `lineas` mandaba `proveedor_id=None` y BORRABA el
+    # proveedor de la solicitud.
     resultado = await contenedor.editar_ingreso_usecase(db).ejecutar(
         ingreso_id=solicitud_id,
         editor_id=usuario.id,  # type: ignore[union-attr]
         editor_nombre=usuario.nombre,
         es_admin=es_admin,
-        motivo=body.motivo,
+        motivo=body.valor("motivo"),
         foto_boleta_url=...,  # no expuesto en esta versión (decisión §10)
-        proveedor_id=body.proveedor_id,
+        proveedor_id=body.valor("proveedor_id"),
         lineas=(
             [
                 {
@@ -219,7 +225,7 @@ async def editar(
                 for l in body.lineas
             ]
             if body.lineas is not None
-            else ...
+            else ...  # ausente o null: no se tocan las líneas ([] sí las vacía)
         ),
         ip=ip,
         user_agent=user_agent,

@@ -34,7 +34,14 @@ PERMISOS = [
     ("usuarios.gestionar", "Crear, editar y desactivar usuarios", False),
     ("productos.crear", "Crear productos en el catálogo", False),
     ("productos.editar", "Editar productos del catálogo", False),
+    ("categorias.gestionar", "Crear y editar categorías del catálogo", False),
     ("precios.editar", "Modificar precios", False),
+    ("historial_precios.ver", "Consultar el historial de cambios de precio", False),
+    # El cajero registra la merma (D-14, flujo de 2 pasos); la administradora valida.
+    ("mermas.registrar", "Registrar mermas, vencimientos y roturas", True),
+    ("mermas.confirmar", "Confirmar o rechazar mermas", False),
+    # El cajero necesita subir la foto de la boleta para poder enviar la solicitud (HU-B06).
+    ("storage.upload", "Subir archivos (fotos de boleta y de producto)", True),
     ("inventario.aprobar_ingreso", "Aprobar ingresos de mercadería", False),
     ("inventario.solicitar_ingreso", "Solicitar/registrar ingresos de mercadería", True),
     ("inventario.ver", "Consultar inventario y stock", True),

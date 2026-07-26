@@ -129,6 +129,7 @@ class SqlAlchemyMermaRepository(MermaRepositoryPort):
         producto_id: int | None = None,
         fecha_desde: str | None = None,
         fecha_hasta: str | None = None,
+        registrado_por: int | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Merma], int]:
@@ -139,6 +140,8 @@ class SqlAlchemyMermaRepository(MermaRepositoryPort):
             filtros.append(MermaModel.motivo == motivo)
         if producto_id is not None:
             filtros.append(MermaModel.producto_id == producto_id)
+        if registrado_por is not None:
+            filtros.append(MermaModel.registrado_por == registrado_por)
         if fecha_desde is not None:
             filtros.append(MermaModel.created_at >= fecha_desde)
         if fecha_hasta is not None:

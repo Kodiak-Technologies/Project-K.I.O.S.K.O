@@ -62,6 +62,10 @@ class Producto:
     precio_compra_actual: Decimal = Decimal("0")
     es_codigo_interno: bool = False
     foto_url: str | None = None
+    # HU-B13: la alerta de stock mínimo se emite UNA sola vez por producto y se
+    # rearma sola cuando el stock vuelve a superar el mínimo (ver
+    # `incrementar_stock_atomic`).
+    alerta_stock_notificada: bool = False
     creado_por: int | None = None
     creado_por_nombre: str | None = None
     actualizado_por: int | None = None
@@ -75,7 +79,15 @@ class Producto:
         return self.activo and self.stock > 0 and not self.eliminado
 
     def requiere_reposicion(self) -> bool:
-        return self.activo and not self.eliminado and self.stock <= self.stock_minimo
+        # HU-B13: `stock_minimo = 0` significa "sin umbral definido"; esos
+        # productos NO deben aparecer en la lista de reposición (si no, todo
+        # producto agotado sin umbral genera ruido permanente).
+        return (
+            self.activo
+            and not self.eliminado
+            and self.stock_minimo > 0
+            and self.stock <= self.stock_minimo
+        )
 
     @property
     def eliminado(self) -> bool:
@@ -389,6 +401,10 @@ class Merma(EntidadConBorradoLogico):
         self.estado = EstadoMerma("Confirmada")
         self.confirmado_por = usuario_id
         self.confirmado_por_nombre = nombre
+        # D-14 + chk_mermas_estado_consistente: una merma confirmada DEBE tener
+        # marca de tiempo de confirmación. Sin esto el UPDATE viola el CHECK y
+        # POST /mermas/{id}/confirmar devuelve 500 (gemelo del bug de rechazar()).
+        self.confirmado_en = datetime.now(timezone.utc)
 
     def rechazar(self, usuario_id: int, nombre: str, motivo: str) -> None:
         from app.shared.kernel.exceptions import ConflictoError, ValidacionError

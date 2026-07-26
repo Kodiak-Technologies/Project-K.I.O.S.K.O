@@ -3,8 +3,12 @@
 Prerequisite for PATCH /ingresos/{id} and PATCH /mermas/{id} (sdd/modulo-b-aprobaciones-detalle-editar).
 
 Revision ID: 0013_modulo_b_editar_ingreso_merma
-Revises: 0012_modulo_d_reestructuracion
+Revises: 0012a_modulo_b_esquema
 Create Date: 2026-07-25
+
+Nota: ahora depende de `0012a_modulo_b_esquema`, que crea `solicitudes_ingreso`
+y `mermas`. Antes colgaba de 0012 y en una BD nueva fallaba porque hacía
+ADD COLUMN sobre tablas inexistentes.
 """
 import sqlalchemy as sa
 from alembic import op
@@ -12,7 +16,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0013_modulo_b_editar_ingreso_merma"
-down_revision = "0012_modulo_d_reestructuracion"
+down_revision = "0012a_modulo_b_esquema"
 branch_labels = None
 depends_on = None
 

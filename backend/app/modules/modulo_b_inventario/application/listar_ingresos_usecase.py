@@ -43,6 +43,9 @@ class ListarIngresosUseCase:
             items, total = await self._solicitudes.listar_por_solicitante(
                 usuario.id,  # type: ignore[union-attr]
                 estado=estado,
+                proveedor_id=proveedor_id,
+                fecha_desde=fecha_desde,
+                fecha_hasta=fecha_hasta,
                 page=page,
                 page_size=page_size,
             )

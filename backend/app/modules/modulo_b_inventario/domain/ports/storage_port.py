@@ -26,5 +26,15 @@ class StoragePort(ABC):
         mime: str,
     ) -> StorageResult:
         """Sube el archivo y devuelve URL + path. Para `boletas` la URL es
-        una signed URL con expiración de 24h; para `productos` es URL pública.
+        firmada (TTL configurable, 1 año por defecto); para `productos` es pública.
         """
+
+    async def refirmar(
+        self, carpeta: Literal["boletas", "productos"], path: str
+    ) -> StorageResult:
+        """Regenera la URL de un archivo ya subido a partir de su `path`.
+
+        No es abstracto para no romper adaptadores en memoria de los tests;
+        el adaptador real lo implementa.
+        """
+        raise NotImplementedError

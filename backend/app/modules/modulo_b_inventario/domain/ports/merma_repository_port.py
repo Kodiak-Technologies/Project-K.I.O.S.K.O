@@ -35,7 +35,9 @@ class MermaRepositoryPort(ABC):
         producto_id: int | None = None,
         fecha_desde: str | None = None,
         fecha_hasta: str | None = None,
+        registrado_por: int | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Merma], int]:
-        """Devuelve (items, total). Filtros opcionales."""
+        """Devuelve (items, total). Filtros opcionales.
+        `registrado_por` restringe al autor (el CAJERO solo ve lo suyo)."""

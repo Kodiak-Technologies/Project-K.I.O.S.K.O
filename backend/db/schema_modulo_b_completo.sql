@@ -18,6 +18,8 @@ ALTER TABLE productos
     ADD COLUMN IF NOT EXISTS precio_compra_actual   NUMERIC(10,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS es_codigo_interno      BOOLEAN        NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS foto_url               TEXT,
+    -- HU-B13: alerta única de stock mínimo (se rearma al reponer).
+    ADD COLUMN IF NOT EXISTS alerta_stock_notificada BOOLEAN       NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS creado_por             BIGINT,
     ADD COLUMN IF NOT EXISTS creado_por_nombre      VARCHAR(100),
     ADD COLUMN IF NOT EXISTS actualizado_por        BIGINT,
@@ -365,7 +367,9 @@ INSERT INTO permisos (codigo, descripcion) VALUES
     ('proveedores.pagos',           'Registrar pagos a proveedor que disminuyen la deuda'),
     ('categorias.gestionar',        'Alta y edición de categorías de productos'),
     ('storage.upload',              'Subir archivos a Supabase Storage (boletas, fotos de producto)'),
-    ('historial_precios.ver',       'Consultar el historial de cambios de precio')
+    ('historial_precios.ver',       'Consultar el historial de cambios de precio'),
+    -- Faltaba: los routers de proveedores lo exigen (listado y detalle).
+    ('proveedores.ver',             'Ver el listado y el detalle de proveedores')
 ON CONFLICT (codigo) DO NOTHING;
 
 -- Asignación idempotente: ADMIN recibe los 8 nuevos
@@ -377,6 +381,7 @@ WHERE r.nombre = 'ADMIN'
   AND p.codigo IN (
       'mermas.registrar','mermas.confirmar',
       'proveedores.gestionar','proveedores.compras_credito','proveedores.pagos',
+      'proveedores.ver',
       'categorias.gestionar','storage.upload','historial_precios.ver'
   )
 ON CONFLICT (rol_id, permiso_id) DO NOTHING;
@@ -394,7 +399,8 @@ WHERE r.nombre = 'CAJERO'
       'inventario.solicitar_ingreso',
       'inventario.ver',
       'mermas.registrar',
-      'storage.upload'
+      'storage.upload',
+      'proveedores.ver'
   )
 ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 

@@ -41,13 +41,21 @@ class SqlAlchemyCategoriaRepository(CategoriaRepositoryPort):
         ).scalars()
         return [_a_entidad(f) for f in filas]
 
-    async def crear(self, nombre: str) -> Categoria:
-        nombre = nombre.strip()
+    async def crear(self, categoria: Categoria) -> Categoria:
+        nombre = categoria.nombre.strip()
         if await self.find_by_nombre(nombre) is not None:
             raise ConflictoError(f"La categoría '{nombre}' ya existe.")
-        fila = CategoriaModel(nombre=nombre)
+        fila = CategoriaModel(
+            nombre=nombre,
+            descripcion=categoria.descripcion,
+            creado_por=categoria.creado_por,
+            creado_por_nombre=categoria.creado_por_nombre,
+        )
         self._db.add(fila)
         await self._db.flush()
+        # `created_at`/`updated_at` los pone el server: hay que refrescar ANTES
+        # de leerlos, si no el acceso dispara IO fuera del greenlet (MissingGreenlet).
+        await self._db.refresh(fila)
         return _a_entidad(fila)
 
     async def find_by_id(self, categoria_id: int) -> Categoria | None:
@@ -63,13 +71,15 @@ class SqlAlchemyCategoriaRepository(CategoriaRepositoryPort):
     async def actualizar(
         self, categoria_id: int, cambios: dict, usuario_id: int | None = None, usuario_nombre: str | None = None
     ) -> Categoria:
+        from app.shared.kernel.exceptions import NoEncontradoError
+
         fila = (
             await self._db.execute(
                 select(CategoriaModel).where(CategoriaModel.id == categoria_id)
             )
-        ).scalar_one()
-        if fila.deleted_at is not None:
-            from app.shared.kernel.exceptions import NoEncontradoError
+        ).scalar_one_or_none()
+        # `scalar_one()` levantaba NoResultFound (500) cuando el id no existía.
+        if fila is None or fila.deleted_at is not None:
             raise NoEncontradoError("Categoría no encontrada.")
         if "nombre" in cambios and cambios["nombre"] is not None:
             nuevo_nombre = cambios["nombre"].strip()
@@ -81,10 +91,12 @@ class SqlAlchemyCategoriaRepository(CategoriaRepositoryPort):
             fila.descripcion = cambios["descripcion"]
         if "activo" in cambios and cambios["activo"] is False:
             # Soft delete via deleted_at
-            from datetime import datetime, timezone
             from app.shared.kernel.soft_delete import marcar_borrado
             marcar_borrado(fila, usuario_id or 0)
         await self._db.flush()
+        # `updated_at` tiene onupdate=now(): tras el flush queda expirado y
+        # leerlo sin refrescar dispara MissingGreenlet (500).
+        await self._db.refresh(fila)
         return _a_entidad(fila)
 
     async def find_by_nombre(self, nombre: str) -> Categoria | None:

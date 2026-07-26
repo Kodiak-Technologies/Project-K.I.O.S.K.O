@@ -109,7 +109,14 @@ class ProductoCreate(BaseModel):
 
 
 class ProductoUpdate(BaseModel):
-    """Edición general. NO incluye precios (van por /precio)."""
+    """Edición general. NO incluye precios (van por /precio).
+
+    `extra="forbid"`: mandar `precio` o `precio_compra_actual` acá devuelve 422.
+    Antes Pydantic los descartaba en silencio y el PATCH respondía 200 sin haber
+    cambiado el precio (el usuario creía que sí).
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     codigo: str | None = Field(default=None, min_length=1, max_length=60)
     nombre: str | None = Field(default=None, min_length=1, max_length=150)
@@ -118,13 +125,6 @@ class ProductoUpdate(BaseModel):
     activo: bool | None = None
     es_codigo_interno: bool | None = None
     foto_url: str | None = None
-
-    @model_validator(mode="after")
-    def _rechazar_precios(self) -> "ProductoUpdate":
-        # Pydantic v2 ignora campos no declarados, pero validamos explícitamente
-        # que no se envíen precio/precio_compra_actual en el dict.
-        # Esto se refuerza en el router y el use case.
-        return self
 
 
 class ProductoResponse(BaseModel):
@@ -176,6 +176,8 @@ class PorReponerItemResponse(BaseModel):
     stock: int
     stock_minimo: int
     faltante: int
+    # HU-B13: si ya se avisó, no hay que volver a alertar hasta la reposición.
+    alerta_notificada: bool = False
 
     @classmethod
     def desde_item(cls, item: PorReponerItem) -> "PorReponerItemResponse":
@@ -189,7 +191,20 @@ class PorReponerItemResponse(BaseModel):
             stock=p.stock,
             stock_minimo=p.stock_minimo,
             faltante=item.faltante,
+            alerta_notificada=p.alerta_stock_notificada,
         )
+
+
+class MarcarAlertasRequest(BaseModel):
+    """HU-B13: marca como avisadas las alertas de stock mínimo ya mostradas."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    producto_ids: list[int] = Field(min_length=1)
+
+
+class MarcarAlertasResponse(BaseModel):
+    marcados: int
 
 
 class ProductosPaginadosResponse(BaseModel):
@@ -214,7 +229,11 @@ class PorReponerPaginadosResponse(BaseModel):
 
 
 class CambiarPrecioRequest(BaseModel):
-    precio_venta: float | None = Field(default=None, ge=0)
+    model_config = ConfigDict(extra="forbid")
+
+    # `gt=0`: el alta exige precio de venta > 0, el cambio de precio también
+    # (antes se podía dejar un producto en 0.00 y seguía vendiéndose).
+    precio_venta: float | None = Field(default=None, gt=0)
     precio_compra_actual: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
@@ -376,8 +395,17 @@ class IngresosPaginadosResponse(BaseModel):
 
 
 class AprobarIngresoRequest(BaseModel):
-    """Actualmente vacío; el spec menciona `ajustes_lineas` pero el alcance
-    final del PR2 no lo expone (se queda como follow-up)."""
+    """Body opcional de la aprobación (HU-B07 + HU-B14)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    registrar_credito: bool = Field(
+        default=False,
+        description=(
+            "Si es true, carga el monto del ingreso a la deuda del proveedor "
+            "como compra a crédito, vinculada a esta solicitud."
+        ),
+    )
 
 
 class AprobacionResponse(BaseModel):
@@ -387,6 +415,8 @@ class AprobacionResponse(BaseModel):
     revisado_en: datetime | None
     productos_actualizados: int
     unidades_agregadas: int
+    monto_total: float = 0.0
+    credito_registrado: bool = False
 
 
 class RechazarIngresoRequest(BaseModel):
@@ -424,12 +454,17 @@ class SolicitudIngresoUpdateRequest(BaseModel):
 
     @model_validator(mode="after")
     def _at_least_one_field(self) -> "SolicitudIngresoUpdateRequest":
-        if all(
-            getattr(self, f) is None
-            for f in ("proveedor_id", "motivo", "lineas")
-        ):
+        # `model_fields_set` = campos realmente presentes en el body. Con la
+        # comprobación anterior (todos None), mandar `{"motivo": null}` para
+        # limpiar el campo se rechazaba, y peor: los campos ausentes viajaban
+        # como None al use case y BORRABAN el valor guardado.
+        if not self.model_fields_set:
             raise ValueError("Debes enviar al menos un campo para editar.")
         return self
+
+    def valor(self, campo: str):
+        """Valor del campo si vino en el body; `...` (sentinel) si no vino."""
+        return getattr(self, campo) if campo in self.model_fields_set else ...
 
 
 # =============================================================================
@@ -525,17 +560,30 @@ class MermaUpdateRequest(BaseModel):
 
     @model_validator(mode="after")
     def _at_least_one_field(self) -> "MermaUpdateRequest":
-        if all(
-            getattr(self, f) is None
-            for f in ("motivo", "observacion", "proveedor_id", "producto_id", "cantidad")
-        ):
+        # Ver nota en SolicitudIngresoUpdateRequest: los campos ausentes NO
+        # deben viajar como None (PATCH {"cantidad": 2} daba 422 INVALID_MOTIVO
+        # porque `motivo=None` se interpretaba como "cambiar el motivo a None").
+        if not self.model_fields_set:
             raise ValueError("Debes enviar al menos un campo para editar.")
         return self
+
+    def valor(self, campo: str):
+        """Valor del campo si vino en el body; `...` (sentinel) si no vino."""
+        return getattr(self, campo) if campo in self.model_fields_set else ...
 
 
 # =============================================================================
 # Proveedores
 # =============================================================================
+
+
+def _normalizar_email(v: str | None) -> str | None:
+    """Valida un email opcional. Compartido por el alta y la edición."""
+    if v is None or v.strip() == "":
+        return None
+    if "@" not in v or "." not in v.split("@")[-1]:
+        raise ValueError("Email inválido.")
+    return v
 
 
 class ProveedorCreate(BaseModel):
@@ -548,14 +596,14 @@ class ProveedorCreate(BaseModel):
     @field_validator("email")
     @classmethod
     def _validar_email(cls, v: str | None) -> str | None:
-        if v is None or v.strip() == "":
-            return None
-        if "@" not in v or "." not in v.split("@")[-1]:
-            raise ValueError("Email inválido.")
-        return v
+        return _normalizar_email(v)
 
 
 class ProveedorUpdate(BaseModel):
+    """`extra="forbid"`: `deuda_actual` solo se mueve con compras/pagos."""
+
+    model_config = ConfigDict(extra="forbid")
+
     razon_social: str | None = Field(default=None, min_length=1, max_length=120)
     ruc: str | None = Field(default=None, max_length=20)
     telefono: str | None = Field(default=None, max_length=20)
@@ -563,10 +611,11 @@ class ProveedorUpdate(BaseModel):
     direccion: str | None = Field(default=None, max_length=500)
     activo: bool | None = None
 
-    @model_validator(mode="after")
-    def _rechazar_deuda(self) -> "ProveedorUpdate":
-        # Defensa adicional: el use case también lo rechaza.
-        return self
+    # Mismo criterio que el alta: antes el PATCH aceptaba cualquier cadena.
+    @field_validator("email")
+    @classmethod
+    def _validar_email(cls, v: str | None) -> str | None:
+        return _normalizar_email(v)
 
 
 class ProveedorResponse(BaseModel):
@@ -613,6 +662,15 @@ class ProveedoresPaginadosResponse(BaseModel):
 
 
 class PagoProveedorCreate(BaseModel):
+    """Body de `/compras-credito` y de `/pagos`.
+
+    `solicitud_ingreso_id` solo tiene sentido en una compra a crédito (el CHECK
+    `chk_pagos_solicitud_solo_en_compra` lo exige); el router de pagos lo
+    rechaza con 422 en vez de descartarlo en silencio.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     monto: float = Field(gt=0)
     fecha: date
     concepto: str | None = Field(default=None, max_length=500)
@@ -684,6 +742,15 @@ class MovimientosPaginadosResponse(BaseModel):
 # =============================================================================
 # Storage
 # =============================================================================
+
+
+class RefirmarRequest(BaseModel):
+    """Regenera la URL de un archivo ya subido (boleta vieja, HU-B07)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    carpeta: str = Field(pattern="^(boletas|productos)$")
+    path: Annotated[str, Field(min_length=1, max_length=500)]
 
 
 class StorageUploadResponse(BaseModel):

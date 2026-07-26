@@ -79,11 +79,16 @@ class SqlAlchemyProveedorRepository(ProveedorRepositoryPort):
         return _a_entidad(fila)
 
     async def actualizar(self, proveedor: Proveedor) -> Proveedor:
+        from app.shared.kernel.exceptions import NoEncontradoError
+
         fila = (
             await self._db.execute(
                 select(ProveedorModel).where(ProveedorModel.id == proveedor.id)
             )
-        ).scalar_one()
+        ).scalar_one_or_none()
+        # `scalar_one()` levantaba NoResultFound (500) para un id inexistente.
+        if fila is None or fila.deleted_at is not None:
+            raise NoEncontradoError("Proveedor no encontrado.")
         fila.razon_social = proveedor.razon_social
         fila.ruc = proveedor.ruc
         fila.telefono = proveedor.telefono
@@ -91,6 +96,9 @@ class SqlAlchemyProveedorRepository(ProveedorRepositoryPort):
         fila.direccion = proveedor.direccion
         fila.activo = proveedor.activo
         await self._db.flush()
+        # `updated_at` (onupdate=now()) queda expirado tras el flush: sin este
+        # refresh, leerlo dispara MissingGreenlet (500).
+        await self._db.refresh(fila)
         return _a_entidad(fila)
 
     async def listar_paginado(

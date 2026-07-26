@@ -21,6 +21,16 @@ class ProductoRepositoryPort(ABC):
     async def buscar_por_codigo(self, codigo: str) -> Producto | None: ...
 
     @abstractmethod
+    async def existe_codigo(self, codigo: str) -> bool:
+        """True si el código ya está tomado, INCLUYENDO productos borrados
+        lógicamente (el UNIQUE de la tabla no distingue)."""
+
+    @abstractmethod
+    async def siguiente_correlativo_interno(self, prefijo: str) -> int:
+        """Siguiente correlativo libre para códigos internos `PREFIJO-NNN`
+        (HU-B03). Debe serializar llamadas concurrentes."""
+
+    @abstractmethod
     async def crear(self, producto: Producto) -> Producto: ...
 
     @abstractmethod
@@ -47,10 +57,13 @@ class ProductoRepositoryPort(ABC):
         self,
         *,
         categoria_id: int | None = None,
+        solo_no_notificadas: bool = False,
         page: int = 1,
         page_size: int = 20,
     ) -> list[Producto]:
-        """Productos activos con stock <= stock_minimo. Faltante se calcula en el use case."""
+        """Productos activos con `stock_minimo > 0` y stock <= stock_minimo.
+        El faltante se calcula en el use case. Con `solo_no_notificadas=True`
+        devuelve solo los que aún no dispararon su alerta (HU-B13)."""
 
     @abstractmethod
     async def find_by_id_for_update(self, producto_id: int) -> Producto | None:
@@ -81,4 +94,10 @@ class ProductoRepositoryPort(ABC):
         """UPDATE atómico: stock = stock + :delta WHERE id=:id AND stock >= -delta
         AND deleted_at IS NULL. Devuelve (ok, stock_actual).
         `delta` positivo = entrada, negativo = salida. Si `delta` es negativo,
-        exige `stock >= |delta|` (rechaza 0 filas → 409 'Stock insuficiente')."""
+        exige `stock >= |delta|` (rechaza 0 filas → 409 'Stock insuficiente').
+        Al reponer por encima del mínimo rearma la alerta de stock (HU-B13)."""
+
+    @abstractmethod
+    async def marcar_alertas_notificadas(self, producto_ids: list[int]) -> int:
+        """HU-B13: marca la alerta de stock mínimo como ya avisada. Se rearma
+        sola cuando el producto se repone por encima del mínimo."""

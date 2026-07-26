@@ -192,14 +192,19 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         usuario_id: int,
         *,
         estado: str | None = None,
+        proveedor_id: int | None = None,
+        fecha_desde: str | None = None,
+        fecha_hasta: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[SolicitudIngreso], int]:
+        # Los filtros de proveedor/fecha antes se descartaban para el CAJERO:
+        # la API respondía 200 con la lista SIN filtrar.
         return await self._listar(
             estado=estado,
-            proveedor_id=None,
-            fecha_desde=None,
-            fecha_hasta=None,
+            proveedor_id=proveedor_id,
+            fecha_desde=fecha_desde,
+            fecha_hasta=fecha_hasta,
             solicitado_por=usuario_id,
             page=page,
             page_size=page_size,

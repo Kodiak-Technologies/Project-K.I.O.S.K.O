@@ -44,8 +44,9 @@ class CambiarPrecioUseCase:
             raise ValidacionError(
                 "Debes enviar al menos uno: precio_venta o precio_compra_actual."
             )
-        if precio_venta is not None and Decimal(str(precio_venta)) < 0:
-            raise ValidacionError("precio_venta no puede ser negativo.")
+        # Igual que el alta (HU-B01): un producto a la venta no puede valer 0.
+        if precio_venta is not None and Decimal(str(precio_venta)) <= 0:
+            raise ValidacionError("El precio de venta debe ser mayor a 0.")
         if precio_compra_actual is not None and Decimal(str(precio_compra_actual)) < 0:
             raise ValidacionError("precio_compra_actual no puede ser negativo.")
 
