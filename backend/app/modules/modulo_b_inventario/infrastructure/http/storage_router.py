@@ -51,10 +51,14 @@ async def upload(
 async def refirmar(
     datos: RefirmarRequest,
     _usuario: Usuario = Depends(require_permission("inventario.ver")),
+    db=Depends(__import__("app.shared.database.session", fromlist=["get_db"]).get_db),
 ):
-    """Regenera la URL de un archivo ya subido (HU-B07: ver la boleta de una
-    solicitud vieja aunque su URL firmada haya vencido)."""
-    resultado = await contenedor.refirmar_archivo(datos.carpeta, datos.path)
+    """Devuelve la URL de una boleta ya subida a partir de su id de Drive.
+
+    Existía porque las URLs firmadas de Supabase vencían (HU-B07). Con Drive el
+    enlace es permanente; se conserva para no romper a quien ya lo llame.
+    """
+    resultado = await contenedor.refirmar_archivo(db, datos.carpeta, datos.path)
     return StorageUploadResponse(
         url=resultado.url,
         path=resultado.path,

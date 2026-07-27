@@ -92,3 +92,11 @@ export interface RespaldosPaginados {
   page_size: number;
   total_pages: number;
 }
+
+/** Respuesta de `POST /notas-venta/{id}/drive`: la nota archivada en Drive. */
+export interface SubirNotaDriveRespuesta {
+  venta_id: number;
+  drive_file_id: string;
+  url: string;
+  carpeta: string;
+}

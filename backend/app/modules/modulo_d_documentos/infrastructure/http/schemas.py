@@ -176,3 +176,12 @@ class CrearNotificacionRequest(BaseModel):
 class DescargarNotasRequest(BaseModel):
     desde: str | None = None
     hasta: str | None = None
+
+
+class SubirNotaDriveResponse(BaseModel):
+    """Resultado de subir una nota de venta a Google Drive (a pedido)."""
+
+    venta_id: int
+    drive_file_id: str
+    url: str
+    carpeta: str
