@@ -18,7 +18,7 @@ guarda en **Artifact Registry** y corre en **Cloud Run**. La base de datos es **
 | Región | `us-west2` |
 | Servicio Cloud Run | `kiosko-backend` |
 | Repo Artifact Registry | `kiosko` (formato Docker) |
-| Secretos (Secret Manager) | `kiosko-database-url`, `kiosko-secret-key` |
+| Secretos (Secret Manager) | `kiosko-database-url`, `kiosko-secret-key`, `kiosko-drive-client-secret`, `kiosko-telegram-bot-token`, `kiosko-smtp-pass` |
 | Service Account del build | `1049232196871-compute@developer.gserviceaccount.com` |
 | URL pública | https://kiosko-backend-1049232196871.us-west2.run.app |
 
@@ -100,9 +100,12 @@ gcloud run services update kiosko-backend --region=us-west2 --update-secrets=DAT
 Para `kiosko-secret-key` es igual, cambiando el par: `--update-secrets=SECRET_KEY=kiosko-secret-key:latest`.
 (El redeploy completo del paso 1 también toma la versión `:latest`.)
 
-> **Módulo D** (Drive/Telegram/SMTP) usa más variables (ver `.env.example`). Hoy **no** se
-> inyectan en producción. Si se necesitan, créalas como secretos y agrégalas al
-> `--set-secrets` del `cloudbuild.yaml` con el mismo patrón. Nunca las pongas en texto plano.
+> **Módulo D** (Drive/Telegram/SMTP): sus valores **sensibles** van como secretos
+> (`kiosko-drive-client-secret`, `kiosko-telegram-bot-token`, `kiosko-smtp-pass`) en el
+> `--set-secrets`. El resto (client id, folder id, chat id, correos, SMTP host/port) son env
+> vars no secretas en el `--set-env-vars`. `GOOGLE_DRIVE_REDIRECT_URI` usa la URL de prod
+> (`.../drive/callback`), que además debe estar registrada como *Authorized redirect URI* en el
+> cliente OAuth de Google Cloud. **Módulo B** (Supabase Storage) aún no se despliega.
 
 ---
 

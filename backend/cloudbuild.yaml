@@ -31,8 +31,13 @@ steps:
       - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$BUILD_ID
       - --region=${_REGION}
       - --allow-unauthenticated
-      - --set-secrets=DATABASE_URL=kiosko-database-url:latest,SECRET_KEY=kiosko-secret-key:latest
-      - --set-env-vars=^@@^ENVIRONMENT=production@@CORS_ORIGINS=${_CORS_ORIGINS}@@CORS_ORIGIN_REGEX=https://minimarket-[a-z0-9-]+\.vercel\.app
+      # Secretos (Secret Manager). Modulo D: solo van aqui los valores SENSIBLES
+      # (client secret de Drive, token del bot de Telegram, password SMTP).
+      - --set-secrets=DATABASE_URL=kiosko-database-url:latest,SECRET_KEY=kiosko-secret-key:latest,GOOGLE_DRIVE_CLIENT_SECRET=kiosko-drive-client-secret:latest,TELEGRAM_BOT_TOKEN=kiosko-telegram-bot-token:latest,SMTP_PASS=kiosko-smtp-pass:latest
+      # Env vars NO secretas (config de Modulo D: client id publico, ids, correos, SMTP host/port).
+      # GOOGLE_DRIVE_REDIRECT_URI usa la URL de prod (no localhost) y debe estar registrada
+      # como "Authorized redirect URI" en el cliente OAuth de Google Cloud.
+      - --set-env-vars=^@@^ENVIRONMENT=production@@CORS_ORIGINS=${_CORS_ORIGINS}@@CORS_ORIGIN_REGEX=https://minimarket-[a-z0-9-]+\.vercel\.app@@GOOGLE_DRIVE_CLIENT_ID=160193075289-tvdpboptvipvegnb60dfvpd67v7prp3k.apps.googleusercontent.com@@GOOGLE_DRIVE_REDIRECT_URI=https://kiosko-backend-ppns2pn4lq-wl.a.run.app/drive/callback@@GOOGLE_DRIVE_FOLDER_ID=1WUpZOja9paDrjXe6ZA8bMtEwhcFSe0CD@@TELEGRAM_CHAT_ID=6883937138@@SMTP_HOST=smtp.gmail.com@@SMTP_PORT=587@@SMTP_USER=fabrix336@gmail.com@@CORREO_REMITENTE=fabrix336@gmail.com@@CORREO_DESTINO=fabrix336@gmail.com
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$BUILD_ID
