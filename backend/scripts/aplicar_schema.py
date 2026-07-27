@@ -16,16 +16,15 @@ import asyncio
 import sys
 from pathlib import Path
 
-import asyncpg
-
 from app.shared.config.settings import settings
+from app.shared.database.asyncpg_directo import conectar
 
 ESQUEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
 
 async def aplicar(reset: bool = False) -> None:
     dsn = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-    conexion = await asyncpg.connect(dsn)
+    conexion = await conectar(dsn)
     try:
         if reset:
             await conexion.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")

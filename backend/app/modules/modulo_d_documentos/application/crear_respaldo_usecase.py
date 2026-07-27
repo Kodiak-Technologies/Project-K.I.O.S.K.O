@@ -2,12 +2,12 @@ import io
 import logging
 from datetime import datetime, timedelta, timezone
 
-import asyncpg
 
 from app.modules.modulo_d_documentos.domain.entities import Respaldo
 from app.modules.modulo_d_documentos.domain.ports.respaldo_repository_port import RespaldoRepositoryPort
 from app.modules.modulo_d_documentos.domain.ports.drive_storage_port import DriveStoragePort
 from app.shared.config.settings import settings
+from app.shared.database.asyncpg_directo import conectar as conectar_directo
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ def _escapar_valor(valor) -> str:
 
 async def _generar_dump_sql(db_params: dict) -> bytes:
     """Genera un archivo .sql con la estructura y datos de todas las tablas."""
-    conn = await asyncpg.connect(
+    conn = await conectar_directo(
         host=db_params["host"],
         port=db_params["port"],
         user=db_params["user"],
@@ -259,7 +259,7 @@ class RestaurarRespaldoUseCase:
         sql_content = sql_bytes.decode("utf-8")
 
         db_params = _parsear_database_url(database_url)
-        conn = await asyncpg.connect(
+        conn = await conectar_directo(
             host=db_params["host"],
             port=db_params["port"],
             user=db_params["user"],
