@@ -19,7 +19,6 @@ from app.shared.kernel.exceptions import ValidacionError
 from app.modules.modulo_d_documentos.application.crear_respaldo_usecase import (
     CrearRespaldoUseCase,
     ObtenerRutaRespaldoUseCase,
-    RestaurarRespaldoUseCase,
 )
 
 router = APIRouter(prefix="/respaldos", tags=["Documentos"])
@@ -86,16 +85,3 @@ async def crear_respaldo(
     respaldo = await use_case.ejecutar(usuario_id=usuario.id)
     return RespaldoResponse.desde_entidad(respaldo)
 
-
-@router.post("/{respaldo_id}/restaurar", status_code=200)
-async def restaurar_respaldo(
-    respaldo_id: int,
-    usuario: Usuario = Depends(require_role("ADMIN")),
-    respaldo_repo=Depends(get_respaldo_repository),
-    drive_storage=Depends(get_drive_storage),
-):
-    use_case = RestaurarRespaldoUseCase(respaldo_repo, drive_storage)
-    ok = await use_case.ejecutar(respaldo_id)
-    if not ok:
-        raise HTTPException(status_code=500, detail="Error al restaurar respaldo")
-    return {"detail": "Respaldo restaurado correctamente"}

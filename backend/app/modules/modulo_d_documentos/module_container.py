@@ -5,7 +5,7 @@ from app.modules.modulo_d_documentos.application.generar_reporte_mas_vendidos_us
 from app.modules.modulo_d_documentos.application.exportar_reporte_excel_usecase import ExportarReporteExcelUseCase
 from app.modules.modulo_d_documentos.application.enviar_notificacion_usecase import EnviarNotificacionUseCase
 from app.modules.modulo_d_documentos.notificador import Notificador
-from app.modules.modulo_d_documentos.application.crear_respaldo_usecase import CrearRespaldoUseCase, RestaurarRespaldoUseCase
+from app.modules.modulo_d_documentos.application.crear_respaldo_usecase import CrearRespaldoUseCase
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.sqlalchemy_notificacion_repository import (
     SqlAlchemyNotificacionRepository,
 )
@@ -86,7 +86,3 @@ def enviar_notificacion_usecase(db: AsyncSession) -> EnviarNotificacionUseCase:
 def notificador(db: AsyncSession) -> Notificador:
     """Contrato público: lo usan los módulos B y C para avisar eventos."""
     return Notificador(enviar_notificacion_usecase(db))
-
-
-def restaurar_respaldo_usecase(db: AsyncSession) -> RestaurarRespaldoUseCase:
-    return RestaurarRespaldoUseCase(SqlAlchemyRespaldoRepository(db))
