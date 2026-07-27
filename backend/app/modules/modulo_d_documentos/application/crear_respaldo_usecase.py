@@ -143,7 +143,6 @@ async def _generar_dump_sql(db_params: dict) -> bytes:
             # usuarios: INSERT sin deleted_by, luego UPDATE para restaurar FK autorreferencial
             if tabla == "usuarios" and "deleted_by" in nombres_col:
                 cols_sin_deleted = [c for c in nombres_col if c != "deleted_by"]
-                idx_deleted = nombres_col.index("deleted_by")
                 ids_con_deleted: list[tuple[int, int]] = []
 
                 for fila in filas:
@@ -305,9 +304,24 @@ class RestaurarRespaldoUseCase:
             # Romper FK autorreferencial antes de borrar
             await conn.execute("UPDATE usuarios SET deleted_by = NULL WHERE deleted_by IS NOT NULL")
 
+            # DELETEs propios en orden reverso (ignora los del backup que pueden estar mal)
+            tablas_bd = await conn.fetch(
+                "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+            )
+            nombres_bd = {t["tablename"] for t in tablas_bd}
+            tablas_a_borrar = [t for t in TABLAS_ORDEN if t in nombres_bd]
+            tablas_a_borrar.extend(sorted(nombres_bd - set(tablas_a_borrar)))
+            for tabla in reversed(tablas_a_borrar):
+                if tabla == "respaldos":
+                    continue
+                await conn.execute(f'DELETE FROM "{tabla}"')
+
+            # Ejecutar INSERTs, UPDATEs y SETVALs del backup (saltar DELETEs)
             for linea in sql_content.split("\n"):
                 linea = linea.strip()
                 if not linea or linea.startswith("--"):
+                    continue
+                if linea.upper().startswith("DELETE FROM"):
                     continue
                 await conn.execute(linea)
 
