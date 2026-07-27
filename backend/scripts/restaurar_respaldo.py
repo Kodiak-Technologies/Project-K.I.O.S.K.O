@@ -1,7 +1,8 @@
 """Restaurar un respaldo desde Google Drive.
 
 Uso:
-    python -m scripts.restaurar_respaldo
+    python -m scripts.restaurar_respaldo                    # modo interactivo
+    python -m scripts.restaurar_respaldo <nombre_archivo>   # directo (sin confirmar)
 
 Requiere las variables de entorno en .env:
     DATABASE_URL, GOOGLE_DRIVE_CLIENT_ID, GOOGLE_DRIVE_CLIENT_SECRET
@@ -154,6 +155,9 @@ async def _restaurar(sql_content: str, conn: asyncpg.Connection) -> None:
                 continue
             await conn.execute(f'DELETE FROM "{tabla}"')
 
+        print("  Deshabilitando constraints FK...")
+        await conn.execute("SET session_replication_role = 'replica'")
+
         print("  Insertando datos del respaldo...")
         lineas_ejecutadas = 0
         for linea in sql_content.split("\n"):
@@ -162,8 +166,17 @@ async def _restaurar(sql_content: str, conn: asyncpg.Connection) -> None:
                 continue
             if linea.upper().startswith("DELETE FROM"):
                 continue
+            if "INSERT INTO" in linea.upper() and '"respaldos"' in linea:
+                continue
+            if linea.upper().startswith("SELECT SETVAL(") and ", 0)" in linea:
+                continue
+            if linea.upper().startswith("SELECT SETVAL(") and '"respaldos_id_seq"' in linea:
+                continue
             await conn.execute(linea)
             lineas_ejecutadas += 1
+
+        print("  Restableciendo constraints FK...")
+        await conn.execute("SET session_replication_role = 'origin'")
 
         print("  Restableciendo secuencias...")
         # Los SETVAL ya vienen en el archivo, se ejecutan con el loop anterior
@@ -190,7 +203,7 @@ async def _restaurar(sql_content: str, conn: asyncpg.Connection) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
-async def main() -> None:
+async def main(nombre_archivo: str | None = None) -> None:
     database_url = os.environ.get("DATABASE_URL", "")
     if not database_url:
         print("ERROR: DATABASE_URL no configurada en .env")
@@ -231,23 +244,30 @@ async def main() -> None:
             print(f"  {i}. {nombre}  ({tamano_mb:.1f} MB, {fecha})")
 
         # 3. Seleccionar archivo
-        print()
-        nombre_input = input("Ingrese el nombre del archivo: ").strip()
-        if not nombre_input:
-            print("No se ingresó ningún nombre. Abortando.")
-            return
-
-        archivo_seleccionado = next((a for a in archivos if a["name"] == nombre_input), None)
-        if archivo_seleccionado is None:
-            print(f"Archivo '{nombre_input}' no encontrado en la lista. Abortando.")
-            return
+        if nombre_archivo:
+            archivo_seleccionado = next((a for a in archivos if a["name"] == nombre_archivo), None)
+            if archivo_seleccionado is None:
+                print(f"Archivo '{nombre_archivo}' no encontrado en la lista. Abortando.")
+                return
+            print(f"\nArchivo seleccionado (CLI): {archivo_seleccionado['name']}")
+        else:
+            print()
+            nombre_input = input("Ingrese el nombre del archivo: ").strip()
+            if not nombre_input:
+                print("No se ingresó ningún nombre. Abortando.")
+                return
+            archivo_seleccionado = next((a for a in archivos if a["name"] == nombre_input), None)
+            if archivo_seleccionado is None:
+                print(f"Archivo '{nombre_input}' no encontrado en la lista. Abortando.")
+                return
 
         # 4. Confirmar
-        print(f"\nArchivo seleccionado: {archivo_seleccionado['name']}")
-        confirmacion = input("¿Está seguro? Esto REEMPLAZARÁ toda la base de datos actual. (s/n): ").strip().lower()
-        if confirmacion != "s":
-            print("Operación cancelada.")
-            return
+        if not nombre_archivo:
+            print(f"\nArchivo seleccionado: {archivo_seleccionado['name']}")
+            confirmacion = input("¿Está seguro? Esto REEMPLAZARÁ toda la base de datos actual. (s/n): ").strip().lower()
+            if confirmacion != "s":
+                print("Operación cancelada.")
+                return
 
         # 5. Descargar
         print("\nDescargando respaldo...")
@@ -267,4 +287,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    archivo = sys.argv[1] if len(sys.argv) > 1 else None
+    asyncio.run(main(archivo))
