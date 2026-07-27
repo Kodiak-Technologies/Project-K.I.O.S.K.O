@@ -4,8 +4,7 @@ Uso:
     python -m scripts.restaurar_respaldo
 
 Requiere las variables de entorno en .env:
-    DATABASE_URL, GOOGLE_DRIVE_CLIENT_ID, GOOGLE_DRIVE_CLIENT_SECRET,
-    GOOGLE_DRIVE_FOLDER_ID
+    DATABASE_URL, GOOGLE_DRIVE_CLIENT_ID, GOOGLE_DRIVE_CLIENT_SECRET
 """
 
 import asyncio
@@ -62,8 +61,10 @@ def _parsear_database_url(url: str) -> dict:
 
 async def _obtener_credenciales_drive(conn: asyncpg.Connection) -> Credentials:
     """Obtiene credenciales OAuth de Drive desde la BD y las refresca si es necesario."""
-    client_id = os.environ["GOOGLE_DRIVE_CLIENT_ID"]
-    client_secret = os.environ["GOOGLE_DRIVE_CLIENT_SECRET"]
+    client_id = os.environ.get("GOOGLE_DRIVE_CLIENT_ID", "")
+    client_secret = os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise RuntimeError("GOOGLE_DRIVE_CLIENT_ID o GOOGLE_DRIVE_CLIENT_SECRET no configurados en .env")
 
     fila = await conn.fetchrow(
         "SELECT access_token, refresh_token, token_expiry "
@@ -99,15 +100,9 @@ async def _obtener_credenciales_drive(conn: asyncpg.Connection) -> Credentials:
 
 
 async def _listar_respaldos_drive(service) -> list[dict]:
-    """Lista archivos .sql en la carpeta raíz de respaldos de Drive."""
-    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
-    if not folder_id:
-        raise RuntimeError("GOOGLE_DRIVE_FOLDER_ID no configurado en .env")
-
+    """Lista todos los archivos .sql en Drive (busca en subcarpetas como respaldos/2026/07/)."""
     query = (
-        f"'{folder_id}' in parents and "
         f"name contains '.sql' and "
-        f"mimeType='text/plain' and "
         f"trashed=false"
     )
     results = await asyncio.to_thread(
@@ -248,7 +243,7 @@ async def main() -> None:
             return
 
         # 4. Confirmar
-        print(f"\nArchvo seleccionado: {archivo_seleccionado['name']}")
+        print(f"\nArchivo seleccionado: {archivo_seleccionado['name']}")
         confirmacion = input("¿Está seguro? Esto REEMPLAZARÁ toda la base de datos actual. (s/n): ").strip().lower()
         if confirmacion != "s":
             print("Operación cancelada.")
