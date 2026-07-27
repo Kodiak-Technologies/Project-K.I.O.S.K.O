@@ -1,13 +1,13 @@
 """E2E tests for `storage_router` (2 escenarios, TRIMMED desde 3).
 
-Cubre POST /storage/upload con `InMemoryStorageAdapter` (monkeypatch del singleton
-`module_container._storage_adapter`) y el caso 403 sin permiso.
+Cubre POST /storage/upload con `InMemoryStorageAdapter` (monkeypatch de
+`module_container._storage`) y el caso 403 sin permiso.
 
 Recortado (diferido a follow-up): "POST productos 201" — el patrón es idéntico
 al de boletas; si el primero pasa, el segundo está cubierto por simetría.
 
 Disciplina async (CN-2): todo test es sync `def test_*` que envuelve `correr(_run())`.
-Singleton (CN-5): monkeypatch.setattr(module_container, "_storage_adapter", InMemoryStorageAdapter()).
+Adaptador (CN-5): monkeypatch.setattr(module_container, "_storage", lambda db: InMemoryStorageAdapter()).
 """
 from __future__ import annotations
 
@@ -31,14 +31,18 @@ from .conftest import (
 
 @pytest.fixture
 def storage_en_memoria(monkeypatch):
-    """Fixture CN-5: monkeypatch del singleton `_storage_adapter`.
+    """Fixture CN-5: monkeypatch de la fábrica `_storage`.
 
     El `StoragePort` no aparece en la firma del router, por lo que
-    `app.dependency_overrides` no funciona. La única vía es monkeypatch
-    del singleton módulo-level en `module_container`.
+    `app.dependency_overrides` no funciona. La única vía es monkeypatch en
+    `module_container`.
+
+    Ya no es un singleton: desde que las boletas van a Google Drive, el
+    adaptador necesita la sesión de BD para leer el token OAuth, así que
+    `_storage` es una función que la recibe.
     """
     adapter = InMemoryStorageAdapter()
-    monkeypatch.setattr(module_container, "_storage_adapter", adapter)
+    monkeypatch.setattr(module_container, "_storage", lambda _db: adapter)
     return adapter
 
 

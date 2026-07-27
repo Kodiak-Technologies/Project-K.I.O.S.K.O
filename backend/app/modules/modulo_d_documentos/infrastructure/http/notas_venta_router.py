@@ -11,14 +11,21 @@ from app.modules.modulo_d_documentos.infrastructure.dependencies import (
     get_venta_data_provider,
     get_configuracion_provider,
     get_png_generator,
+    get_drive_storage,
 )
 from app.modules.modulo_d_documentos.infrastructure.http.schemas import (
     NotaVentaResponse,
     NotasVentaPaginadasResponse,
     DescargarNotasRequest,
+    SubirNotaDriveResponse,
 )
 from app.shared.kernel.exceptions import ValidacionError
 from app.modules.modulo_d_documentos.domain.ports.venta_data_provider_port import VentaDataProviderPort
+
+# Las notas archivadas van junto a las boletas de ingreso, en subcarpetas:
+#   boletas/ingresos  (fotos de boleta de las solicitudes)
+#   boletas/ventas    (notas de venta subidas a mano, esto)
+CARPETA_DRIVE_VENTAS = "boletas/ventas"
 
 router = APIRouter(prefix="/notas-venta", tags=["Documentos"])
 
@@ -73,6 +80,43 @@ async def descargar_nota_venta_png(
         io.BytesIO(png_bytes),
         media_type="image/png",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.post("/{venta_id}/drive", response_model=SubirNotaDriveResponse)
+async def subir_nota_a_drive(
+    venta_id: int,
+    usuario: Usuario = Depends(get_current_user),
+    venta_data: VentaDataProviderPort = Depends(get_venta_data_provider),
+    config_data=Depends(get_configuracion_provider),
+    png_generator=Depends(get_png_generator),
+    drive=Depends(get_drive_storage),
+):
+    """Sube la nota de venta a `boletas/ventas` del Drive del negocio.
+
+    Es a pedido, no automático: se dispara desde el botón de la pantalla de
+    Notas de Venta. La nota se sigue generando al vuelo; esto sólo archiva una
+    copia.
+    """
+    png = await GenerarNotaVentaUseCase(venta_data, config_data, png_generator).ejecutar(
+        venta_id
+    )
+    nombre = f"VENTA-{venta_id}.png"
+    try:
+        file_id = await drive.subir(png, nombre, CARPETA_DRIVE_VENTAS)
+    except Exception as exc:  # noqa: BLE001
+        # Drive usa OAuth: si se revocó el permiso, hay que decir qué hacer en
+        # vez de devolver un 500 opaco.
+        raise HTTPException(
+            status_code=502,
+            detail="No se pudo subir a Google Drive. Verificá que la cuenta "
+            "siga autorizada en Configuración → Drive.",
+        ) from exc
+    return SubirNotaDriveResponse(
+        venta_id=venta_id,
+        drive_file_id=file_id,
+        url=await drive.obtener_url(file_id),
+        carpeta=CARPETA_DRIVE_VENTAS,
     )
 
 
