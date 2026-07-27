@@ -538,7 +538,7 @@ def test_soft_delete_producto() -> None:
 
         async with cliente_api() as api:
             admin_user = username_unico("adminsd")
-            await crear_usuario_directo(admin_user, "ADMIN")
+            admin_id = await crear_usuario_directo(admin_user, "ADMIN")
             await asignar_permisos("ADMIN", ["inventario.ver"])
             admin_token = (await token_de(api, admin_user))["access_token"]
             admin_auth = auth(admin_token)
@@ -559,7 +559,9 @@ def test_soft_delete_producto() -> None:
                     )
                 ).scalar_one()
                 fila.deleted_at = datetime.now(timezone.utc)
-                fila.deleted_by = 0
+                # Un usuario REAL: `deleted_by` tiene FK a `usuarios`, así que
+                # el 0 que se usaba antes ya no pasa (y nunca debió pasar).
+                fila.deleted_by = admin_id
                 await db.commit()
 
             # 3) GET después del soft-delete: 404

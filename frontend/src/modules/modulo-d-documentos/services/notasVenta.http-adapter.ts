@@ -19,6 +19,11 @@ export const notasVentaHttpAdapter: NotasVentaPort = {
     return data;
   },
 
+  async subirADrive(ventaId) {
+    const { data } = await httpClient.post(`/notas-venta/${ventaId}/drive`);
+    return data;
+  },
+
   async descargarBatch(desde, hasta) {
     const { data } = await httpClient.post(
       "/notas-venta/descargar",

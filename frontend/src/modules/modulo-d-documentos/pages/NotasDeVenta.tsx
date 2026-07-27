@@ -4,7 +4,8 @@
 // del sistema (elegir cuántas filas ver + Anterior/Siguiente): antes traía TODAS
 // las notas del rango y las acumulaba en una sola lista.
 import { useEffect, useState } from "react";
-import { Download, FileText, X } from "lucide-react";
+import { mensajeDeError } from "../../../shared/lib/http-client";
+import { CloudUpload, Download, FileText, X } from "lucide-react";
 import {
   Alert,
   Button,
@@ -27,6 +28,10 @@ export default function NotasDeVenta() {
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [descargandoId, setDescargandoId] = useState<number | null>(null);
+  const [subiendoId, setSubiendoId] = useState<number | null>(null);
+  const [mensajeDrive, setMensajeDrive] = useState<
+    { tono: "exito" | "peligro"; texto: string } | null
+  >(null);
   const [descargandoBatch, setDescargandoBatch] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -69,6 +74,22 @@ export default function NotasDeVenta() {
     } catch {
     } finally {
       setDescargandoId(null);
+    }
+  };
+
+  const subirADrive = async (nv: NotaVenta) => {
+    setSubiendoId(nv.venta_id);
+    setMensajeDrive(null);
+    try {
+      const r = await notasVentaHttpAdapter.subirADrive(nv.venta_id);
+      setMensajeDrive({
+        tono: "exito",
+        texto: `${nv.identificacion} archivada en Drive (${r.carpeta}).`,
+      });
+    } catch (e) {
+      setMensajeDrive({ tono: "peligro", texto: mensajeDeError(e) });
+    } finally {
+      setSubiendoId(null);
     }
   };
 
@@ -125,15 +146,29 @@ export default function NotasDeVenta() {
     {
       titulo: "Acciones",
       render: (nv) => (
-        <Button
-          variante="secundario"
-          compacto
-          icono={<Download className="h-4 w-4" aria-hidden />}
-          onClick={() => void descargarPng(nv)}
-          disabled={descargandoId === nv.venta_id}
-        >
-          PNG
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variante="secundario"
+            compacto
+            icono={<Download className="h-4 w-4" aria-hidden />}
+            onClick={() => void descargarPng(nv)}
+            disabled={descargandoId === nv.venta_id}
+          >
+            PNG
+          </Button>
+          {/* Archiva una copia en Drive. La nota se sigue generando al vuelo:
+              esto es a pedido, no automático. */}
+          <Button
+            variante="secundario"
+            compacto
+            icono={<CloudUpload className="h-4 w-4" aria-hidden />}
+            onClick={() => void subirADrive(nv)}
+            cargando={subiendoId === nv.venta_id}
+            disabled={subiendoId !== null}
+          >
+            Drive
+          </Button>
+        </div>
       ),
     },
   ];
@@ -175,6 +210,11 @@ export default function NotasDeVenta() {
       </Card>
 
       {cargando && <PageSpinner texto="Cargando notas de venta…" />}
+      {mensajeDrive && (
+        <div className="mb-3">
+          <Alert tono={mensajeDrive.tono}>{mensajeDrive.texto}</Alert>
+        </div>
+      )}
       {error && <Alert tono="peligro">{error}</Alert>}
 
       {!cargando && !error && (
