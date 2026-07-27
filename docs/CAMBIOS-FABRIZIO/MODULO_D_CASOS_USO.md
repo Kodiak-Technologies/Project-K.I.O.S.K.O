@@ -253,16 +253,34 @@
 | **Postcondiciones** | La BD se restaura al estado del respaldo |
 
 ### Flujo principal
-1. El Admin hace clic en "Restaurar" en la lista de respaldos
-2. Module D descarga el `.sql` desde Google Drive
-3. Module D deshabilita foreign keys (`SET session_replication_role = 'replica'`)
-4. Module D ejecuta cada sentencia del `.sql`
-5. Module D reactiva foreign keys (`SET session_replication_role = 'origin'`)
+1. El Admin ejecuta el script `python -m scripts.restaurar_respaldo` desde el servidor
+2. El script conecta a BD y Google Drive (refresca token si expiró)
+3. El script lista los archivos .sql disponibles en Drive
+4. El Admin selecciona un archivo (o lo pasa por CLI: `python -m scripts.restaurar_respaldo <nombre>`)
+5. El script descarga el .sql desde Google Drive
+6. El script ejecuta el restore dentro de una transacción:
+   - Deshabilita triggers de inmutabilidad
+   - Limpia FK autorreferencial
+   - DELETE todas las tablas (excepto respaldos)
+   - Deshabilita FK constraints (`SET session_replication_role = 'replica'`)
+   - Ejecuta INSERTs del archivo .sql
+   - Rehabilita FK constraints (`SET session_replication_role = 'origin'`)
+   - COMMIT (o ROLLBACK si falla)
+
+### Flujos alternativos
+- **6a.** Si falla cualquier sentencia → ROLLBACK completo, se muestra error
+- **6b.** Si el backup tiene setval con valor 0 → se salta (tabla vacía)
+- **6c.** Si el backup tiene INSERTs de respaldos → se saltan (tabla preservada)
 
 ### Criterios de aceptacion
-- Endpoint: `POST /respaldos/{id}/restaurar`
-- Requiere rol ADMIN
-- La restauracion usa `asyncpg` directo (no `psql`)
+- Script standalone (fuera del API) por ser operación destructiva
+- Requiere: `.env` con DATABASE_URL, GOOGLE_DRIVE_CLIENT_ID, GOOGLE_DRIVE_CLIENT_SECRET
+- Requiere: tokens de Drive en tabla `oauth_tokens`
+- La restauración usa `asyncpg` directo (no `psql` ni `pg_dump`)
+- Modo interactivo o directo (CLI con nombre de archivo)
+- Transacción completa: todo o nada (ROLLBACK si falla)
+- Triggers de inmutabilidad se deshabilitan y rehabilitan correctamente
+- FK constraints se deshabilitan durante INSERTs para evitar violaciones
 
 ---
 
