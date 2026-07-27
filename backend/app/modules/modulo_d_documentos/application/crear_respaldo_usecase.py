@@ -268,7 +268,8 @@ class RestaurarRespaldoUseCase:
         )
 
         try:
-            await conn.execute("SET session_replication_role = 'replica'")
+            await conn.execute("ALTER TABLE bitacora_auditoria DISABLE TRIGGER trg_bitacora_inmutable")
+            await conn.execute("ALTER TABLE historial_precios DISABLE TRIGGER trg_historial_precios_no_update")
 
             for linea in sql_content.split("\n"):
                 linea = linea.strip()
@@ -279,7 +280,6 @@ class RestaurarRespaldoUseCase:
                 else:
                     await conn.execute(linea)
 
-            await conn.execute("SET session_replication_role = 'origin'")
             return True
 
         except Exception as e:
@@ -287,4 +287,9 @@ class RestaurarRespaldoUseCase:
             return False
 
         finally:
+            try:
+                await conn.execute("ALTER TABLE bitacora_auditoria ENABLE TRIGGER trg_bitacora_inmutable")
+                await conn.execute("ALTER TABLE historial_precios ENABLE TRIGGER trg_historial_precios_no_update")
+            except Exception:
+                logger.error("Error re-habilitando triggers de inmutabilidad.")
             await conn.close()
