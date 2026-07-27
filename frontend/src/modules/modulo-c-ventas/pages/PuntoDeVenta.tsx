@@ -405,24 +405,34 @@ export default function PuntoDeVenta() {
   const columnasCatalogo: Columna<Producto>[] = [
     {
       titulo: "Código",
-      render: (p) => <span className="font-mono text-xs text-zinc-500">{p.codigo}</span>,
+      ancho: "135px",
+      render: (p) => <span className="font-mono text-xs text-zinc-500 truncate block">{p.codigo}</span>,
     },
     {
       titulo: "Producto",
-      render: (p) => <span className="font-medium text-zinc-800">{p.nombre}</span>,
+      render: (p) => <span className="font-medium text-zinc-800 leading-snug">{p.nombre}</span>,
     },
-    { titulo: "Categoría", soloEscritorio: true, render: (p) => p.categoria_nombre ?? "—" },
+    {
+      titulo: "Categoría",
+      ancho: "140px",
+      soloEscritorio: true,
+      render: (p) => <span className="text-zinc-600">{p.categoria_nombre ?? "—"}</span>,
+    },
     {
       titulo: "Precio",
-      alinear: "derecha",
-      render: (p) => <span className="tabular-nums">S/ {p.precio.toFixed(2)}</span>,
+      ancho: "95px",
+      render: (p) => <span className="tabular-nums font-medium">S/ {p.precio.toFixed(2)}</span>,
     },
     {
       titulo: "Stock",
-      alinear: "derecha",
-      render: (p) => <span className="tabular-nums">{p.stock}</span>,
+      ancho: "75px",
+      render: (p) => <span className="tabular-nums font-medium">{p.stock}</span>,
     },
-    { titulo: "Estado", render: badgeDeStock },
+    {
+      titulo: "Estado",
+      ancho: "115px",
+      render: (p) => badgeDeStock(p),
+    },
   ];
 
   return (
@@ -449,7 +459,7 @@ export default function PuntoDeVenta() {
             {turno?.estado === "ABIERTO" ? (
               <Badge tono="exito">Caja abierta</Badge>
             ) : (
-              <Badge tono="alerta">Caja cerrada: abre un turno para vender</Badge>
+              <Badge tono="alerta">Caja cerrada — Abre turno</Badge>
             )}
           </div>
         }
@@ -466,9 +476,9 @@ export default function PuntoDeVenta() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+      <div className="grid w-full min-w-0 gap-4 lg:grid-cols-[1fr_20rem]">
         {/* Productos: botones grandes para tocar */}
-        <div>
+        <div className="w-full min-w-0">
           <div className="relative mb-3">
             <ScanBarcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden />
             <Input
@@ -534,7 +544,7 @@ export default function PuntoDeVenta() {
 
           {/* Filtros del catálogo: categoría, estado de stock y rango de precio.
               (la búsqueda por nombre/código es el mismo campo que usa el lector) */}
-          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-3 grid w-full min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <Select
               aria-label="Filtrar por categoría"
               value={filtroCategoria}
@@ -592,10 +602,12 @@ export default function PuntoDeVenta() {
           {/* Catálogo en tabla (solo lectura). Un clic en la fila lo agrega a la venta. */}
           <Card sinPadding>
             <Table
+              minAncho="100%"
               columnas={columnasCatalogo}
               filas={visibles}
               claveDe={(p) => p.id}
               alHacerClicFila={(p) => agregarSiHayStock(p)}
+              contenedorClassName="max-h-[calc(100vh-25rem)] lg:max-h-[calc(100vh-24rem)]"
               vacio={
                 <EmptyState
                   icono={Package}

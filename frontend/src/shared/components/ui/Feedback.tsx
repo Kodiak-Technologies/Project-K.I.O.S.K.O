@@ -1,4 +1,3 @@
-// Piezas de feedback: alertas, estado vacío, spinner de página y encabezado.
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { AlertTriangle, CheckCircle2, Info, Loader2, Unplug, XCircle } from "lucide-react";
@@ -17,7 +16,7 @@ export function Alert({ tono, children }: { tono: TonoAlerta; children: ReactNod
   return (
     <div role="alert" className={`flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm ${clases}`}>
       <Icono className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-      <div>{children}</div>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
@@ -42,7 +41,6 @@ export function EmptyState({ icono: Icono, titulo, descripcion, accion }: EmptyS
   );
 }
 
-/** Pantalla para módulos cuyo backend aún no está desplegado (B, C, D). */
 export function ModuloPendiente({ modulo }: { modulo: string }) {
   return (
     <EmptyState
@@ -53,7 +51,6 @@ export function ModuloPendiente({ modulo }: { modulo: string }) {
   );
 }
 
-/** Spinner centrado para la carga inicial de una página. */
 export function PageSpinner({ texto = "Cargando…" }: { texto?: string }) {
   return (
     <div className="flex items-center justify-center gap-2 py-16 text-zinc-500">
@@ -71,12 +68,12 @@ interface PageHeaderProps {
 
 export function PageHeader({ titulo, descripcion, acciones }: PageHeaderProps) {
   return (
-    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-      <div>
+    <div className="mb-5 flex w-full min-w-0 flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
         <h2 className="text-xl font-semibold text-zinc-900">{titulo}</h2>
         {descripcion && <p className="mt-0.5 text-sm text-zinc-500">{descripcion}</p>}
       </div>
-      {acciones && <div className="flex items-center gap-2">{acciones}</div>}
+      {acciones && <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">{acciones}</div>}
     </div>
   );
 }

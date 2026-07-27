@@ -6,6 +6,7 @@ import {
   Alert,
   Button,
   Card,
+  DatePicker,
   EmptyState,
   Input,
   ModuloPendiente,
@@ -105,10 +106,10 @@ export default function Reportes() {
       <Card className="mb-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-44">
-            <Input label="Desde" requerido type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            <DatePicker label="Desde" requerido mostrarAnio value={desde} onChange={(val) => setDesde(val)} />
           </div>
           <div className="w-44">
-            <Input label="Hasta" requerido type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            <DatePicker label="Hasta" requerido mostrarAnio value={hasta} onChange={(val) => setHasta(val)} />
           </div>
           <Button
             disabled={!desde || !hasta}

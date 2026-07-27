@@ -10,6 +10,7 @@ import {
   Badge,
   Button,
   Card,
+  DatePicker,
   EmptyState,
   Input,
   Modal,
@@ -362,15 +363,15 @@ export default function AperturaCaja() {
         titulo="Historial de turnos"
         sinPadding
         accion={
-          <label className="flex items-center gap-2 text-sm text-zinc-600">
-            <input
-              type="date"
-              value={fechaFiltro}
-              onChange={(e) => setFechaFiltro(e.target.value)}
-              className="rounded-lg border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-700 shadow-sm transition focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-200"
+          <div className="w-44">
+            <DatePicker
+              valor={fechaFiltro}
+              alCambiar={(f) => setFechaFiltro(f)}
+              alineacion="derecha"
+              mostrarAnio
               aria-label="Filtrar historial por fecha"
             />
-          </label>
+          </div>
         }
       >
         <Table
