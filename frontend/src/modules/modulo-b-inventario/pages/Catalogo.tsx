@@ -307,11 +307,12 @@ export default function Catalogo() {
   const columnas: Columna<Producto>[] = [
     {
       titulo: "Código",
+      ancho: "135px",
       render: (p) =>
         enEdicion(p) ? (
           <Input
             aria-label="Código"
-            className="w-32"
+            className="w-full min-w-0"
             autoFocus={esNueva(p)}
             placeholder="7750100000000"
             value={fila!.codigo}
@@ -319,7 +320,7 @@ export default function Catalogo() {
             onKeyDown={teclasDeFila}
           />
         ) : (
-          <span className="font-mono text-xs text-zinc-500">{p.codigo}</span>
+          <span className="font-mono text-xs text-zinc-500 truncate block">{p.codigo}</span>
         ),
     },
     {
@@ -328,6 +329,7 @@ export default function Catalogo() {
         enEdicion(p) ? (
           <Input
             aria-label="Nombre"
+            className="w-full min-w-0"
             autoFocus={!esNueva(p)}
             placeholder="Arroz 5kg"
             value={fila!.nombre}
@@ -335,17 +337,19 @@ export default function Catalogo() {
             onKeyDown={teclasDeFila}
           />
         ) : (
-          <span className="font-medium text-zinc-800">{p.nombre}</span>
+          <span className="font-medium text-zinc-800 leading-snug">{p.nombre}</span>
         ),
     },
     {
       titulo: "Categoría",
+      ancho: "150px",
       soloEscritorio: true,
       render: (p) =>
         enEdicion(p) ? (
           <Select
+            buscable
             aria-label="Categoría"
-            className="w-40"
+            className="w-full min-w-0"
             value={fila!.categoria_id}
             onChange={(e) =>
               setFila({ ...fila!, categoria_id: e.target.value ? Number(e.target.value) : "" })
@@ -360,17 +364,17 @@ export default function Catalogo() {
             ))}
           </Select>
         ) : (
-          (p.categoria_nombre ?? "—")
+          <span className="text-zinc-600">{p.categoria_nombre ?? "—"}</span>
         ),
     },
     {
       titulo: "Precio",
-      alinear: "derecha",
+      ancho: "95px",
       render: (p) =>
         enEdicion(p) ? (
           <Input
             aria-label="Precio de venta"
-            className="w-24"
+            className="w-full min-w-0"
             type="number"
             step="0.10"
             min={0.01}
@@ -380,17 +384,17 @@ export default function Catalogo() {
             onKeyDown={teclasDeFila}
           />
         ) : (
-          <span className="tabular-nums">S/ {(p.precio_venta ?? p.precio).toFixed(2)}</span>
+          <span className="tabular-nums font-medium">S/ {(p.precio_venta ?? p.precio).toFixed(2)}</span>
         ),
     },
     {
       titulo: "Stock",
-      alinear: "derecha",
+      ancho: "80px",
       render: (p) =>
         enEdicion(p) ? (
           <Input
             aria-label={esNueva(p) ? "Stock inicial" : "Stock"}
-            className="w-20"
+            className="w-full min-w-0"
             type="number"
             min={0}
             value={fila!.stock}
@@ -398,18 +402,18 @@ export default function Catalogo() {
             onKeyDown={teclasDeFila}
           />
         ) : (
-          <span className="tabular-nums">{p.stock}</span>
+          <span className="tabular-nums font-medium">{p.stock}</span>
         ),
     },
     {
       titulo: "Stock mín.",
-      alinear: "derecha",
+      ancho: "85px",
       soloEscritorio: true,
       render: (p) =>
         enEdicion(p) ? (
           <Input
             aria-label="Stock mínimo"
-            className="w-20"
+            className="w-full min-w-0"
             type="number"
             min={0}
             value={fila!.stock_minimo}
@@ -417,11 +421,12 @@ export default function Catalogo() {
             onKeyDown={teclasDeFila}
           />
         ) : (
-          <span className="tabular-nums">{p.stock_minimo}</span>
+          <span className="tabular-nums font-medium">{p.stock_minimo}</span>
         ),
     },
     {
       titulo: "Estado",
+      ancho: "95px",
       render: (p) =>
         esNueva(p) ? (
           <Badge tono="alerta">Nuevo</Badge>
@@ -431,6 +436,7 @@ export default function Catalogo() {
     },
     {
       titulo: "Acciones",
+      ancho: "95px",
       alinear: "derecha",
       render: (p) => {
         // Paso 3: confirmación inline (✓ / ✗).
@@ -602,6 +608,7 @@ export default function Catalogo() {
 
       <Card sinPadding>
         <Table
+          minAncho="850px"
           columnas={columnas}
           filas={filas}
           claveDe={(p) => p.id}

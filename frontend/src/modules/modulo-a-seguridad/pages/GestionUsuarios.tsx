@@ -1,5 +1,3 @@
-// Página de gestión de usuarios (solo ADMIN): crear, desactivar/reactivar,
-// eliminar (borrado lógico) y resetear contraseña.
 import { useState, type FormEvent } from "react";
 import { z } from "zod";
 import { KeyRound, Trash2, UserPlus, Users } from "lucide-react";
@@ -92,15 +90,29 @@ export default function GestionUsuarios() {
   if (error) return <Alert tono="peligro">{error}</Alert>;
 
   const columnas: Columna<Usuario>[] = [
-    { titulo: "Usuario", render: (u) => <span className="font-mono text-zinc-800">{u.username}</span> },
-    { titulo: "Nombre", render: (u) => u.nombre },
-    { titulo: "Rol", render: (u) => <Badge tono={u.rol === "ADMIN" ? "info" : "neutro"}>{u.rol}</Badge> },
+    {
+      titulo: "Usuario",
+      ancho: "130px",
+      render: (u) => <span className="font-mono text-zinc-800">{u.username}</span>,
+    },
+    {
+      titulo: "Nombre",
+      ancho: "180px",
+      render: (u) => u.nombre,
+    },
+    {
+      titulo: "Rol",
+      ancho: "90px",
+      render: (u) => <Badge tono={u.rol === "ADMIN" ? "info" : "neutro"}>{u.rol}</Badge>,
+    },
     {
       titulo: "Estado",
+      ancho: "90px",
       render: (u) => <Badge tono={u.activo ? "exito" : "neutro"}>{u.activo ? "Activo" : "Inactivo"}</Badge>,
     },
     {
       titulo: "Último acceso",
+      ancho: "170px",
       soloEscritorio: true,
       render: (u) => (
         <span className="text-zinc-500">
@@ -110,11 +122,15 @@ export default function GestionUsuarios() {
     },
     {
       titulo: "Acciones",
+      ancho: "190px",
+      alinear: "centro",
       render: (u) =>
         u.id === usuarioActual?.id ? (
-          <span className="text-xs text-zinc-400">(tú)</span>
+          <div className="flex items-center justify-center">
+            <span className="text-xs font-medium text-zinc-400">(tú)</span>
+          </div>
         ) : (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-center gap-1">
             <Button
               variante="secundario"
               compacto
@@ -174,6 +190,7 @@ export default function GestionUsuarios() {
 
       <Card sinPadding>
         <Table
+          minAncho="850px"
           columnas={columnas}
           filas={usuarios}
           claveDe={(u) => u.id}
@@ -181,7 +198,6 @@ export default function GestionUsuarios() {
         />
       </Card>
 
-      {/* Crear usuario */}
       <Modal abierto={modalCrear} titulo="Nuevo usuario" alCerrar={cerrarModales}>
         <form onSubmit={(e) => void manejarCrear(e)} className="space-y-4">
           <Input
@@ -231,7 +247,6 @@ export default function GestionUsuarios() {
         </form>
       </Modal>
 
-      {/* Resetear contraseña */}
       <Modal
         abierto={paraResetear !== null}
         titulo={`Resetear contraseña de '${paraResetear?.username}'`}
@@ -269,7 +284,6 @@ export default function GestionUsuarios() {
         </div>
       </Modal>
 
-      {/* Confirmar eliminación */}
       <Modal
         abierto={paraEliminar !== null}
         titulo="Eliminar usuario"

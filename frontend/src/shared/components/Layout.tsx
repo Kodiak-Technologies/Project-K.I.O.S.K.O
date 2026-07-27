@@ -1,5 +1,3 @@
-// Layout autenticado: sidebar fijo en escritorio, drawer deslizante en
-// tablet/móvil, topbar y área de contenido.
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { AcercaDelSistema } from "./AcercaDelSistema";
@@ -10,17 +8,14 @@ export function Layout() {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const ubicacion = useLocation();
 
-  // Al navegar, el drawer se cierra solo.
   useEffect(() => setMenuAbierto(false), [ubicacion.pathname]);
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      {/* Sidebar fijo (escritorio) */}
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-zinc-50">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 lg:block">
         <Sidebar />
       </aside>
 
-      {/* Drawer (tablet/móvil) */}
       {menuAbierto && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-zinc-900/40" onClick={() => setMenuAbierto(false)} aria-hidden />
@@ -30,14 +25,13 @@ export function Layout() {
         </div>
       )}
 
-      <div className="lg:pl-64">
+      <div className="w-full min-w-0 overflow-x-clip lg:pl-64">
         <TopBar alAbrirMenu={() => setMenuAbierto(true)} />
-        <main className="mx-auto max-w-6xl p-3 sm:p-6 pb-20">
+        <main className="mx-auto w-full min-w-0 max-w-6xl p-3 sm:p-6 pb-20">
           <Outlet />
         </main>
       </div>
 
-      {/* "!" flotante abajo a la derecha con el Acerca del sistema */}
       <AcercaDelSistema />
     </div>
   );

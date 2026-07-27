@@ -65,9 +65,12 @@ export default function IngresosMercaderia() {
   const paginacion = usePaginacionCursor(20);
   const { page, pageSize, cursor, registrarRespuesta, reiniciar } = paginacion;
 
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+
   // Si la URL trae ?producto_id=NNN, pre-cargamos la primera línea.
   useEffect(() => {
     if (productoInicial) {
+      setMostrarFormulario(true);
       setLineas([{ ...LINEA_VACIA, producto_id: Number(productoInicial) }]);
       // Limpiamos la query para no re-disparar al recargar la lista.
       const next = new URLSearchParams(searchParams);
@@ -237,6 +240,7 @@ export default function IngresosMercaderia() {
   const columnas: Columna<SolicitudIngreso>[] = [
     {
       titulo: "Fecha",
+      ancho: "20%",
       render: (i) => (
         <span className="whitespace-nowrap text-zinc-500">
           {i.created_at ? new Date(i.created_at).toLocaleString("es-PE") : "—"}
@@ -245,6 +249,7 @@ export default function IngresosMercaderia() {
     },
     {
       titulo: "Productos",
+      ancho: "18%",
       render: (i) => (
         <div>
           <span className="font-medium text-zinc-800">
@@ -256,21 +261,23 @@ export default function IngresosMercaderia() {
     },
     {
       titulo: "Monto",
-      alinear: "derecha",
+      ancho: "14%",
       soloEscritorio: true,
       render: (i) => (
-        <span className="tabular-nums">
+        <span className="tabular-nums font-medium">
           {i.monto_total != null ? `S/ ${i.monto_total.toFixed(2)}` : "—"}
         </span>
       ),
     },
     {
       titulo: "Solicitado por",
+      ancho: "26%",
       soloEscritorio: true,
-      render: (i) => i.solicitado_por_nombre,
+      render: (i) => <span className="block truncate font-medium text-zinc-800" title={i.solicitado_por_nombre}>{i.solicitado_por_nombre}</span>,
     },
     {
       titulo: "Estado",
+      ancho: "22%",
       render: (i) => {
         const estado = String(i.estado);
         const tono = TONO_ESTADO[estado] ?? "neutro";
@@ -289,86 +296,102 @@ export default function IngresosMercaderia() {
       <PageHeader
         titulo="Ingresos de mercadería"
         descripcion="Registrá lo que llega a tienda; el ADMIN lo aprueba y recién ahí suma al stock."
+        acciones={
+          <Button
+            icono={mostrarFormulario ? undefined : <Plus className="h-4 w-4" aria-hidden />}
+            variante={mostrarFormulario ? "secundario" : "primario"}
+            onClick={() => setMostrarFormulario(!mostrarFormulario)}
+          >
+            {mostrarFormulario ? "Ocultar formulario" : "Nuevo ingreso"}
+          </Button>
+        }
       />
 
-      <Card titulo="Registrar ingreso" className="mb-4" descripcion="Subí la foto de la boleta y una o más líneas con productos y costos.">
-        <div className="space-y-4">
-          <SubirImagen
-            carpeta="boletas"
-            label="Foto de la boleta"
-            ayuda="Obligatoria. JPG/PNG. Se guarda en Storage y queda en la solicitud."
-            requerido
-            value={fotoUrl}
-            onChange={setFotoUrl}
-            error={!fotoUrl && errorAccion?.includes("foto") ? errorAccion : null}
-          />
-          <Select
-            label="Proveedor (opcional)"
-            value={proveedorId}
-            onChange={(e) => setProveedorId(e.target.value ? Number(e.target.value) : "")}
-          >
-            <option value="">Sin proveedor</option>
-            {proveedores.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.razon_social}
-              </option>
-            ))}
-          </Select>
-          {errorProveedores && (
-            <Alert tono="peligro">No se pudieron cargar los proveedores: {errorProveedores}</Alert>
-          )}
-          <div className="space-y-3">
-            {/* Buscador + lector: agrega la línea sin tocar el mouse. */}
-            <div>
-              <div className="relative">
-                <ScanBarcode
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
-                  aria-hidden
-                />
-                <Input
-                  ref={inputEscaner}
-                  className="pl-9"
-                  autoFocus
-                  label="Escaneá un código o buscá por nombre"
-                  placeholder="El lector agrega el producto automáticamente…"
-                  value={busquedaProducto}
-                  onChange={(e) => setBusquedaProducto(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void buscarYAgregar();
-                    }
-                  }}
-                />
-              </div>
-              {aviso && (
-                <div className="mt-2">
-                  <Alert tono={aviso.tono}>{aviso.texto}</Alert>
+      {mostrarFormulario && (
+        <Card titulo="Registrar ingreso" className="mb-4" descripcion="Subí la foto de la boleta y una o más líneas con productos y costos.">
+          <div className="space-y-4">
+            <SubirImagen
+              carpeta="boletas"
+              label="Foto de la boleta"
+              ayuda="Obligatoria. JPG/PNG. Se guarda en Storage y queda en la solicitud."
+              requerido
+              value={fotoUrl}
+              onChange={setFotoUrl}
+              error={!fotoUrl && errorAccion?.includes("foto") ? errorAccion : null}
+            />
+            <Select
+              label="Proveedor (opcional)"
+              value={proveedorId}
+              onChange={(e) => setProveedorId(e.target.value ? Number(e.target.value) : "")}
+            >
+              <option value="">Sin proveedor</option>
+              {proveedores.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.razon_social}
+                </option>
+              ))}
+            </Select>
+            {errorProveedores && (
+              <Alert tono="peligro">No se pudieron cargar los proveedores: {errorProveedores}</Alert>
+            )}
+            <div className="space-y-3">
+              {/* Buscador + lector: agrega la línea sin tocar el mouse. */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">
+                  Escaneá un código o buscá por nombre
+                </label>
+                <div className="relative">
+                  <ScanBarcode
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+                    aria-hidden
+                  />
+                  <Input
+                    ref={inputEscaner}
+                    className="pl-9"
+                    autoFocus
+                    placeholder="El lector agrega el producto automáticamente…"
+                    value={busquedaProducto}
+                    onChange={(e) => setBusquedaProducto(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void buscarYAgregar();
+                      }
+                    }}
+                  />
                 </div>
-              )}
+                {aviso && (
+                  <div className="mt-2">
+                    <Alert tono={aviso.tono}>{aviso.texto}</Alert>
+                  </div>
+                )}
+              </div>
+              {lineas.map((l, i) => (
+                <FormularioLineaIngreso
+                  key={i}
+                  linea={l}
+                  esUnica={lineas.length === 1}
+                  onChange={(nl) => actualizarLinea(i, nl)}
+                  onEliminar={() => eliminarLinea(i)}
+                />
+              ))}
+              <Button type="button" variante="secundario" onClick={agregarLinea} icono={<Plus className="h-4 w-4" aria-hidden />}>
+                Agregar línea
+              </Button>
             </div>
-            {lineas.map((l, i) => (
-              <FormularioLineaIngreso
-                key={i}
-                linea={l}
-                esUnica={lineas.length === 1}
-                onChange={(nl) => actualizarLinea(i, nl)}
-                onEliminar={() => eliminarLinea(i)}
-              />
-            ))}
-            <Button type="button" variante="secundario" onClick={agregarLinea} icono={<Plus className="h-4 w-4" aria-hidden />}>
-              Agregar línea
-            </Button>
+            {mensaje && <Alert tono="exito">{mensaje}</Alert>}
+            {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
+            <div className="flex justify-end gap-2">
+              <Button variante="secundario" onClick={() => setMostrarFormulario(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={() => void manejarSolicitar()} cargando={procesando} icono={<Truck className="h-4 w-4" aria-hidden />}>
+                Registrar ingreso
+              </Button>
+            </div>
           </div>
-          {mensaje && <Alert tono="exito">{mensaje}</Alert>}
-          {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
-          <div className="flex justify-end">
-            <Button onClick={() => void manejarSolicitar()} cargando={procesando} icono={<Truck className="h-4 w-4" aria-hidden />}>
-              Registrar ingreso
-            </Button>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <Select
@@ -392,6 +415,7 @@ export default function IngresosMercaderia() {
       {!cargando && !error && (
         <Card sinPadding>
           <Table
+            minAncho="100%"
             columnas={columnas}
             filas={ingresos}
             claveDe={(i) => i.id}

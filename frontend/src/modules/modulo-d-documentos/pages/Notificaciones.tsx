@@ -1,12 +1,13 @@
-// Página de historial de notificaciones (stock bajo, apertura/cierre de caja, sistema).
 import { useEffect, useState } from "react";
-import { Bell, BellOff, CheckCheck, Settings } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Bell, BellOff, CheckCheck, ExternalLink, Settings } from "lucide-react";
 import {
   Alert,
   Badge,
   Button,
   Card,
   EmptyState,
+  Modal,
   ModuloPendiente,
   PageHeader,
   PageSpinner,
@@ -17,7 +18,7 @@ import {
 import { useNotificaciones } from "../hooks/useNotificaciones";
 import { useAuthContext } from "../../../shared/lib/auth-context";
 import { notificacionesHttpAdapter } from "../services/notificaciones.http-adapter";
-import type { TipoNotificacion } from "../types";
+import type { Notificacion, TipoNotificacion } from "../types";
 
 const TONO_TIPO: Record<TipoNotificacion, Tono> = {
   STOCK_BAJO: "alerta",
@@ -36,19 +37,16 @@ export default function Notificaciones() {
     useNotificaciones();
   const [mostrarConfig, setMostrarConfig] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState<TipoNotificacion | "TODOS">("TODOS");
+  const [notificacionModal, setNotificacionModal] = useState<Notificacion | null>(null);
 
-  // Cambiar de página o de tamaño recarga contra el servidor.
   useEffect(() => {
     void recargar(page, pageSize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
-  // Auto-marcar todas como leídas al entrar a la página.
   useEffect(() => {
     if (!cargando && !noDisponible && notificaciones.some((n) => !n.leida)) {
       void notificacionesHttpAdapter.marcarTodasLeidas().then(() => void recargar(page, pageSize));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cargando, noDisponible]);
 
   const notificacionesFiltradas = filtroTipo === "TODOS"
@@ -73,57 +71,33 @@ export default function Notificaciones() {
   if (cargando) return <PageSpinner texto="Cargando notificaciones…" />;
   if (error) return <Alert tono="peligro">{error}</Alert>;
 
+  function enlaceModulo(n: Notificacion) {
+    if (n.tipo === "STOCK_BAJO") return "/catalogo";
+    if (n.tipo === "APERTURA_CAJA" || n.tipo === "CIERRE_CAJA") return "/caja";
+    if (n.tipo === "SOLICITUD_INGRESO") return "/aprobaciones";
+    return null;
+  }
+
   return (
-    <div className="max-w-2xl">
+    <div className="w-full space-y-4">
       <PageHeader
         titulo="Notificaciones"
         descripcion="Avisos del sistema: stock bajo, apertura y cierre de caja y más."
         acciones={
-          <div className="flex gap-2">
-            {notificaciones.some((n) => !n.leida) && (
-              <Button
-                variante="secundario"
-                icono={<CheckCheck className="h-4 w-4" aria-hidden />}
-                onClick={() => void marcarTodasLeidas()}
-              >
-                Marcar todas leídas
-              </Button>
-            )}
-            {esAdmin && (
-              <Button
-                variante="secundario"
-                icono={<Settings className="h-4 w-4" aria-hidden />}
-                onClick={() => setMostrarConfig(!mostrarConfig)}
-              >
-                Configuración
-              </Button>
-            )}
-          </div>
+          notificaciones.some((n) => !n.leida) ? (
+            <Button
+              variante="secundario"
+              icono={<CheckCheck className="h-4 w-4" aria-hidden />}
+              onClick={() => void marcarTodasLeidas()}
+            >
+              Marcar todas leídas
+            </Button>
+          ) : undefined
         }
       />
 
-      {mostrarConfig && config && (
-        <Card titulo="Configuración de notificaciones" className="mb-4">
-          <div className="space-y-3">
-            <Select
-              label="Nivel de detalle"
-              value={config.nivel_detalle}
-              onChange={(e) =>
-                void actualizarConfig({ nivel_detalle: e.target.value as "BAJO" | "ALTO" })
-              }
-            >
-              <option value="BAJO">Bajo — Solo aviso</option>
-              <option value="ALTO">Alto — Detalle completo</option>
-            </Select>
-            <p className="text-xs text-zinc-400">
-              La configuración de Telegram y correo se realiza en el archivo .env del servidor.
-            </p>
-          </div>
-        </Card>
-      )}
-
-      {notificaciones.length > 0 && (
-        <div className="mb-4">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row sm:items-end sm:gap-4">
+        <div className="sm:flex-1">
           <Select
             label="Filtrar por tipo"
             value={filtroTipo}
@@ -137,45 +111,66 @@ export default function Notificaciones() {
             <option value="SISTEMA">Sistema</option>
           </Select>
         </div>
-      )}
+
+        {esAdmin && (
+          <div className="sm:shrink-0">
+            <span className="mb-1 block text-sm font-medium text-zinc-700">Ajustes</span>
+            <Button
+              variante="secundario"
+              className="w-full sm:w-auto"
+              icono={<Settings className="h-4 w-4" aria-hidden />}
+              onClick={() => setMostrarConfig(true)}
+            >
+              Configuración
+            </Button>
+          </div>
+        )}
+      </div>
 
       {notificacionesFiltradas.length === 0 ? (
         <Card sinPadding>
           <EmptyState icono={BellOff} titulo="Sin notificaciones" descripcion="Todo tranquilo por ahora." />
         </Card>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2.5">
           {notificacionesFiltradas.map((n) => (
             <li key={n.id}>
-              <Card className={n.leida ? "opacity-60" : ""}>
-                <div className="flex items-start gap-3">
-                  <div className={`rounded-full p-2 ${n.leida ? "bg-zinc-100" : "bg-info-suave"}`}>
-                    <Bell className={`h-4 w-4 ${n.leida ? "text-zinc-400" : "text-info"}`} aria-hidden />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-zinc-900">{n.titulo}</p>
-                      <Badge tono={TONO_TIPO[n.tipo] ?? "neutro"}>{n.tipo.replace("_", " ")}</Badge>
+              <div
+                onClick={() => setNotificacionModal(n)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setNotificacionModal(n);
+                  }
+                }}
+                className="group cursor-pointer transition-all focus:outline-none"
+              >
+                <Card className={`transition-all group-hover:border-zinc-300 group-hover:shadow-md ${n.leida ? "opacity-60" : ""}`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`rounded-full p-2 ${n.leida ? "bg-zinc-100" : "bg-info-suave"}`}>
+                      <Bell className={`h-4 w-4 ${n.leida ? "text-zinc-400" : "text-info"}`} aria-hidden />
                     </div>
-                    <p className="mt-0.5 text-sm text-zinc-600">{n.mensaje}</p>
-                    <p className="mt-1 text-xs text-zinc-400">
-                      {n.created_at ? new Date(n.created_at).toLocaleString("es-PE") : ""}
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-zinc-900 group-hover:text-black">{n.titulo}</p>
+                        <Badge tono={TONO_TIPO[n.tipo] ?? "neutro"}>{n.tipo.replace("_", " ")}</Badge>
+                      </div>
+                      <p className="mt-0.5 text-sm text-zinc-600 line-clamp-2">{n.mensaje}</p>
+                      <p className="mt-1 text-xs text-zinc-400">
+                        {n.created_at ? new Date(n.created_at).toLocaleString("es-PE") : ""}
+                      </p>
+                    </div>
                   </div>
-                  {!n.leida && (
-                    <Button variante="secundario" compacto onClick={() => void marcarLeida(n.id)}>
-                      Marcar leída
-                    </Button>
-                  )}
-                </div>
-              </Card>
+                </Card>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      {/* Misma paginación que el resto de las listas del sistema. */}
-      <Card sinPadding className="mt-3">
+      <Card sinPadding className="relative z-30 mt-3">
         <PaginacionControles
           paginados={paginados}
           page={page}
@@ -188,6 +183,87 @@ export default function Notificaciones() {
           etiqueta="notificaciones"
         />
       </Card>
+
+      <Modal
+        abierto={notificacionModal !== null}
+        titulo={notificacionModal?.titulo ?? "Detalle de notificación"}
+        alCerrar={() => setNotificacionModal(null)}
+        pie={
+          <div className="flex flex-wrap items-center justify-between w-full gap-2">
+            <div className="flex gap-2">
+              {notificacionModal && (
+                <Button
+                  variante="secundario"
+                  compacto
+                  onClick={() => {
+                    void marcarLeida(notificacionModal.id);
+                    setNotificacionModal({ ...notificacionModal, leida: true });
+                  }}
+                >
+                  {notificacionModal.leida ? "Leída" : "Marcar como leída"}
+                </Button>
+              )}
+              {notificacionModal && enlaceModulo(notificacionModal) && (
+                <Link to={enlaceModulo(notificacionModal)!}>
+                  <Button variante="secundario" compacto icono={<ExternalLink className="h-3.5 w-3.5" aria-hidden />}>
+                    Ir al módulo
+                  </Button>
+                </Link>
+              )}
+            </div>
+            <Button variante="secundario" compacto onClick={() => setNotificacionModal(null)}>
+              Cerrar
+            </Button>
+          </div>
+        }
+      >
+        {notificacionModal && (
+          <div className="space-y-3 py-1">
+            <div className="flex items-center gap-2">
+              <Badge tono={TONO_TIPO[notificacionModal.tipo] ?? "neutro"}>
+                {notificacionModal.tipo.replace("_", " ")}
+              </Badge>
+              <span className="text-xs text-zinc-400">
+                {notificacionModal.created_at
+                  ? new Date(notificacionModal.created_at).toLocaleString("es-PE")
+                  : ""}
+              </span>
+            </div>
+            <p className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">
+              {notificacionModal.mensaje}
+            </p>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        abierto={mostrarConfig}
+        titulo="Configuración de notificaciones"
+        alCerrar={() => setMostrarConfig(false)}
+        pie={
+          <Button variante="secundario" onClick={() => setMostrarConfig(false)}>
+            Cerrar
+          </Button>
+        }
+      >
+        {config && (
+          <div className="space-y-4 py-2">
+            <Select
+              label="Nivel de detalle"
+              value={config.nivel_detalle}
+              onChange={(e) =>
+                void actualizarConfig({ nivel_detalle: e.target.value as "BAJO" | "ALTO" })
+              }
+            >
+              <option value="BAJO">Bajo — Solo aviso</option>
+              <option value="ALTO">Alto — Detalle completo</option>
+            </Select>
+            <p className="text-xs text-zinc-500">
+              La configuración de alertas externas (Telegram y correo electrónico) se administra centralizadamente en el servidor del sistema.
+            </p>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
