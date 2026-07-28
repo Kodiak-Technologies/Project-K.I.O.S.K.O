@@ -290,40 +290,40 @@ export default function AperturaCaja() {
         {abierta && turno ? (
           <Card titulo="Turno en curso">
             {/* Datos del turno: centrados horizontalmente con separadores */}
-            <dl className="flex flex-wrap items-center justify-center gap-0 divide-x divide-zinc-200 text-sm">
-              <div className="flex flex-col items-center px-8 py-2">
+            <dl className="grid grid-cols-2 gap-3 text-center text-sm sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-0 sm:divide-x sm:divide-zinc-200">
+              <div className="flex flex-col items-center px-3 py-2 sm:px-8">
                 <dt className="text-xs uppercase tracking-wide text-zinc-400">Abierta por</dt>
                 <dd className="mt-1 font-semibold text-zinc-800">{turno.abierto_por}</dd>
               </div>
-              <div className="flex flex-col items-center px-8 py-2">
+              <div className="flex flex-col items-center px-3 py-2 sm:px-8">
                 <dt className="text-xs uppercase tracking-wide text-zinc-400">Desde</dt>
                 <dd className="mt-1 font-semibold text-zinc-800">{soloHora(turno.abierto_en)}</dd>
               </div>
-              <div className="flex flex-col items-center px-8 py-2">
+              <div className="flex flex-col items-center px-3 py-2 sm:px-8">
                 <dt className="text-xs uppercase tracking-wide text-zinc-400">Efectivo inicial</dt>
                 <dd className="mt-1 font-semibold tabular-nums text-zinc-800">S/ {turno.monto_inicial.toFixed(2)}</dd>
               </div>
               {usuarioAsignado && (
-                <div className="flex flex-col items-center px-8 py-2">
+                <div className="flex flex-col items-center px-3 py-2 sm:px-8">
                   <dt className="text-xs uppercase tracking-wide text-zinc-400">Asignada a</dt>
                   <dd className="mt-1 font-semibold text-zinc-800">{usuarioAsignado.nombre}</dd>
                 </div>
               )}
             </dl>
-            {/* Botones centrados, mismo tamaño, moderados */}
-            <div className="mt-5 flex justify-center gap-3">
+            {/* Botones responsivos: apilados en móvil, horizontales en escritorio */}
+            <div className="mt-5 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-center sm:gap-3">
               {turnoAsignadoAOtro ? (
                 <Alert tono="alerta">Este turno ha sido asignado a otro cajero. No puedes operar en él.</Alert>
               ) : (
                 <>
-                  <Link to="/pos" className="w-44">
+                  <Link to="/pos" className="w-full sm:w-44">
                     <Button className="w-full">Ir a vender</Button>
                   </Link>
-                  <Link to="/caja/cierre" className="w-44">
+                  <Link to="/caja/cierre" className="w-full sm:w-44">
                     <Button variante="secundario" className="w-full">Ir al cierre de caja</Button>
                   </Link>
                   {esAdmin && (
-                    <Button variante="fantasma" onClick={() => void abrirModalAsignar()} icono={<UserPlus className="h-4 w-4" aria-hidden />}>
+                    <Button variante="fantasma" className="w-full sm:w-auto" onClick={() => void abrirModalAsignar()} icono={<UserPlus className="h-4 w-4" aria-hidden />}>
                       {turno.asignado_a_id ? "Editar asignación" : "Asignar"}
                     </Button>
                   )}

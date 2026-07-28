@@ -76,6 +76,7 @@ export function DatePicker({
 
   const [abierto, setAbierto] = useState(false);
   const [posicionEfectiva, setPosicionEfectiva] = useState<"abajo" | "arriba">("abajo");
+  const [estiloPopover, setEstiloPopover] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
 
   const fechaObjeto = valorFinal ? isoAFechaLocal(valorFinal) : null;
@@ -104,21 +105,73 @@ export function DatePicker({
     return () => document.removeEventListener("mousedown", manejarClicAfuera);
   }, []);
 
+  function recalcularPosicion() {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const espacioAbajo = window.innerHeight - rect.bottom;
+    const topBarAlto = 64; // Altura de la barra superior (TopBar)
+    const espacioArribaReal = rect.top - topBarAlto;
+
+    if (posicion === "arriba") {
+      setPosicionEfectiva("arriba");
+    } else if (posicion === "abajo") {
+      setPosicionEfectiva("abajo");
+    } else if (espacioAbajo < 380 && espacioArribaReal >= 320) {
+      // Solo abrir hacia arriba si hay espacio de al menos 320px libre por debajo de la TopBar
+      setPosicionEfectiva("arriba");
+    } else {
+      setPosicionEfectiva("abajo");
+    }
+
+    const anchoCalendario = 288; // w-72 = 288px
+    const viewportAncho = window.innerWidth;
+    const paddingPantalla = 12; // 12px de margen mínimo de pantalla
+
+    const nuevoEstilo: React.CSSProperties = {};
+
+    if (alineacion === "derecha") {
+      const leftEsperado = rect.right - anchoCalendario;
+      if (leftEsperado < paddingPantalla) {
+        const offsetLeft = paddingPantalla - rect.left;
+        nuevoEstilo.left = `${offsetLeft}px`;
+        nuevoEstilo.right = "auto";
+      } else {
+        nuevoEstilo.right = "0px";
+        nuevoEstilo.left = "auto";
+      }
+    } else {
+      const rightEsperado = rect.left + anchoCalendario;
+      if (rightEsperado > viewportAncho - paddingPantalla) {
+        const overflow = rightEsperado - (viewportAncho - paddingPantalla);
+        nuevoEstilo.left = `-${overflow}px`;
+      } else if (rect.left < paddingPantalla) {
+        const offset = paddingPantalla - rect.left;
+        nuevoEstilo.left = `${offset}px`;
+      } else {
+        nuevoEstilo.left = "0px";
+      }
+    }
+
+    setEstiloPopover(nuevoEstilo);
+  }
+
+  useEffect(() => {
+    if (abierto) {
+      recalcularPosicion();
+      const manejarResize = () => recalcularPosicion();
+      window.addEventListener("resize", manejarResize);
+      window.addEventListener("scroll", manejarResize, true);
+      return () => {
+        window.removeEventListener("resize", manejarResize);
+        window.removeEventListener("scroll", manejarResize, true);
+      };
+    }
+  }, [abierto]);
+
   function alternarAbierto() {
     if (deshabilitadoFinal) return;
-    if (!abierto && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const espacioAbajo = window.innerHeight - rect.bottom;
-      const espacioArriba = rect.top;
-      if (posicion === "arriba") {
-        setPosicionEfectiva("arriba");
-      } else if (posicion === "abajo") {
-        setPosicionEfectiva("abajo");
-      } else if (espacioAbajo < 420 && espacioArriba > 200) {
-        setPosicionEfectiva("arriba");
-      } else {
-        setPosicionEfectiva("abajo");
-      }
+    if (!abierto) {
+      recalcularPosicion();
     }
     setAbierto(!abierto);
   }
@@ -229,9 +282,10 @@ export function DatePicker({
 
       {abierto && !deshabilitadoFinal && (
         <div
-          className={`animate-in fade-in zoom-in-95 absolute z-[100] w-72 rounded-xl border border-zinc-200 bg-white p-3.5 shadow-2xl duration-100 ${
+          style={estiloPopover}
+          className={`animate-in fade-in zoom-in-95 absolute z-[9999] w-72 max-w-[calc(100vw-24px)] rounded-xl border border-zinc-200 bg-white p-3.5 shadow-2xl duration-100 ${
             posicionEfectiva === "arriba" ? "bottom-full mb-1.5" : "top-full mt-1.5"
-          } ${alineacion === "derecha" ? "right-0" : "left-0"}`}
+          }`}
         >
           <div className="mb-3 flex items-center justify-between">
             <button

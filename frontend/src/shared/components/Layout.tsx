@@ -31,7 +31,7 @@ export function Layout() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
         <TopBar alAbrirMenu={() => setMenuAbierto(true)} />
-        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-clip">
+        <main className="relative z-20 min-h-0 flex-1 overflow-y-auto overflow-x-clip">
           {/* pb-14: deja libre la esquina donde flota el botón "Acerca del sistema". */}
           <div className="mx-auto h-full w-full min-w-0 max-w-6xl p-3 pb-14 sm:p-6 sm:pb-14">
             <Outlet />

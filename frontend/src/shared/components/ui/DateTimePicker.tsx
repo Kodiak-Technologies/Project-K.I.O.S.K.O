@@ -51,7 +51,10 @@ export function DateTimePicker({
       }
       return;
     }
-    const f = fechaPart || new Date().toISOString().split("T")[0];
+    // Fecha LOCAL (no UTC): `toISOString()` adelantaría el día de noche.
+    const ahora = new Date();
+    const hoyLocal = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}-${String(ahora.getDate()).padStart(2, "0")}`;
+    const f = fechaPart || hoyLocal;
     onChange(`${f}T${nuevaHora}`);
   }
 

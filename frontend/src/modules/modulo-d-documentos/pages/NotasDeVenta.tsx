@@ -151,9 +151,9 @@ export default function NotasDeVenta() {
     {
       titulo: "Acciones",
       ancho: "180px",
-      alinear: "derecha",
+      alinear: "centro",
       render: (nv) => (
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-center gap-2">
           <Button
             variante="secundario"
             compacto
@@ -198,19 +198,23 @@ export default function NotasDeVenta() {
       />
 
       <Card className="mb-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-44">
-            <DatePicker label="Desde" mostrarAnio value={desde} onChange={(val) => setDesde(val)} />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="grid flex-1 grid-cols-2 gap-3 sm:flex sm:flex-initial sm:items-end">
+            <div className="w-full sm:w-44">
+              <DatePicker label="Desde" mostrarAnio value={desde} onChange={(val) => setDesde(val)} />
+            </div>
+            <div className="w-full sm:w-44">
+              <DatePicker label="Hasta" mostrarAnio value={hasta} onChange={(val) => setHasta(val)} />
+            </div>
           </div>
-          <div className="w-44">
-            <DatePicker label="Hasta" mostrarAnio value={hasta} onChange={(val) => setHasta(val)} />
+          <div className="flex items-center gap-2">
+            <Button className="flex-1 sm:flex-initial" variante="secundario" onClick={filtrar}>
+              Filtrar
+            </Button>
+            <Button className="flex-1 sm:flex-initial" variante="secundario" onClick={limpiarFiltros} icono={<X className="h-4 w-4" aria-hidden />}>
+              Limpiar
+            </Button>
           </div>
-          <Button variante="secundario" onClick={filtrar}>
-            Filtrar
-          </Button>
-          <Button variante="secundario" onClick={limpiarFiltros} icono={<X className="h-4 w-4" aria-hidden />}>
-            Limpiar
-          </Button>
         </div>
       </Card>
 
@@ -225,6 +229,7 @@ export default function NotasDeVenta() {
       {!cargando && !error && (
         <Card sinPadding>
           <Table
+            minAncho="650px"
             columnas={columnas}
             filas={notas}
             claveDe={(nv) => nv.venta_id}
