@@ -417,5 +417,4 @@ export interface StorageResult {
   filename: string;
   mime: string;
   size_bytes: number;
-  expires_at: string | null;
 }

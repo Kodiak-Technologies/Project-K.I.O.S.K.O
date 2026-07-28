@@ -43,5 +43,5 @@ def decodificar_cursor(cursor: str) -> tuple[datetime, int]:
         raise
     except Exception as exc:  # noqa: BLE001 - cualquier corrupción es lo mismo
         raise ValidacionError(
-            "El cursor de paginación no es válido. Volvé a cargar el listado."
+            "El listado se desactualizó. Vuelve a cargarlo."
         ) from exc

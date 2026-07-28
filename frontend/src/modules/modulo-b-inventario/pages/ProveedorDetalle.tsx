@@ -294,7 +294,7 @@ export default function ProveedorDetalle() {
             <EmptyState
               icono={ScrollText}
               titulo="Sin movimientos"
-              descripcion="Cuando registres una compra o un pago, aparecerá acá."
+              descripcion="Cuando registres una compra o un pago, aparecerá aquí."
             />
           }
         />

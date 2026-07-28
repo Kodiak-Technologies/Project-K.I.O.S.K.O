@@ -894,57 +894,57 @@ Si no se manda `ajustes_lineas`, se aprueban las líneas originales.
 
 ---
 
-## 8. Endpoints — Storage (foto de boleta, foto de producto)
+## 8. Endpoints — Storage (foto de boleta)
 
-> **Decisión validada 2026-07-19 (P-07)**: el backend usa **Supabase Storage** para alojar las imágenes. La URL devuelta puede ser **pública** (si el bucket es público con RLS) o **firmada con expiración** (si el bucket es privado).
+> **Actualizado**: el backend usa **Google Drive**, el mismo del Módulo D. La decisión previa de usar Supabase Storage (P-07, 2026-07-19) quedó sin efecto: el adaptador de Supabase se eliminó y con él las URLs firmadas, los buckets y `POST /storage/firmar`. Supabase sigue siendo el host de **Postgres**, nada más.
+>
+> La carpeta `productos` también quedó sin efecto: los productos ya no llevan foto (decisión 2026-07-25). La única carpeta válida es `boletas`.
 
-### 8.1 `POST /storage/upload` — Subir archivo
+### 8.1 `POST /storage/upload` — Subir la foto de boleta
 
-**Permiso**: `ADMIN` y `CAJERO`.
+**Permiso**: `storage.upload` (`ADMIN` y `CAJERO`).
 
-**Body**: `multipart/form-data` con campo `file` (imagen JPEG/PNG, max 10 MB) y opcional `carpeta` (`boletas` | `productos`).
+**Body**: `multipart/form-data` con `file` (imagen JPEG/PNG, max 10 MB) y `carpeta` (único valor aceptado: `boletas`).
 
 **Comportamiento**:
-1. El backend valida el tipo MIME (`image/jpeg` o `image/png`) y el tamaño (max 10 MB).
+1. Valida el tipo MIME (`image/jpeg` o `image/png`) y el tamaño (max 10 MB).
 2. Genera un nombre único: `{carpeta}/{YYYY-MM-DD}-{uuid}.{ext}`.
-3. Sube el archivo a Supabase Storage vía SDK oficial (`supabase-py` o `httpx` directo al endpoint REST).
-4. Si el bucket es público, devuelve la URL pública. Si es privado, devuelve una **signed URL** con expiración de 1 hora (suficiente para que el cliente la use inmediatamente y para revisar la solicitud de ingreso en la UI).
-5. Persiste un registro mínimo (opcional) en la BD para auditoría: `storage_uploads` con `path`, `mime`, `size`, `subido_por`. Si se implementa, va como una tabla más en `schema_modulo_b_completo.sql`.
+3. Sube el archivo a `boletas/ingresos/` dentro de `GOOGLE_DRIVE_FOLDER_ID`.
+4. Le da permiso de lectura a **"cualquiera con el enlace"**. Es necesario: el `<img>` del navegador no manda credenciales de Google y sin esto recibe 403. Implica que quien tenga la URL ve la boleta sin estar logueado.
+5. Registra la subida en la bitácora (`accion="storage_upload"`).
 
 **Respuesta OK** (201):
 ```json
 {
-  "url": "https://<project>.supabase.co/storage/v1/object/sign/boletas/2026-07-19-uuid-001.jpg?token=...",
-  "path": "boletas/2026-07-19-uuid-001.jpg",
-  "filename": "2026-07-19-uuid-001.jpg",
+  "url": "https://lh3.googleusercontent.com/d/1AbC...XyZ",
+  "path": "1AbC...XyZ",
+  "filename": "boletas/2026-07-27-a1b2c3d4e5f6.jpg",
   "mime": "image/jpeg",
-  "size_bytes": 234567,
-  "expires_at": "2026-07-19T17:00:00-03:00"
+  "size_bytes": 234567
 }
 ```
 
-**Errores**: `413` (archivo muy grande), `415` (tipo no soportado), `403` (sin permiso), `502` (Supabase no responde).
+`path` es el `file_id` de Drive. La URL **no vence**: el `file_id` es permanente.
 
-### 8.2 Configuración de Supabase
+**Errores**: `400` (archivo vacío, muy grande, MIME no soportado, carpeta inválida, o Drive sin autorizar), `403` (sin permiso).
 
-- **Variables de entorno** en `backend/.env` (documentar en `docs/SCRIPTS_DEV.md` cuando se agreguen):
-  - `SUPABASE_URL=https://<project>.supabase.co`
-  - `SUPABASE_SERVICE_ROLE_KEY=<service-role-key>` (NO la anon key; la service role es server-side).
-  - `SUPABASE_STORAGE_BUCKET_BOLETAS=boletas` (default).
-  - `SUPABASE_STORAGE_BUCKET_PRODUCTOS=productos` (default).
-- **Buckets**:
-  - `boletas` — privado, con signed URLs. Solo accesible para ADMIN y para el solicitante de la solicitud de ingreso.
-  - `productos` — público, lectura libre (las fotos se muestran en el POS y en la ficha del producto).
-- **Políticas RLS** (a configurar desde el panel de Supabase):
-  - `boletas`: lectura solo para usuarios autenticados del proyecto (RLS policy).
-  - `productos`: lectura pública, escritura solo para service role.
+### 8.2 Configuración de Drive
+
+- **Variables de entorno** en `backend/.env` (ver `.env.example`):
+  - `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, `GOOGLE_DRIVE_REDIRECT_URI` — OAuth.
+  - `GOOGLE_DRIVE_FOLDER_ID` — carpeta raíz del negocio.
+- **Autorización**: OAuth de usuario, no service account. El token vive en la BD y se renueva solo; si se revoca, `POST /storage/upload` falla y hay que reautorizar desde Configuración → Drive.
+- **Estructura dentro de la carpeta raíz**:
+  - `boletas/ingresos/` — fotos de boleta de las solicitudes de ingreso.
+  - `boletas/ventas/` — notas de venta.
+  - `respaldos/` — volcados de la BD (Módulo D).
 - **Patrón de uso**:
-  1. Cliente (POS o web admin) llama `POST /storage/upload` con el archivo.
-  2. Backend sube a Supabase, devuelve URL firmada.
-  3. Cliente usa esa URL en el campo `foto_boleta_url` al crear la solicitud de ingreso (`POST /ingresos`).
+  1. El cliente llama `POST /storage/upload` con el archivo.
+  2. El backend sube a Drive y devuelve la URL permanente.
+  3. El cliente manda esa URL en `foto_boleta_url` al crear la solicitud (`POST /ingresos`).
   4. La URL queda persistida en `solicitudes_ingreso.foto_boleta_url` y se muestra cada vez que se consulta la solicitud.
 
-> **Importante**: si en el futuro se migra a otro servicio de storage (GCS, S3, etc.), solo cambia la implementación del adaptador. La firma del endpoint `POST /storage/upload` permanece igual.
+> **Nota sobre el paso 4**: se guarda la URL completa, no el `file_id`. Es la razón de que el frontend tenga que re-extraer el id con expresiones regulares para mostrar la imagen (`normalizarImagenUrl`) y de que un cambio de formato de URL obligue a migrar datos en vez de tocar una función.
 
 ---
 

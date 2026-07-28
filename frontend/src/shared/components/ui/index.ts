@@ -8,6 +8,7 @@ export { Pagination } from "./Pagination";
 export { PaginacionControles, type Paginados } from "./PaginacionControles";
 export { Modal } from "./Modal";
 export { Alert, EmptyState, ModuloPendiente, PageSpinner, PageHeader } from "./Feedback";
+export { ImagenConRespaldo } from "./ImagenConRespaldo";
 export { ColorPicker, type ColorPickerProps } from "./ColorPicker";
 export { DatePicker, type DatePickerProps } from "./DatePicker";
 export { TimePicker, type TimePickerProps } from "./TimePicker";

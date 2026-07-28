@@ -1,6 +1,6 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { CheckCircle2, ImagePlus, Loader2, X } from "lucide-react";
-import { normalizarImagenUrl } from "../../../shared/lib/http-client";
+import { ImagenConRespaldo } from "../../../shared/components/ui";
 import { useStorage } from "../hooks/useStorage";
 
 interface Props {
@@ -77,8 +77,8 @@ export function SubirImagen({
       {urlMostrada ? (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-2.5">
           <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-white">
-            <img
-              src={normalizarImagenUrl(urlMostrada)}
+            <ImagenConRespaldo
+              src={urlMostrada}
               alt="Vista previa boleta"
               className="h-full w-full object-cover"
             />

@@ -200,7 +200,7 @@ class SolicitudIngreso(EntidadConBorradoLogico):
                     code="NOT_EDITABLE_STATE",
                 )
             raise ProhibidoError(
-                "No tenés permiso para editar esta solicitud.",
+                "No tienes permiso para editar esta solicitud.",
                 code="FORBIDDEN",
             )
 

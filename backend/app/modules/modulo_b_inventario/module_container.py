@@ -116,15 +116,17 @@ from app.modules.modulo_d_documentos.infrastructure.adapters.external.google_dri
 )
 
 
-def _storage(db: AsyncSession) -> DriveStorageAdapter:
-    """Las boletas van al Drive del negocio, el mismo de los respaldos.
+def drive(db: AsyncSession) -> GoogleDriveAdapter:
+    """Cliente de Drive del negocio, el mismo que usan los respaldos.
 
-    No puede ser singleton como el adaptador de Supabase: Drive necesita el
-    token OAuth, que vive en la BD y se lee con la sesión del request.
+    No puede ser singleton: Drive necesita el token OAuth, que vive en la BD y
+    se lee con la sesión del request.
     """
-    return DriveStorageAdapter(
-        GoogleDriveAdapter(token_repository=SqlAlchemyOAuthTokenRepository(db))
-    )
+    return GoogleDriveAdapter(token_repository=SqlAlchemyOAuthTokenRepository(db))
+
+
+def _storage(db: AsyncSession) -> DriveStorageAdapter:
+    return DriveStorageAdapter(drive(db))
 
 
 # =============================================================================
@@ -360,11 +362,3 @@ def listar_movimientos_inventario_usecase(
 def subir_archivo_usecase(db: AsyncSession) -> SubirArchivoUseCase:
     return SubirArchivoUseCase(_storage(db), contenedor_a.auditoria_usecase(db))
 
-
-async def refirmar_archivo(db: AsyncSession, carpeta: str, path: str):
-    """Devuelve la URL de un archivo ya subido a partir de su id de Drive.
-
-    Con Supabase la URL firmada vencía y había que regenerarla (HU-B07); el
-    enlace de Drive es permanente, así que esto sólo la recompone.
-    """
-    return await _storage(db).refirmar(carpeta, path)

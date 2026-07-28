@@ -144,11 +144,11 @@ class CodigoInterno:
 
 @dataclass(frozen=True)
 class StorageResult:
-    """Resultado de subir un archivo a Supabase Storage."""
+    """Resultado de subir una boleta a Google Drive."""
 
     url: str
+    #: `file_id` de Drive. Identifica al archivo y permite recomponer la URL.
     path: str
     filename: str
     mime: str
     size_bytes: int
-    expires_at: datetime | None = None  # solo para buckets privados (boletas)

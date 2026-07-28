@@ -1,7 +1,7 @@
 """Adaptador de `StoragePort` contra Google Drive.
 
-Reemplaza a `SupabaseStorageAdapter` para las boletas de ingreso: van al mismo
-Drive que ya usan los respaldos del Módulo D (`GOOGLE_DRIVE_FOLDER_ID`).
+Las boletas de ingreso van al mismo Drive que los respaldos del Módulo D
+(`GOOGLE_DRIVE_FOLDER_ID`). Es el único destino: no hay otro backend de storage.
 
 Dos cosas que conviene tener presentes:
 
@@ -12,14 +12,14 @@ Dos cosas que conviene tener presentes:
    el link ve la boleta sin estar logueado. La alternativa era servirla por un
    endpoint propio (privada, pero más código).
 
-2. **La URL no vence.** Con Supabase eran URLs firmadas que caducaban y hubo
-   que agregar `POST /storage/firmar` para regenerarlas (ver A9 del informe de
-   revisión). El `file_id` de Drive es permanente, así que `refirmar()` sólo
-   recompone la misma URL y el endpoint queda por compatibilidad.
+2. **La URL no vence.** El `file_id` de Drive es permanente, así que el enlace
+   que se guarda en `solicitudes_ingreso.foto_boleta_url` sirve para siempre.
 
-El formato de URL está verificado contra Drive: de los cuatro candidatos, sólo
-`uc?export=view` devuelve `content-type: image/*`. `lh3.googleusercontent.com/d/`
-y `thumbnail` dan 404, y `webViewLink` devuelve la página HTML del visor.
+Sobre el formato de URL: se usa `lh3.googleusercontent.com/d/{file_id}`, pero
+no hay que confiar en que ése cargue. Cuál de los formatos de Google sirve la
+imagen fue cambiando, así que el frontend (`ImagenConRespaldo`) prueba varios y,
+si fallan todos, pide el archivo a `GET /storage/boleta/{file_id}`, que lo lee
+de Drive con estas mismas credenciales y no depende de que sea público.
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ class DriveStorageAdapter(StoragePort):
             # falla. Sin foto no se puede registrar el ingreso (HU-B06), así
             # que el mensaje tiene que decir qué hacer.
             raise ValidacionError(
-                "No se pudo subir la boleta a Google Drive. Verificá que la "
+                "No se pudo subir la boleta a Google Drive. Verifica que la "
                 "cuenta siga autorizada en Configuración → Drive."
             ) from exc
 
@@ -95,23 +95,6 @@ class DriveStorageAdapter(StoragePort):
             filename=filename,
             mime=mime,
             size_bytes=len(content),
-            # Sin vencimiento: el enlace de Drive es permanente.
-            expires_at=None,
-        )
-
-    async def refirmar(self, carpeta: str, path: str) -> StorageResult:
-        """Recompone la URL a partir del `file_id`.
-
-        Se conserva para no romper a quien siga llamando `POST /storage/firmar`,
-        pero con Drive no hay nada que refirmar.
-        """
-        return StorageResult(
-            url=url_publica(path),
-            path=path,
-            filename=path,
-            mime="image/*",
-            size_bytes=0,
-            expires_at=None,
         )
 
     async def _hacer_publico(self, file_id: str) -> None:

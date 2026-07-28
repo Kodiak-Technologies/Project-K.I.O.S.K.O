@@ -69,7 +69,7 @@ export function FormularioIngresoEditable({
   function validar(): string | null {
     for (let i = 0; i < lineas.length; i++) {
       const l = lineas[i];
-      if (!l.producto_id) return `Línea ${i + 1}: seleccioná un producto.`;
+      if (!l.producto_id) return `Línea ${i + 1}: selecciona un producto.`;
       if (l.cantidad <= 0) return `Línea ${i + 1}: la cantidad debe ser > 0.`;
       if (l.precio_unitario < 0) return `Línea ${i + 1}: el precio no puede ser negativo.`;
     }
