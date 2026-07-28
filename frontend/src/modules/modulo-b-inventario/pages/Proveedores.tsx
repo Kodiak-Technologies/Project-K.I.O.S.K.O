@@ -17,6 +17,7 @@ import {
   Table,
   type Columna,
 } from "../../../shared/components/ui";
+import { mensajeDeError } from "../../../shared/lib/http-client";
 import { useAuthContext } from "../../../shared/lib/auth-context";
 import { FormularioProveedor } from "../components/FormularioProveedor";
 import { ModalConfirmacion } from "../components/ModalConfirmacion";
@@ -60,7 +61,7 @@ export default function Proveedores() {
       setMensaje(`Proveedor '${(datos as NuevoProveedor).razon_social}' creado.`);
       setModalAlta(false);
     } catch (e) {
-      setErrorAccion(e instanceof Error ? e.message : "No se pudo crear.");
+      setErrorAccion(mensajeDeError(e));
       throw e;
     } finally {
       setProcesando(false);
@@ -76,7 +77,7 @@ export default function Proveedores() {
       setMensaje(`Proveedor actualizado.`);
       setEditando(null);
     } catch (e) {
-      setErrorAccion(e instanceof Error ? e.message : "No se pudo editar.");
+      setErrorAccion(mensajeDeError(e));
       throw e;
     } finally {
       setProcesando(false);
@@ -92,7 +93,7 @@ export default function Proveedores() {
       setMensaje(`Proveedor '${paraToggle.razon_social}' ${paraToggle.activo ? "desactivado" : "activado"}.`);
       setParaToggle(null);
     } catch (e) {
-      setErrorAccion(e instanceof Error ? e.message : "No se pudo cambiar el estado.");
+      setErrorAccion(mensajeDeError(e));
     } finally {
       setProcesando(false);
     }
@@ -114,7 +115,7 @@ export default function Proveedores() {
       <div>
         <PageHeader titulo="Proveedores" />
         <Card sinPadding>
-          <ModuloPendiente modulo="inventario (Módulo B)" />
+          <ModuloPendiente modulo="inventario" />
         </Card>
       </div>
     );

@@ -140,7 +140,7 @@ export default function HistorialVentas() {
       <div>
         <PageHeader titulo="Historial de ventas" />
         <Card sinPadding>
-          <ModuloPendiente modulo="ventas (Módulo C)" />
+          <ModuloPendiente modulo="ventas" />
         </Card>
       </div>
     );

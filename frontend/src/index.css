@@ -9,14 +9,34 @@
 }
 
 @layer base {
+  /*
+   * El alto de la app lo fija el shell (Layout), no el contenido: la ventana
+   * nunca scrollea. Así la única barra vertical es la del contenedor que
+   * corresponde (la tabla), y no se suma una segunda al borde de la pantalla.
+   *
+   * `max-width: 100%` y no `100vw`: `100vw` incluye el ancho de la barra
+   * vertical y deja ~15px de desborde horizontal en escritorio.
+   */
   html,
   body,
   #root {
-    max-width: 100vw;
+    height: 100%;
+    max-width: 100%;
+  }
+
+  /*
+   * Red de contención para las pantallas que se montan fuera del shell (login,
+   * cambio de contraseña): si no entran, scrollean acá. Con el shell montado no
+   * se activa nunca, porque el Layout mide exactamente el alto disponible.
+   */
+  #root {
     overflow-x: hidden;
+    overflow-y: auto;
   }
 
   body {
+    /* Se propaga al viewport: la página en sí no scrollea. */
+    overflow: hidden;
     @apply bg-zinc-50 font-sans text-zinc-900 antialiased;
   }
 

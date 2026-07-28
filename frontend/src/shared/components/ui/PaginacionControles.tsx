@@ -39,7 +39,9 @@ export function PaginacionControles({
   const sinMas = page >= total_pages;
 
   return (
-    <div className="relative z-30 flex flex-col gap-2 border-t border-zinc-100 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    // shrink-0: dentro de una tarjeta en columna flex (punto de venta) el alto
+    // sobrante es para la tabla, no para achicar estos controles.
+    <div className="relative z-30 flex shrink-0 flex-col gap-2 border-t border-zinc-100 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <p className="text-xs text-zinc-500">
         {total === 0
           ? `Sin ${etiqueta}.`

@@ -11,8 +11,12 @@ export function Layout() {
   useEffect(() => setMenuAbierto(false), [ubicacion.pathname]);
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-zinc-50">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 lg:block">
+    // Shell de alto fijo (h-full): sidebar + columna de contenido. El único que
+    // scrollea es <main>; todo lo demás está clipeado para que ni el menú ni la
+    // barra superior se corran, y para que no aparezca una segunda barra
+    // vertical al borde de la pantalla.
+    <div className="flex h-full w-full max-w-full overflow-hidden bg-zinc-50">
+      <aside className="hidden w-64 shrink-0 lg:block">
         <Sidebar />
       </aside>
 
@@ -25,10 +29,13 @@ export function Layout() {
         </div>
       )}
 
-      <div className="w-full min-w-0 overflow-x-clip lg:pl-64">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
         <TopBar alAbrirMenu={() => setMenuAbierto(true)} />
-        <main className="mx-auto w-full min-w-0 max-w-6xl p-3 sm:p-6 pb-20">
-          <Outlet />
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-clip">
+          {/* pb-14: deja libre la esquina donde flota el botón "Acerca del sistema". */}
+          <div className="mx-auto h-full w-full min-w-0 max-w-6xl p-3 pb-14 sm:p-6 sm:pb-14">
+            <Outlet />
+          </div>
         </main>
       </div>
 

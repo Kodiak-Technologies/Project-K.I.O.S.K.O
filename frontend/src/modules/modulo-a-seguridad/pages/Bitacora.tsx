@@ -11,6 +11,7 @@ import {
   PageHeader,
   PageSpinner,
   PaginacionControles,
+  Select,
   Table,
   type Columna,
   type Tono,
@@ -23,6 +24,120 @@ function tonoDeAccion(accion: string): Tono {
   if (accion.includes("elimina") || accion.includes("anula")) return "alerta";
   if (accion.includes("exitoso") || accion.includes("crea")) return "exito";
   return "neutro";
+}
+
+// La bitácora la lee la administradora, no un programador: los códigos internos
+// que guarda el backend (`login_fallido`, `solicitudes_ingreso`, `precio_venta`)
+// se traducen a lenguaje corriente antes de mostrarse.
+const TEXTO_ACCION: Record<string, string> = {
+  login_exitoso: "Inició sesión",
+  login_fallido: "Intento de inicio de sesión fallido",
+  login_rechazado_bloqueo: "Inicio de sesión rechazado por bloqueo",
+  logout: "Cerró sesión",
+  cuenta_bloqueada: "Cuenta bloqueada",
+  password_cambiada: "Cambió su contraseña",
+  password_reseteada: "Restableció una contraseña",
+  permisos_modificados: "Modificó permisos",
+  usuario_creado: "Creó un usuario",
+  usuario_editado: "Editó un usuario",
+  usuario_activado: "Activó un usuario",
+  usuario_eliminado: "Eliminó un usuario",
+  configuracion_actualizada: "Actualizó la configuración",
+  producto_creado: "Creó un producto",
+  producto_editado: "Editó un producto",
+  producto_eliminado: "Eliminó un producto",
+  categoria_creada: "Creó una categoría",
+  categoria_editada: "Editó una categoría",
+  cambiar_precio: "Cambió un precio",
+  ajustar_stock: "Ajustó el stock",
+  ingreso_solicitado: "Solicitó un ingreso de mercadería",
+  editar_ingreso: "Editó una solicitud de ingreso",
+  aprobar_ingreso: "Aprobó un ingreso de mercadería",
+  rechazar_ingreso: "Rechazó un ingreso de mercadería",
+  proveedor_creado: "Creó un proveedor",
+  proveedor_editado: "Editó un proveedor",
+  compra_credito: "Registró una compra a crédito",
+  pago_proveedor: "Registró un pago a proveedor",
+  metodo_pago_creado: "Creó un método de pago",
+  metodo_pago_editado: "Editó un método de pago",
+  venta_registrada: "Registró una venta",
+  venta_anulada: "Anuló una venta",
+  venta_devuelta: "Registró una devolución",
+  caja_abierta: "Abrió la caja",
+  caja_cerrada: "Cerró la caja",
+  caja_descuadre: "Descuadre de caja",
+  storage_upload: "Subió una imagen",
+};
+
+const TEXTO_ENTIDAD: Record<string, string> = {
+  usuarios: "Usuarios",
+  roles: "Roles",
+  configuracion_negocio: "Configuración del negocio",
+  productos: "Productos",
+  categorias: "Categorías",
+  proveedores: "Proveedores",
+  solicitudes_ingreso: "Ingresos de mercadería",
+  metodos_pago: "Métodos de pago",
+  ventas: "Ventas",
+  turnos_caja: "Caja",
+  storage: "Imágenes",
+};
+
+const TEXTO_CAMPO: Record<string, string> = {
+  precio_venta: "Precio de venta",
+  precio_compra_actual: "Precio de compra",
+  stock_actual: "Stock",
+  stock_minimo: "Stock mínimo",
+  razon_social: "Razón social",
+  metodo_pago: "Método de pago",
+  entidad_id: "N.° de registro",
+};
+
+/** Fallback para códigos nuevos que todavía no están en los mapas de arriba. */
+function humanizar(codigo: string): string {
+  const texto = codigo.replace(/_/g, " ").trim();
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/** Opciones de filtro: la administradora elige el texto, el backend recibe el código. */
+const opcionesDe = (mapa: Record<string, string>) =>
+  [{ value: "", label: "Todas" }].concat(
+    Object.entries(mapa)
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"))
+  );
+
+const OPCIONES_ACCION = opcionesDe(TEXTO_ACCION);
+const OPCIONES_ENTIDAD = opcionesDe(TEXTO_ENTIDAD);
+
+const textoAccion = (accion: string) => TEXTO_ACCION[accion] ?? humanizar(accion);
+const textoEntidad = (entidad: string) => TEXTO_ENTIDAD[entidad] ?? humanizar(entidad);
+const textoCampo = (campo: string) => TEXTO_CAMPO[campo] ?? humanizar(campo);
+
+function textoValor(valor: unknown): string {
+  if (valor === null || valor === undefined || valor === "") return "—";
+  if (typeof valor === "boolean") return valor ? "Sí" : "No";
+  if (typeof valor === "object") return JSON.stringify(valor);
+  return String(valor);
+}
+
+/** Muestra el contenido de un cambio como "campo: valor", nunca como JSON. */
+function DetalleValores({ titulo, valores }: { titulo: string; valores: Record<string, unknown> }) {
+  const entradas = Object.entries(valores);
+  if (entradas.length === 0) return null;
+  return (
+    <div>
+      <h4 className="mb-1 text-xs font-semibold text-zinc-700">{titulo}</h4>
+      <dl className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white">
+        {entradas.map(([campo, valor]) => (
+          <div key={campo} className="flex gap-3 px-2.5 py-1.5">
+            <dt className="w-40 shrink-0 text-xs text-zinc-500">{textoCampo(campo)}</dt>
+            <dd className="min-w-0 flex-1 break-words text-zinc-800">{textoValor(valor)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
 }
 
 export default function Bitacora() {
@@ -52,8 +167,16 @@ export default function Bitacora() {
     },
     { titulo: "Usuario", ancho: "80px", render: (r) => r.usuario_id ?? "—" },
     { titulo: "Rol", ancho: "90px", soloEscritorio: true, render: (r) => r.rol || "—" },
-    { titulo: "Acción", ancho: "180px", render: (r) => <Badge tono={tonoDeAccion(r.accion)}>{r.accion}</Badge> },
-    { titulo: "Entidad", ancho: "140px", render: (r) => `${r.entidad}${r.entidad_id ? ` #${r.entidad_id}` : ""}` },
+    {
+      titulo: "Acción",
+      ancho: "230px",
+      render: (r) => <Badge tono={tonoDeAccion(r.accion)}>{textoAccion(r.accion)}</Badge>,
+    },
+    {
+      titulo: "Sección",
+      ancho: "170px",
+      render: (r) => `${textoEntidad(r.entidad)}${r.entidad_id ? ` n.° ${r.entidad_id}` : ""}`,
+    },
     {
       titulo: "Detalle",
       ancho: "80px",
@@ -74,7 +197,7 @@ export default function Bitacora() {
             <button
               type="button"
               onClick={() => setDetalleModal(r)}
-              className="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-600 transition-colors hover:bg-emerald-100 hover:text-emerald-700 shadow-sm"
+              className="inline-flex min-h-tactil min-w-11 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-600 shadow-sm transition-colors hover:bg-emerald-100 hover:text-emerald-700 sm:min-h-0 sm:min-w-0"
               title="Ver detalle del registro"
             >
               <FileText className="h-4 w-4" />
@@ -111,20 +234,25 @@ export default function Bitacora() {
             onChange={(val) => aplicarFiltros({ hasta: val })}
           />
           <Input
-            label="ID de usuario"
+            label="N.° de usuario"
             type="number"
             min={1}
             placeholder="ej. 3"
             onChange={(e) => aplicarFiltros({ usuario_id: e.target.value ? Number(e.target.value) : undefined })}
           />
-          <Input
+          <Select
             label="Acción"
-            placeholder="ej. login_fallido"
+            placeholder="Todas las acciones"
+            buscable
+            value={filtros.accion ?? ""}
+            opciones={OPCIONES_ACCION}
             onChange={(e) => aplicarFiltros({ accion: e.target.value || undefined })}
           />
-          <Input
-            label="Entidad"
-            placeholder="ej. usuarios, ventas"
+          <Select
+            label="Sección"
+            placeholder="Todas las secciones"
+            value={filtros.entidad ?? ""}
+            opciones={OPCIONES_ENTIDAD}
             onChange={(e) => aplicarFiltros({ entidad: e.target.value || undefined })}
           />
         </div>
@@ -139,7 +267,6 @@ export default function Bitacora() {
             columnas={columnas}
             filas={datos.registros}
             claveDe={(r) => r.id}
-            contenedorClassName="max-h-[calc(100vh-27rem)] lg:max-h-[calc(100vh-26rem)]"
             vacio={
               <EmptyState
                 icono={ScrollText}
@@ -161,7 +288,7 @@ export default function Bitacora() {
 
       {detalleModal && (
         <Modal
-          titulo={`Detalle de auditoría #${detalleModal.id}`}
+          titulo={`Detalle del registro n.° ${detalleModal.id}`}
           abierto={Boolean(detalleModal)}
           alCerrar={() => setDetalleModal(null)}
         >
@@ -169,12 +296,13 @@ export default function Bitacora() {
             <div className="grid grid-cols-2 gap-3 rounded-lg border border-zinc-100 bg-zinc-50 p-3">
               <div>
                 <span className="block text-xs font-medium text-zinc-400">Acción</span>
-                <span className="font-semibold text-zinc-800">{detalleModal.accion}</span>
+                <span className="font-semibold text-zinc-800">{textoAccion(detalleModal.accion)}</span>
               </div>
               <div>
-                <span className="block text-xs font-medium text-zinc-400">Entidad</span>
+                <span className="block text-xs font-medium text-zinc-400">Sección</span>
                 <span className="font-semibold text-zinc-800">
-                  {detalleModal.entidad} {detalleModal.entidad_id ? `#${detalleModal.entidad_id}` : ""}
+                  {textoEntidad(detalleModal.entidad)}{" "}
+                  {detalleModal.entidad_id ? `n.° ${detalleModal.entidad_id}` : ""}
                 </span>
               </div>
               <div>
@@ -199,21 +327,11 @@ export default function Bitacora() {
             )}
 
             {detalleModal.valor_anterior && (
-              <div>
-                <h4 className="mb-1 text-xs font-semibold text-zinc-500">Valor Anterior</h4>
-                <pre className="max-h-48 overflow-auto rounded-lg border border-zinc-200 bg-zinc-900 p-3 text-xs font-mono text-zinc-100">
-                  {JSON.stringify(detalleModal.valor_anterior, null, 2)}
-                </pre>
-              </div>
+              <DetalleValores titulo="Cómo estaba antes" valores={detalleModal.valor_anterior} />
             )}
 
             {detalleModal.valor_nuevo && (
-              <div>
-                <h4 className="mb-1 text-xs font-semibold text-emerald-700">Valor Nuevo</h4>
-                <pre className="max-h-48 overflow-auto rounded-lg border border-emerald-200 bg-zinc-900 p-3 text-xs font-mono text-emerald-400">
-                  {JSON.stringify(detalleModal.valor_nuevo, null, 2)}
-                </pre>
-              </div>
+              <DetalleValores titulo="Cómo quedó" valores={detalleModal.valor_nuevo} />
             )}
           </div>
         </Modal>

@@ -283,7 +283,7 @@ export default function Catalogo() {
       <div>
         <PageHeader titulo="Catálogo" />
         <Card sinPadding>
-          <ModuloPendiente modulo="inventario (Módulo B)" />
+          <ModuloPendiente modulo="inventario" />
         </Card>
       </div>
     );
@@ -478,7 +478,7 @@ export default function Catalogo() {
                 onClick={pedirConfirmacion}
                 title="Guardar"
                 aria-label="Guardar"
-                className="rounded p-1.5 text-marca hover:bg-zinc-100"
+                className="inline-flex min-h-tactil min-w-11 items-center justify-center rounded p-1.5 sm:min-h-0 sm:min-w-0 text-marca hover:bg-zinc-100"
               >
                 <Save className="h-4 w-4" aria-hidden />
               </button>
@@ -487,7 +487,7 @@ export default function Catalogo() {
                 onClick={cancelarEdicion}
                 title="Descartar"
                 aria-label="Descartar"
-                className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100"
+                className="inline-flex min-h-tactil min-w-11 items-center justify-center rounded p-1.5 sm:min-h-0 sm:min-w-0 text-zinc-500 hover:bg-zinc-100"
               >
                 <X className="h-4 w-4" aria-hidden />
               </button>
@@ -503,7 +503,7 @@ export default function Catalogo() {
               disabled={editandoId !== null}
               title="Editar fila"
               aria-label={`Editar ${p.nombre}`}
-              className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-40"
+              className="inline-flex min-h-tactil min-w-11 items-center justify-center rounded p-1.5 sm:min-h-0 sm:min-w-0 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-40"
             >
               <Pencil className="h-4 w-4" aria-hidden />
             </button>
@@ -516,7 +516,7 @@ export default function Catalogo() {
               disabled={editandoId !== null}
               title="Eliminar producto"
               aria-label={`Eliminar ${p.nombre}`}
-              className="rounded p-1.5 text-zinc-500 hover:bg-red-50 hover:text-peligro disabled:opacity-40"
+              className="inline-flex min-h-tactil min-w-11 items-center justify-center rounded p-1.5 sm:min-h-0 sm:min-w-0 text-zinc-500 hover:bg-red-50 hover:text-peligro disabled:opacity-40"
             >
               <Trash2 className="h-4 w-4" aria-hidden />
             </button>

@@ -88,7 +88,7 @@ export function ColorPicker({
           onClick={alternar}
           aria-label={label ? `Elegir ${label}` : "Elegir color"}
           aria-expanded={abierto}
-          className={`relative h-9 w-9 shrink-0 rounded-full border-2 border-white shadow-md transition-transform hover:scale-105 ${
+          className={`relative h-11 w-11 shrink-0 rounded-full border-2 border-white shadow-md transition-transform hover:scale-105 sm:h-9 sm:w-9 ${
             abierto ? "ring-2 ring-zinc-500" : "ring-1 ring-black/10"
           }`}
           style={{ backgroundColor: value }}

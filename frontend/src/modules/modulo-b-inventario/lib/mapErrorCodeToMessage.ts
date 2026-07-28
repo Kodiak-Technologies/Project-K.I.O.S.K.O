@@ -14,7 +14,7 @@ const MAP: Record<ErrorCodeBackend, string> = {
   INVALID_MOTIVO: "El motivo indicado no es válido.",
   STOCK_INSUFICIENTE: "No hay stock suficiente para descontar esa cantidad.",
   MOTIVO_REQUERIDO: "Indicá el motivo del ajuste (mínimo 3 caracteres).",
-  UNKNOWN_FIELD: "El formulario envió campos no permitidos. Recargá la página.",
+  UNKNOWN_FIELD: "El formulario quedó desactualizado. Recargá la página y volvé a intentar.",
   CONCURRENT_EDIT: "Otro usuario está editando esta solicitud. Reintentá en unos segundos.",
   INGRESO_NOT_FOUND: "La solicitud no existe o fue eliminada.",
   ALREADY_REJECTED: "Esta solicitud ya fue rechazada.",

@@ -161,7 +161,7 @@ export function Select({
           }
         }}
         className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border bg-white text-zinc-900 shadow-sm transition-all ${
-          compacto ? "px-2.5 py-1.5 text-xs sm:text-sm" : "min-h-tactil px-3 py-2 text-sm"
+          compacto ? "min-h-tactil px-2.5 py-1.5 text-xs sm:min-h-0 sm:text-sm" : "min-h-tactil px-3 py-2 text-sm"
         } ${
           disabled
             ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400"

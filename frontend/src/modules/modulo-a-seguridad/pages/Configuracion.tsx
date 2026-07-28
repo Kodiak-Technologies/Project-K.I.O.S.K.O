@@ -251,7 +251,7 @@ export default function Configuracion() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <div>
                 <Input
-                  label="Sesión ADMIN (minutos)"
+                  label="Duración de la sesión del administrador (minutos)"
                   type="number"
                   min={1}
                   value={config.session_ttl_admin_minutos}
@@ -261,7 +261,7 @@ export default function Configuracion() {
               </div>
               <div>
                 <Input
-                  label="Sesión CAJERO (minutos)"
+                  label="Duración de la sesión del cajero (minutos)"
                   type="number"
                   min={1}
                   value={config.session_ttl_cajero_minutos}
@@ -270,7 +270,7 @@ export default function Configuracion() {
                 <p className="mt-1 text-xs text-zinc-500">720 = 12 horas</p>
               </div>
               <Input
-                label="Intentos máximos de login"
+                label="Intentos máximos de inicio de sesión"
                 type="number"
                 min={1}
                 max={10}
@@ -278,7 +278,7 @@ export default function Configuracion() {
                 onChange={(e) => actualizarCampo("max_intentos_login", Number(e.target.value))}
               />
               <Input
-                label="Minutos de bloqueo"
+                label="Minutos de bloqueo tras fallar"
                 type="number"
                 min={1}
                 max={1440}

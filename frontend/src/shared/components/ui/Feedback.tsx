@@ -45,8 +45,8 @@ export function ModuloPendiente({ modulo }: { modulo: string }) {
   return (
     <EmptyState
       icono={Unplug}
-      titulo="Módulo aún no conectado"
-      descripcion={`La interfaz está lista, pero el backend de ${modulo} todavía no está disponible. Cuando el equipo publique sus endpoints, esta pantalla funcionará sola.`}
+      titulo="Sección en preparación"
+      descripcion={`La sección de ${modulo} todavía no está habilitada. La pantalla ya está lista y va a funcionar sola en cuanto se active.`}
     />
   );
 }

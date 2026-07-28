@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useAltoDisponible } from "../../lib/use-alto-disponible";
 
 export interface Columna<T> {
   titulo: string;
@@ -14,9 +15,19 @@ interface Props<T> {
   claveDe: (fila: T) => string | number;
   vacio?: ReactNode;
   alHacerClicFila?: (fila: T) => void;
+  /** Clases extra para el contenedor que scrollea. */
   contenedorClassName?: string;
   minAncho?: string;
+  /**
+   * Desactiva la medición automática del alto. Para pantallas donde el alto ya
+   * lo reparte el contenedor (el punto de venta, con su grilla acotada): medir
+   * ahí daría un resultado peor, porque la otra columna se lee como desborde.
+   */
+  altoDelContenedor?: boolean;
 }
+
+/** Menos de esto y la tabla deja de ser usable: mejor que scrollee la página. */
+const ALTO_MINIMO = 200;
 
 export function Table<T>({
   columnas,
@@ -24,78 +35,90 @@ export function Table<T>({
   claveDe,
   vacio,
   alHacerClicFila,
-  contenedorClassName = "max-h-[calc(100vh-16rem)]",
+  contenedorClassName = "",
   minAncho = "800px",
+  altoDelContenedor = false,
 }: Props<T>) {
-  if (filas.length === 0 && vacio) return <>{vacio}</>;
-
-  const renderColgroup = () => (
-    <colgroup>
-      {columnas.map((c) => (
-        <col
-          key={c.titulo}
-          style={c.ancho ? { width: c.ancho } : undefined}
-          className={c.soloEscritorio ? "hidden lg:table-column" : ""}
-        />
-      ))}
-    </colgroup>
+  const { ref: raizRef, altoMaximo } = useAltoDisponible<HTMLDivElement>(
+    ALTO_MINIMO,
+    !altoDelContenedor
   );
 
+  if (filas.length === 0 && vacio) return <>{vacio}</>;
+
   return (
-    <div className="w-full max-w-full min-w-0 overflow-x-auto">
-      <div style={{ minWidth: minAncho }} className={`overflow-y-auto [scrollbar-gutter:stable] ${contenedorClassName}`}>
-        <table className="w-full border-collapse table-fixed text-sm">
-          {renderColgroup()}
-          <thead className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 shadow-sm">
-            <tr className="text-left text-[11px] uppercase text-zinc-500">
+    // Único contenedor de scroll de la tabla: horizontal y vertical juntos.
+    // Antes eran dos anidados, y el de adentro heredaba `overflow-x: auto`
+    // por la regla de CSS que convierte `visible` en `auto`.
+    <div
+      ref={raizRef}
+      style={{ maxHeight: altoMaximo }}
+      className={`w-full min-w-0 max-w-full overflow-auto [scrollbar-gutter:stable] ${contenedorClassName}`}
+    >
+      <table
+        style={{ minWidth: minAncho }}
+        className="w-full table-fixed border-collapse text-sm"
+      >
+        <colgroup>
+          {columnas.map((c) => (
+            <col
+              key={c.titulo}
+              style={c.ancho ? { width: c.ancho } : undefined}
+              className={c.soloEscritorio ? "hidden lg:table-column" : ""}
+            />
+          ))}
+        </colgroup>
+        <thead className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 shadow-sm">
+          <tr className="text-left text-[11px] uppercase text-zinc-500">
+            {columnas.map((c) => (
+              <th
+                key={c.titulo}
+                className={`bg-zinc-50 px-2 py-2.5 font-medium sm:px-3 ${
+                  c.soloEscritorio ? "hidden lg:table-cell" : ""
+                } ${c.alinear === "derecha" ? "text-right" : c.alinear === "centro" ? "text-center" : "text-left"}`}
+              >
+                {c.titulo}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-100">
+          {filas.map((fila) => (
+            <tr
+              key={claveDe(fila)}
+              onClick={alHacerClicFila ? () => alHacerClicFila(fila) : undefined}
+              onKeyDown={
+                alHacerClicFila
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        alHacerClicFila(fila);
+                      }
+                    }
+                  : undefined
+              }
+              tabIndex={alHacerClicFila ? 0 : undefined}
+              role={alHacerClicFila ? "button" : undefined}
+              className={`transition-colors hover:bg-zinc-50 ${
+                alHacerClicFila ? "cursor-pointer focus:bg-zinc-100 focus:outline-none" : ""
+              }`}
+            >
               {columnas.map((c) => (
-                <th
+                <td
                   key={c.titulo}
-                  className={`bg-zinc-50 px-2 py-2.5 font-medium sm:px-3 ${
+                  // `break-words`: con table-fixed, un texto largo sin espacios
+                  // (un código de barras, una URL) se desbordaba de la celda.
+                  className={`break-words px-2 py-2 sm:px-3 ${
                     c.soloEscritorio ? "hidden lg:table-cell" : ""
                   } ${c.alinear === "derecha" ? "text-right" : c.alinear === "centro" ? "text-center" : "text-left"}`}
                 >
-                  {c.titulo}
-                </th>
+                  {c.render(fila)}
+                </td>
               ))}
             </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {filas.map((fila) => (
-              <tr
-                key={claveDe(fila)}
-                onClick={alHacerClicFila ? () => alHacerClicFila(fila) : undefined}
-                onKeyDown={
-                  alHacerClicFila
-                    ? (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          alHacerClicFila(fila);
-                        }
-                      }
-                    : undefined
-                }
-                tabIndex={alHacerClicFila ? 0 : undefined}
-                role={alHacerClicFila ? "button" : undefined}
-                className={`transition-colors hover:bg-zinc-50 ${
-                  alHacerClicFila ? "cursor-pointer focus:bg-zinc-100 focus:outline-none" : ""
-                }`}
-              >
-                {columnas.map((c) => (
-                  <td
-                    key={c.titulo}
-                    className={`px-2 py-2 sm:px-3 ${c.soloEscritorio ? "hidden lg:table-cell" : ""} ${
-                      c.alinear === "derecha" ? "text-right" : c.alinear === "centro" ? "text-center" : "text-left"
-                    }`}
-                  >
-                    {c.render(fila)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

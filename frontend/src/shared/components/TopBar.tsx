@@ -111,7 +111,7 @@ export function TopBar({ alAbrirMenu }: { alAbrirMenu: () => void }) {
 
   return (
     // h-16 fija, la misma del header del sidebar: los bordes quedan al ras.
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 sm:px-4">
+    <header className="z-30 flex h-16 shrink-0 items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 sm:px-4">
       <button
         onClick={alAbrirMenu}
         aria-label="Abrir menú"

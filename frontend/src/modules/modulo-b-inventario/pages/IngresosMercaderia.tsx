@@ -215,7 +215,7 @@ export default function IngresosMercaderia() {
           precio_compra_unitario: l.precio_compra_unitario,
         })),
       });
-      setMensaje("Ingreso registrado. Queda pendiente de aprobación del ADMIN.");
+      setMensaje("Ingreso registrado. Queda pendiente de la aprobación del administrador.");
       setLineas([LINEA_VACIA]);
       setProveedorId("");
       setFotoUrl(null);
@@ -231,7 +231,7 @@ export default function IngresosMercaderia() {
       <div>
         <PageHeader titulo="Ingresos de mercadería" />
         <Card sinPadding>
-          <ModuloPendiente modulo="inventario (Módulo B)" />
+          <ModuloPendiente modulo="inventario" />
         </Card>
       </div>
     );
