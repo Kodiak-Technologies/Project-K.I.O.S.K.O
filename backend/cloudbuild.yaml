@@ -1,0 +1,53 @@
+# Build + deploy del backend a Cloud Run con Cloud Build.
+# Uso:  gcloud builds submit --config=cloudbuild.yaml .
+# Requiere: repo Artifact Registry "kiosko" y secretos en Secret Manager (ver DEPLOY.md).
+#
+# Notas importantes:
+# - Se etiqueta con $BUILD_ID (siempre presente en submit manual y en triggers).
+#   NO usar $SHORT_SHA: viene VACIO en `gcloud builds submit` -> tag invalido -> docker exit 125.
+# - BD: Supabase por conexion directa (asyncpg). NO usa Cloud SQL, por eso NO lleva
+#   --add-cloudsql-instances ni _SQL_INSTANCE.
+# - CORS_ORIGINS puede llevar varios origenes separados por coma; por eso se usa el
+#   delimitador ^@@^ en --set-env-vars (si no, gcloud parte el valor por la coma).
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$BUILD_ID
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$BUILD_ID
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - kiosko-backend
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$BUILD_ID
+      - --region=${_REGION}
+      - --allow-unauthenticated
+      # Secretos (Secret Manager). TODO el Modulo D (core + Drive + Telegram + SMTP)
+      # se carga desde el .env con scripts/subir-secretos.ps1; aqui solo se referencian.
+      # No incluye GOOGLE_DRIVE_REDIRECT_URI: es especifico del entorno (ver --set-env-vars).
+      - --set-secrets=DATABASE_URL=kiosko-database-url:latest,SECRET_KEY=kiosko-secret-key:latest,GOOGLE_DRIVE_CLIENT_ID=kiosko-drive-client-id:latest,GOOGLE_DRIVE_CLIENT_SECRET=kiosko-drive-client-secret:latest,GOOGLE_DRIVE_FOLDER_ID=kiosko-drive-folder-id:latest,TELEGRAM_BOT_TOKEN=kiosko-telegram-bot-token:latest,TELEGRAM_CHAT_ID=kiosko-telegram-chat-id:latest,SMTP_HOST=kiosko-smtp-host:latest,SMTP_PORT=kiosko-smtp-port:latest,SMTP_USER=kiosko-smtp-user:latest,SMTP_PASS=kiosko-smtp-pass:latest,CORREO_REMITENTE=kiosko-correo-remitente:latest,CORREO_DESTINO=kiosko-correo-destino:latest
+      # Env vars ESPECIFICAS DEL ENTORNO (NO salen del .env local, que apunta a prod distinto).
+      # GOOGLE_DRIVE_REDIRECT_URI usa la URL de prod (no localhost) y debe estar registrada
+      # como "Authorized redirect URI" en el cliente OAuth de Google Cloud.
+      - --set-env-vars=^@@^ENVIRONMENT=production@@CORS_ORIGINS=${_CORS_ORIGINS}@@CORS_ORIGIN_REGEX=https://minimarket-[a-z0-9-]+\.vercel\.app@@GOOGLE_DRIVE_REDIRECT_URI=https://kiosko-backend-ppns2pn4lq-wl.a.run.app/drive/callback
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$BUILD_ID
+
+substitutions:
+  _REGION: us-west2
+  # Solo origenes fijos que NO matchean el regex de Vercel (localhost para dev).
+  # Si algun dia hay dominio propio (ej. https://minimarket.com), va aqui separado por coma.
+  _CORS_ORIGINS: http://localhost:5173,http://localhost:5174
+
+options:
+  logging: CLOUD_LOGGING_ONLY

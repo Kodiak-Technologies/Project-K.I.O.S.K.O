@@ -4,6 +4,8 @@ Monorepo con backend (FastAPI, arquitectura hexagonal por módulo) y frontend (R
 
 Antes de tocar código, lee `docs/ARQUITECTURA.md` (explica cómo está organizado el proyecto y por qué) y `docs/CONVENCIONES.md` (ramas, commits, nombres).
 
+Para el frontend: `docs/FRONTEND_DISENO.md` (sistema de diseño, componentes compartidos y objetivo de cada vista) y `docs/FRONTEND_CONTRATOS_API.md` (endpoints que el frontend espera de los backends B, C y D). Para la base de datos en local: `docs/SCRIPTS_DEV.md` (seed y reset).
+
 ## Módulos y responsables
 
 | Módulo | Alcance | Responsable |
