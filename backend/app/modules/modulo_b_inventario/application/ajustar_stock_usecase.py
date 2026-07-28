@@ -69,7 +69,7 @@ class AjustarStockUseCase:
         motivo_limpio = (motivo or "").strip()
         if len(motivo_limpio) < self.MOTIVO_MIN:
             raise ValidacionError(
-                "Indicá el motivo del ajuste (mínimo 3 caracteres).",
+                "Indica el motivo del ajuste (mínimo 3 caracteres).",
                 code="MOTIVO_REQUERIDO",
             )
         if len(motivo_limpio) > self.MOTIVO_MAX:

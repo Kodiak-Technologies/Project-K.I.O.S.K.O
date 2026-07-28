@@ -4,7 +4,7 @@
 //   · "Nuevo producto" inserta una FILA VACÍA editable arriba de todo.
 //   · El lápiz de una fila existente la vuelve editable en el lugar.
 //   · En ambos casos el ícono pasa a ser un diskette; al guardarlo la fila
-//     pregunta "¿Seguro que querés hacer este cambio?" con ✓ / ✗ y recién
+//     pregunta "¿Seguro que quieres hacer este cambio?" con ✓ / ✗ y recién
 //     entonces se aplica.
 //
 // La consulta de solo lectura del catálogo vive en el punto de venta.
@@ -84,7 +84,7 @@ function validar(fila: FilaEditada): string | null {
   const precio = Number(fila.precio);
   const stock = Number(fila.stock);
   const stockMinimo = Number(fila.stock_minimo);
-  if (!fila.codigo.trim()) return "Escaneá o escribí un código.";
+  if (!fila.codigo.trim()) return "Escanea o escribe un código.";
   if (!fila.nombre.trim()) return "El nombre no puede quedar vacío.";
   if (!(precio > 0)) return "El precio de venta debe ser mayor a 0.";
   if (!Number.isInteger(stock) || stock < 0) return "El stock debe ser un entero no negativo.";
@@ -444,7 +444,7 @@ export default function Catalogo() {
           return (
             <div className="flex items-center justify-end gap-2">
               <span className="hidden text-xs text-zinc-600 sm:inline">
-                {esNueva(p) ? "¿Creamos este producto?" : "¿Seguro que querés hacer este cambio?"}
+                {esNueva(p) ? "¿Creamos este producto?" : "¿Seguro que quieres hacer este cambio?"}
               </span>
               <button
                 type="button"
@@ -533,7 +533,7 @@ export default function Catalogo() {
     <div>
       <PageHeader
         titulo="Catálogo"
-        descripcion="Se edita como una planilla: tocá el lápiz para modificar una fila."
+        descripcion="Se edita como una planilla: toca el lápiz para modificar una fila."
         acciones={
           <div className="flex flex-wrap gap-2">
             <Button

@@ -159,7 +159,7 @@ export default function IngresosMercaderia() {
         setBusquedaProducto("");
       } else if (coincidencias.length > 1) {
         mostrarAviso(
-          `Hay ${coincidencias.length} productos que coinciden con "${texto}". Escaneá el código o elegilo en la línea.`,
+          `Hay ${coincidencias.length} productos que coinciden con "${texto}". Escanea el código o elígelo en la línea.`,
           "alerta",
         );
       } else {
@@ -184,11 +184,11 @@ export default function IngresosMercaderia() {
   }
 
   function validar(): string | null {
-    if (!fotoUrl) return "Subí la foto de la boleta (obligatoria).";
-    if (lineas.length === 0) return "Agregá al menos una línea.";
+    if (!fotoUrl) return "Sube la foto de la boleta (obligatoria).";
+    if (lineas.length === 0) return "Agrega al menos una línea.";
     for (let i = 0; i < lineas.length; i++) {
       const l = lineas[i];
-      if (!l.producto_id) return `Línea ${i + 1}: elegí un producto.`;
+      if (!l.producto_id) return `Línea ${i + 1}: elige un producto.`;
       if (l.cantidad < 1) return `Línea ${i + 1}: la cantidad debe ser mayor a 0.`;
       if (l.precio_compra_unitario < 0) return `Línea ${i + 1}: el precio no puede ser negativo.`;
     }
@@ -302,7 +302,7 @@ export default function IngresosMercaderia() {
     <div>
       <PageHeader
         titulo="Ingresos de mercadería"
-        descripcion="Registrá lo que llega a tienda; el ADMIN lo aprueba y recién ahí suma al stock."
+        descripcion="Registra lo que llega a tienda; el ADMIN lo aprueba y recién ahí suma al stock."
         acciones={
           <Button
             icono={mostrarFormulario ? undefined : <Plus className="h-4 w-4" aria-hidden />}
@@ -315,7 +315,7 @@ export default function IngresosMercaderia() {
       />
 
       {mostrarFormulario && (
-        <Card titulo="Registrar ingreso" className="mb-4" descripcion="Subí la foto de la boleta y una o más líneas con productos y costos.">
+        <Card titulo="Registrar ingreso" className="mb-4" descripcion="Sube la foto de la boleta y una o más líneas con productos y costos.">
           <div className="space-y-4">
             <SubirImagen
               carpeta="boletas"

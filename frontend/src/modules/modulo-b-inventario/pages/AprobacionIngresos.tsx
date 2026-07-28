@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   EmptyState,
+  ImagenConRespaldo,
   Input,
   ModuloPendiente,
   PageHeader,
@@ -19,7 +20,7 @@ import {
   type Columna,
 } from "../../../shared/components/ui";
 import { useAuth } from "../../modulo-a-seguridad/hooks/useAuth";
-import { codigoDeError, mensajeDeError, normalizarImagenUrl } from "../../../shared/lib/http-client";
+import { codigoDeError, mensajeDeError, urlParaAbrir } from "../../../shared/lib/http-client";
 import { FormularioIngresoEditable } from "../components/FormularioIngresoEditable";
 import { IngresoDetalleContent } from "../components/IngresoDetalleContent";
 import { ModalConfirmacion } from "../components/ModalConfirmacion";
@@ -176,11 +177,16 @@ export default function AprobacionIngresos() {
       ancho: "90px",
       render: (i) =>
         i.foto_boleta_url ? (
-          <a href={normalizarImagenUrl(i.foto_boleta_url)} target="_blank" rel="noopener noreferrer" className="block">
-            <img
-              src={normalizarImagenUrl(i.foto_boleta_url)}
+          <a href={urlParaAbrir(i.foto_boleta_url)} target="_blank" rel="noopener noreferrer" className="block">
+            <ImagenConRespaldo
+              src={i.foto_boleta_url}
               alt="Boleta"
               className="h-10 w-10 rounded border border-zinc-200 object-cover hover:opacity-80"
+              respaldo={
+                <span className="flex h-10 w-10 items-center justify-center rounded border border-dashed border-zinc-300 text-zinc-300">
+                  <ImageOff className="h-4 w-4" aria-hidden />
+                </span>
+              }
             />
           </a>
         ) : (
@@ -351,24 +357,22 @@ export default function AprobacionIngresos() {
                 <h4 className="mb-2 text-sm font-semibold text-zinc-800">Boleta</h4>
                 {detalle.foto_boleta_url ? (
                   <a
-                    href={normalizarImagenUrl(detalle.foto_boleta_url)}
+                    href={urlParaAbrir(detalle.foto_boleta_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     title="Abrir la boleta en tamaño completo"
                     className="block rounded-lg border border-zinc-200 bg-zinc-50 p-2"
                   >
-                    <img
-                      src={normalizarImagenUrl(detalle.foto_boleta_url)}
+                    <ImagenConRespaldo
+                      src={detalle.foto_boleta_url}
                       alt={`Boleta de la solicitud #${detalle.id}`}
                       className="max-h-[28rem] w-full rounded object-contain"
-                      onError={(e) => {
-                        const img = e.currentTarget;
-                        const match = detalle.foto_boleta_url?.match(/[?&]id=([a-zA-Z0-9_-]+)/) || detalle.foto_boleta_url?.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                        if (match && !img.dataset.fallback) {
-                          img.dataset.fallback = "true";
-                          img.src = `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
-                        }
-                      }}
+                      respaldo={
+                        <span className="flex items-center gap-2 px-3 py-6 text-sm text-zinc-500">
+                          <ImageOff className="h-4 w-4" aria-hidden />
+                          No se pudo cargar la boleta. Ábrela en una pestaña nueva para verla.
+                        </span>
+                      }
                     />
                   </a>
                 ) : (

@@ -693,22 +693,13 @@ class MovimientosPaginadosResponse(BaseModel):
 # =============================================================================
 
 
-class RefirmarRequest(BaseModel):
-    """Regenera la URL de un archivo ya subido (boleta vieja, HU-B07)."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    carpeta: str = Field(pattern="^(boletas|productos)$")
-    path: Annotated[str, Field(min_length=1, max_length=500)]
-
-
 class StorageUploadResponse(BaseModel):
     url: str
+    #: `file_id` de Drive.
     path: str
     filename: str
     mime: str
     size_bytes: int
-    expires_at: datetime | None = None
 
 
 # =============================================================================

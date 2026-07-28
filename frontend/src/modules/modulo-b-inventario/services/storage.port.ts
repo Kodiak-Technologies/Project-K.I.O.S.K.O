@@ -1,4 +1,4 @@
-// Puerto: interfaz de subida de archivos a Supabase Storage.
+// Puerto: interfaz de subida de la foto de boleta (va a Google Drive).
 // Fuente de verdad: backend/app/modules/modulo_b_inventario/infrastructure/http/storage_router.py
 import type { StorageResult } from "../types";
 
