@@ -157,14 +157,23 @@ export default function AprobacionIngresos() {
   const columnas: Columna<SolicitudIngreso>[] = [
     {
       titulo: "Fecha",
-      render: (i) => (
-        <span className="whitespace-nowrap text-zinc-500">
-          {i.created_at ? new Date(i.created_at).toLocaleString("es-PE") : "—"}
-        </span>
-      ),
+      ancho: "135px",
+      render: (i) => {
+        if (!i.created_at) return <span className="text-zinc-400">—</span>;
+        const d = new Date(i.created_at);
+        const fecha = d.toLocaleDateString("es-PE");
+        const hora = d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        return (
+          <div className="flex flex-col text-xs text-zinc-600">
+            <span className="font-medium text-zinc-800">{fecha}</span>
+            <span className="text-[11px] text-zinc-400">{hora}</span>
+          </div>
+        );
+      },
     },
     {
       titulo: "Foto boleta",
+      ancho: "90px",
       render: (i) =>
         i.foto_boleta_url ? (
           <a href={normalizarImagenUrl(i.foto_boleta_url)} target="_blank" rel="noopener noreferrer" className="block">
@@ -180,8 +189,9 @@ export default function AprobacionIngresos() {
     },
     {
       titulo: "Productos",
+      ancho: "135px",
       render: (i) => (
-        <div>
+        <div className="whitespace-nowrap">
           <span className="font-medium text-zinc-800">
             {i.cantidad_productos ?? i.lineas.length} unidades
           </span>
@@ -191,15 +201,16 @@ export default function AprobacionIngresos() {
     },
     {
       titulo: "Solicitado por",
+      ancho: "160px",
       soloEscritorio: true,
       render: (i) => i.solicitado_por_nombre,
     },
     {
       titulo: "Acciones",
-      alinear: "derecha",
-      ancho: "220px",
+      alinear: "centro",
+      ancho: "140px",
       render: (i) => (
-        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+        <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
           <Button
             compacto
             variante="secundario"
@@ -211,14 +222,18 @@ export default function AprobacionIngresos() {
           <Button
             compacto
             onClick={() => setParaAprobar(i)}
+            title="Aprobar"
+            aria-label={`Aprobar solicitud ${i.id}`}
             icono={<Check className="h-4 w-4" aria-hidden />}
           >
-            Aprobar
+            <span className="hidden sm:inline">Aprobar</span>
           </Button>
           <Button
             compacto
             variante="secundario"
             className="text-peligro"
+            title="Rechazar"
+            aria-label={`Rechazar solicitud ${i.id}`}
             onClick={() => {
               setParaRechazar(i);
               setMotivo("");
@@ -226,7 +241,7 @@ export default function AprobacionIngresos() {
             }}
             icono={<X className="h-4 w-4" aria-hidden />}
           >
-            Rechazar
+            <span className="hidden sm:inline">Rechazar</span>
           </Button>
         </div>
       ),
@@ -254,6 +269,7 @@ export default function AprobacionIngresos() {
       {/* La cola sigue siendo una tabla de filas, a todo el ancho. */}
       <Card sinPadding>
         <Table
+          minAncho="480px"
           columnas={columnas}
           filas={ingresos}
           claveDe={(i) => i.id}

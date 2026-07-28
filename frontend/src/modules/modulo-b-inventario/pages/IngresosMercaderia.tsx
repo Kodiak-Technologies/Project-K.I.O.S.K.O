@@ -240,18 +240,25 @@ export default function IngresosMercaderia() {
   const columnas: Columna<SolicitudIngreso>[] = [
     {
       titulo: "Fecha",
-      ancho: "20%",
-      render: (i) => (
-        <span className="whitespace-nowrap text-zinc-500">
-          {i.created_at ? new Date(i.created_at).toLocaleString("es-PE") : "—"}
-        </span>
-      ),
+      ancho: "135px",
+      render: (i) => {
+        if (!i.created_at) return <span className="text-zinc-400">—</span>;
+        const d = new Date(i.created_at);
+        const fecha = d.toLocaleDateString("es-PE");
+        const hora = d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        return (
+          <div className="flex flex-col text-xs text-zinc-600">
+            <span className="font-medium text-zinc-800">{fecha}</span>
+            <span className="text-[11px] text-zinc-400">{hora}</span>
+          </div>
+        );
+      },
     },
     {
       titulo: "Productos",
-      ancho: "18%",
+      ancho: "135px",
       render: (i) => (
-        <div>
+        <div className="whitespace-nowrap">
           <span className="font-medium text-zinc-800">
             {i.cantidad_productos ?? i.lineas.length} unidades
           </span>
@@ -261,7 +268,7 @@ export default function IngresosMercaderia() {
     },
     {
       titulo: "Monto",
-      ancho: "14%",
+      ancho: "100px",
       soloEscritorio: true,
       render: (i) => (
         <span className="tabular-nums font-medium">
@@ -271,20 +278,20 @@ export default function IngresosMercaderia() {
     },
     {
       titulo: "Solicitado por",
-      ancho: "26%",
+      ancho: "160px",
       soloEscritorio: true,
       render: (i) => <span className="block truncate font-medium text-zinc-800" title={i.solicitado_por_nombre}>{i.solicitado_por_nombre}</span>,
     },
     {
       titulo: "Estado",
-      ancho: "22%",
+      ancho: "130px",
       render: (i) => {
         const estado = String(i.estado);
         const tono = TONO_ESTADO[estado] ?? "neutro";
         return (
           <div>
             <Badge tono={tono}>{estado}</Badge>
-            {i.motivo_rechazo && <p className="mt-1 text-xs text-zinc-500">{i.motivo_rechazo}</p>}
+            {i.motivo_rechazo && <p className="mt-1 text-xs text-zinc-500 line-clamp-2">{i.motivo_rechazo}</p>}
           </div>
         );
       },
@@ -415,7 +422,7 @@ export default function IngresosMercaderia() {
       {!cargando && !error && (
         <Card sinPadding>
           <Table
-            minAncho="100%"
+            minAncho="520px"
             columnas={columnas}
             filas={ingresos}
             claveDe={(i) => i.id}

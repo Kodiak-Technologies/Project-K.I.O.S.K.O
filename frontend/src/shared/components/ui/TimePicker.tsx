@@ -24,6 +24,8 @@ export function TimePicker({
   className = "",
 }: TimePickerProps) {
   const [abierto, setAbierto] = useState(false);
+  const [posicionEfectiva, setPosicionEfectiva] = useState<"abajo" | "arriba">("abajo");
+  const [estiloPopover, setEstiloPopover] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [horaSel, setHoraSel] = useState(() => (value ? value.split(":")[0] : "08"));
@@ -46,6 +48,60 @@ export function TimePicker({
     document.addEventListener("mousedown", alHacerClicFuera);
     return () => document.removeEventListener("mousedown", alHacerClicFuera);
   }, []);
+
+  function recalcularPosicion() {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const espacioAbajo = window.innerHeight - rect.bottom;
+    const topBarAlto = 64; // Altura de la barra superior (TopBar)
+    const espacioArribaReal = rect.top - topBarAlto;
+
+    if (espacioAbajo < 260 && espacioArribaReal >= 260) {
+      setPosicionEfectiva("arriba");
+    } else {
+      setPosicionEfectiva("abajo");
+    }
+
+    const anchoPop = 240; // w-60 = 240px
+    const viewportAncho = window.innerWidth;
+    const paddingPantalla = 12;
+
+    const nuevoEstilo: React.CSSProperties = {};
+
+    const rightEsperado = rect.left + anchoPop;
+    if (rightEsperado > viewportAncho - paddingPantalla) {
+      const overflow = rightEsperado - (viewportAncho - paddingPantalla);
+      nuevoEstilo.left = `-${overflow}px`;
+    } else if (rect.left < paddingPantalla) {
+      const offset = paddingPantalla - rect.left;
+      nuevoEstilo.left = `${offset}px`;
+    } else {
+      nuevoEstilo.left = "0px";
+    }
+
+    setEstiloPopover(nuevoEstilo);
+  }
+
+  useEffect(() => {
+    if (abierto) {
+      recalcularPosicion();
+      const manejarResize = () => recalcularPosicion();
+      window.addEventListener("resize", manejarResize);
+      window.addEventListener("scroll", manejarResize, true);
+      return () => {
+        window.removeEventListener("resize", manejarResize);
+        window.removeEventListener("scroll", manejarResize, true);
+      };
+    }
+  }, [abierto]);
+
+  function alternarAbierto() {
+    if (disabled) return;
+    if (!abierto) {
+      recalcularPosicion();
+    }
+    setAbierto(!abierto);
+  }
 
   function seleccionar(h: string, m: string) {
     setHoraSel(h);
@@ -76,7 +132,7 @@ export function TimePicker({
       )}
 
       <div
-        onClick={() => !disabled && setAbierto(!abierto)}
+        onClick={alternarAbierto}
         className={`flex min-h-tactil w-full cursor-pointer items-center justify-between gap-1 rounded-lg border bg-white px-2.5 py-2 text-xs sm:text-sm shadow-sm transition-colors ${
           disabled
             ? "cursor-not-allowed bg-zinc-100 text-zinc-400"
@@ -105,7 +161,12 @@ export function TimePicker({
       </div>
 
       {abierto && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 w-60 rounded-xl border border-zinc-200 bg-white p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-100">
+        <div
+          style={estiloPopover}
+          className={`animate-in fade-in zoom-in-95 absolute z-[9999] w-60 max-w-[calc(100vw-24px)] rounded-xl border border-zinc-200 bg-white p-3 shadow-2xl duration-100 ${
+            posicionEfectiva === "arriba" ? "bottom-full mb-1.5" : "top-full mt-1.5"
+          }`}
+        >
           <div className="flex gap-2">
             <div className="flex-1">
               <span className="mb-1 block text-center text-xs font-semibold text-zinc-500">Hora</span>

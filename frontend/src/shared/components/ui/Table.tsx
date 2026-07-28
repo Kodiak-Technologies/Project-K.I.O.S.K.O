@@ -59,20 +59,12 @@ export function Table<T>({
         style={{ minWidth: minAncho }}
         className="w-full table-fixed border-collapse text-sm"
       >
-        <colgroup>
-          {columnas.map((c) => (
-            <col
-              key={c.titulo}
-              style={c.ancho ? { width: c.ancho } : undefined}
-              className={c.soloEscritorio ? "hidden lg:table-column" : ""}
-            />
-          ))}
-        </colgroup>
         <thead className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 shadow-sm">
           <tr className="text-left text-[11px] uppercase text-zinc-500">
             {columnas.map((c) => (
               <th
                 key={c.titulo}
+                style={c.ancho ? { width: c.ancho } : undefined}
                 className={`bg-zinc-50 px-2 py-2.5 font-medium sm:px-3 ${
                   c.soloEscritorio ? "hidden lg:table-cell" : ""
                 } ${c.alinear === "derecha" ? "text-right" : c.alinear === "centro" ? "text-center" : "text-left"}`}

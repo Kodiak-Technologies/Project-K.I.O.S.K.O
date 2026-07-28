@@ -269,38 +269,41 @@ export default function HistorialVentas() {
       <PageHeader titulo="Historial de ventas" descripcion="Todas las ventas registradas en el POS." />
 
       <Card className="mb-4">
-        <div className="flex flex-wrap items-end gap-2">
-          <span className="mb-2 mr-1 hidden text-sm font-medium text-zinc-500 sm:inline">Rango:</span>
-          <div className="w-36">
-            <DatePicker label="Desde" mostrarAnio valor={desde} alCambiar={(f) => setDesde(f)} />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="grid flex-1 grid-cols-2 gap-3 sm:flex sm:flex-initial sm:items-end">
+            <div className="w-full sm:w-36">
+              <DatePicker label="Desde" mostrarAnio valor={desde} alCambiar={(f) => setDesde(f)} />
+            </div>
+            <div className="w-full sm:w-36">
+              <DatePicker label="Hasta" mostrarAnio valor={hasta} alCambiar={(f) => setHasta(f)} />
+            </div>
           </div>
-          <div className="w-36">
-            <DatePicker label="Hasta" mostrarAnio valor={hasta} alCambiar={(f) => setHasta(f)} />
-          </div>
-          <Button
-            variante="secundario"
-            compacto
-            onClick={() => {
-              setPage(1);
-              setRango({ desde: desde || undefined, hasta: hasta || undefined });
-            }}
-          >
-            Filtrar
-          </Button>
-          {(desde || hasta || rango.desde || rango.hasta) && (
+          <div className="flex items-center gap-2">
             <Button
-              variante="fantasma"
-              compacto
+              variante="secundario"
+              className="flex-1 sm:flex-initial"
               onClick={() => {
-                setDesde("");
-                setHasta("");
                 setPage(1);
-                setRango({});
+                setRango({ desde: desde || undefined, hasta: hasta || undefined });
               }}
             >
-              Limpiar
+              Filtrar
             </Button>
-          )}
+            {(desde || hasta || rango.desde || rango.hasta) && (
+              <Button
+                variante="fantasma"
+                className="flex-1 sm:flex-initial text-peligro"
+                onClick={() => {
+                  setDesde("");
+                  setHasta("");
+                  setPage(1);
+                  setRango({});
+                }}
+              >
+                Limpiar
+              </Button>
+            )}
+          </div>
         </div>
       </Card>
 

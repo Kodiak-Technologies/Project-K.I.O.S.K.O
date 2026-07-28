@@ -56,9 +56,12 @@ async def exportar_reporte(
     venta_data=Depends(get_venta_data_provider),
     config_data=Depends(get_configuracion_provider),
     egresos_data=Depends(get_egresos_data_provider),
+    metodo_pago_data=Depends(get_metodo_pago_provider),
     reporte_generator=Depends(get_reporte_generator),
 ):
-    use_case = ExportarReporteExcelUseCase(reporte_generator, venta_data, config_data, egresos_data)
+    use_case = ExportarReporteExcelUseCase(
+        reporte_generator, venta_data, config_data, egresos_data, metodo_pago_data
+    )
     excel_bytes = await use_case.ejecutar(desde, hasta, tipo)
 
     filename = f"reporte_{tipo}_{desde}_{hasta}.xlsx"

@@ -405,32 +405,33 @@ export default function PuntoDeVenta() {
   const columnasCatalogo: Columna<Producto>[] = [
     {
       titulo: "Código",
-      ancho: "135px",
+      ancho: "110px",
       render: (p) => <span className="font-mono text-xs text-zinc-500 truncate block">{p.codigo}</span>,
     },
     {
       titulo: "Producto",
-      render: (p) => <span className="font-medium text-zinc-800 leading-snug">{p.nombre}</span>,
+      ancho: "170px",
+      render: (p) => <span className="font-medium text-zinc-800 leading-snug line-clamp-2">{p.nombre}</span>,
     },
     {
       titulo: "Categoría",
-      ancho: "140px",
+      ancho: "120px",
       soloEscritorio: true,
-      render: (p) => <span className="text-zinc-600">{p.categoria_nombre ?? "—"}</span>,
+      render: (p) => <span className="text-zinc-600 truncate block">{p.categoria_nombre ?? "—"}</span>,
     },
     {
       titulo: "Precio",
-      ancho: "95px",
-      render: (p) => <span className="tabular-nums font-medium">S/ {p.precio.toFixed(2)}</span>,
+      ancho: "85px",
+      render: (p) => <span className="tabular-nums font-medium whitespace-nowrap">S/ {p.precio.toFixed(2)}</span>,
     },
     {
       titulo: "Stock",
-      ancho: "75px",
-      render: (p) => <span className="tabular-nums font-medium">{p.stock}</span>,
+      ancho: "60px",
+      render: (p) => <span className="tabular-nums font-medium text-center block">{p.stock}</span>,
     },
     {
       titulo: "Estado",
-      ancho: "115px",
+      ancho: "105px",
       render: (p) => badgeDeStock(p),
     },
   ];
@@ -614,7 +615,7 @@ export default function PuntoDeVenta() {
             cuerpoClassName="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
           >
             <Table
-              minAncho="100%"
+              minAncho="530px"
               altoDelContenedor
               // En móvil las columnas se apilan y el carrito queda debajo: sin
               // tope, el catálogo se despliega entero y hay que scrollear media
