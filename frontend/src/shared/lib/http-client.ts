@@ -75,13 +75,24 @@ export function servicioNoDisponible(error: unknown): boolean {
   return axios.isAxiosError(error) && (!error.response || [404, 501, 503].includes(error.response.status));
 }
 
-/** Extrae el mensaje de error legible que envía el backend (campo `detail`). */
+const MENSAJE_GENERICO = "No pudimos completar la operación. Intenta de nuevo en unos segundos.";
+const MENSAJE_SIN_CONEXION =
+  "No hay conexión con el sistema. Revisa el internet y vuelve a intentar.";
+
+/**
+ * Mensaje listo para mostrarle a la usuaria. Solo confiamos en el `detail` que
+ * manda el backend cuando es un error "de negocio" (4xx: stock insuficiente,
+ * datos inválidos…). Los 5xx y las caídas de red traen textos de diagnóstico
+ * que no le sirven a nadie detrás del mostrador: se reemplazan por uno claro.
+ */
 export function mensajeDeError(error: unknown): string {
   if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    if (!status) return MENSAJE_SIN_CONEXION;
     const detail = (error.response?.data as { detail?: unknown })?.detail;
-    if (typeof detail === "string") return detail;
+    if (status < 500 && typeof detail === "string" && detail.trim()) return detail;
   }
-  return "Ocurrió un error inesperado. Intenta de nuevo.";
+  return MENSAJE_GENERICO;
 }
 
 /**

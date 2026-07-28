@@ -56,7 +56,7 @@ export default function Reportes() {
       <div>
         <PageHeader titulo="Reportes" />
         <Card sinPadding>
-          <ModuloPendiente modulo="documentos (Módulo D)" />
+          <ModuloPendiente modulo="documentos" />
         </Card>
       </div>
     );

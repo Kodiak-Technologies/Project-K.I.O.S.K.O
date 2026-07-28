@@ -17,6 +17,7 @@ import {
 } from "../../../shared/components/ui";
 import { useNotificaciones } from "../hooks/useNotificaciones";
 import { useAuthContext } from "../../../shared/lib/auth-context";
+import { useAltoDisponible } from "../../../shared/lib/use-alto-disponible";
 import { notificacionesHttpAdapter } from "../services/notificaciones.http-adapter";
 import type { Notificacion, TipoNotificacion } from "../types";
 
@@ -53,6 +54,8 @@ export default function Notificaciones() {
     ? notificaciones
     : notificaciones.filter((n) => n.tipo === filtroTipo);
 
+  const { ref: listaRef, altoMaximo: altoLista } = useAltoDisponible<HTMLUListElement>(200);
+
   const marcarTodasLeidas = async () => {
     await notificacionesHttpAdapter.marcarTodasLeidas();
     window.location.reload();
@@ -63,7 +66,7 @@ export default function Notificaciones() {
       <div>
         <PageHeader titulo="Notificaciones" />
         <Card sinPadding>
-          <ModuloPendiente modulo="documentos (Módulo D)" />
+          <ModuloPendiente modulo="documentos" />
         </Card>
       </div>
     );
@@ -132,7 +135,14 @@ export default function Notificaciones() {
           <EmptyState icono={BellOff} titulo="Sin notificaciones" descripcion="Todo tranquilo por ahora." />
         </Card>
       ) : (
-        <ul className="space-y-2.5">
+        // A diferencia del resto de los listados, este no es una <Table>: sin
+        // límite propio estiraba la página y aparecía la barra vertical de la
+        // pantalla además de la del listado.
+        <ul
+          ref={listaRef}
+          style={{ maxHeight: altoLista }}
+          className="space-y-2.5 overflow-y-auto px-0.5 py-0.5 [scrollbar-gutter:stable]"
+        >
           {notificacionesFiltradas.map((n) => (
             <li key={n.id}>
               <div

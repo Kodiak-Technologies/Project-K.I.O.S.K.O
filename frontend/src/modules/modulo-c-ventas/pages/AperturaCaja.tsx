@@ -148,7 +148,7 @@ export default function AperturaCaja() {
       <div>
         <PageHeader titulo="Caja" />
         <Card sinPadding>
-          <ModuloPendiente modulo="ventas (Módulo C)" />
+          <ModuloPendiente modulo="ventas" />
         </Card>
       </div>
     );

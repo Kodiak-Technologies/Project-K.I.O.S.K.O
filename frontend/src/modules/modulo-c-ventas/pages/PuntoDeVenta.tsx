@@ -119,13 +119,13 @@ export default function PuntoDeVenta() {
         setPendientes(colaOffline.listar().length);
         if (sincronizadas.length > 0) {
           setAvisoSync(
-            `Volvió la conexión: ${sincronizadas.length} venta(s) offline sincronizada(s) correctamente.`
+            `Volvió la conexión: se enviaron ${sincronizadas.length} venta(s) que habían quedado guardadas en este equipo.`
           );
           void recargarProductos();
         }
         if (conError.length > 0) {
           setAvisoSync(
-            `Atención: ${conError.length} venta(s) offline fueron rechazadas por el servidor ` +
+            `Atención: ${conError.length} venta(s) guardada(s) en este equipo no se pudieron registrar ` +
               `(${conError[0].error ?? ""}). Revísalas con la administradora.`
           );
         }
@@ -394,7 +394,7 @@ export default function PuntoDeVenta() {
       <div>
         <PageHeader titulo="Punto de venta" />
         <Card sinPadding>
-          <ModuloPendiente modulo="ventas (Módulo C)" />
+          <ModuloPendiente modulo="ventas" />
         </Card>
       </div>
     );
@@ -436,7 +436,10 @@ export default function PuntoDeVenta() {
   ];
 
   return (
-    <div>
+    // En escritorio la pantalla se reparte el alto disponible: la grilla se
+    // queda con lo que sobra y cada columna scrollea por dentro (catálogo y
+    // carrito). En móvil se apila y scrollea la página, como corresponde.
+    <div className="lg:flex lg:h-full lg:min-h-0 lg:flex-col">
       <PageHeader
         titulo="Punto de venta"
         acciones={
@@ -453,7 +456,7 @@ export default function PuntoDeVenta() {
             )}
             {pendientes > 0 && (
               <Badge tono="alerta">
-                <CloudUpload className="h-3.5 w-3.5" aria-hidden /> {pendientes} por sincronizar
+                <CloudUpload className="h-3.5 w-3.5" aria-hidden /> {pendientes} venta(s) por enviar
               </Badge>
             )}
             {turno?.estado === "ABIERTO" ? (
@@ -476,9 +479,14 @@ export default function PuntoDeVenta() {
         </div>
       )}
 
-      <div className="grid w-full min-w-0 gap-4 lg:grid-cols-[1fr_20rem]">
+      {/* `grid-rows-[minmax(0,1fr)]` no es decorativo: sin él la fila es `auto`,
+          o sea del alto de su contenido, y como las grillas no recortan, el
+          catálogo y el carrito se desbordaban de la grilla y estiraban la
+          página igual. Además dejaba sin resolver el `max-h-full` del carrito,
+          porque un porcentaje contra un alto automático no significa nada. */}
+      <div className="grid w-full min-w-0 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_20rem] lg:grid-rows-[minmax(0,1fr)]">
         {/* Productos: botones grandes para tocar */}
-        <div className="w-full min-w-0">
+        <div className="w-full min-w-0 lg:flex lg:min-h-0 lg:flex-col">
           <div className="relative mb-3">
             <ScanBarcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden />
             <Input
@@ -600,14 +608,22 @@ export default function PuntoDeVenta() {
           </div>
 
           {/* Catálogo en tabla (solo lectura). Un clic en la fila lo agrega a la venta. */}
-          <Card sinPadding>
+          <Card
+            sinPadding
+            className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
+            cuerpoClassName="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
+          >
             <Table
               minAncho="100%"
+              altoDelContenedor
+              // En móvil las columnas se apilan y el carrito queda debajo: sin
+              // tope, el catálogo se despliega entero y hay que scrollear media
+              // pantalla para llegar a Cobrar. De lg en adelante manda el flex.
+              contenedorClassName="max-h-[50vh] lg:max-h-none lg:min-h-0 lg:flex-1"
               columnas={columnasCatalogo}
               filas={visibles}
               claveDe={(p) => p.id}
               alHacerClicFila={(p) => agregarSiHayStock(p)}
-              contenedorClassName="max-h-[calc(100vh-25rem)] lg:max-h-[calc(100vh-24rem)]"
               vacio={
                 <EmptyState
                   icono={Package}
@@ -633,12 +649,21 @@ export default function PuntoDeVenta() {
         </div>
 
         {/* Carrito */}
-        <Card titulo="Venta actual" sinPadding className="h-fit lg:sticky lg:top-16">
+        <Card
+          titulo="Venta actual"
+          sinPadding
+          className="h-fit lg:flex lg:max-h-full lg:flex-col"
+          cuerpoClassName="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
+        >
           {carrito.length === 0 ? (
             <EmptyState icono={ShoppingCart} titulo="Carrito vacío" descripcion="Toca un producto para agregarlo." />
           ) : (
-            <div>
-              <ul className="divide-y divide-zinc-100 px-4">
+            <div className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+              {/* La lista se queda con el alto que sobra y scrollea sola: si
+                  creciera libre estiraría la página y volvería a aparecer la
+                  barra vertical de la pantalla. El total y los botones de abajo
+                  quedan siempre a la vista. */}
+              <ul className="max-h-[45vh] divide-y divide-zinc-100 overflow-y-auto px-4 lg:max-h-none lg:min-h-0 lg:flex-1">
                 {carrito.map((item) => (
                   <li key={item.producto_id} className="flex items-center gap-2 py-2.5">
                     <div className="min-w-0 flex-1">
@@ -681,7 +706,7 @@ export default function PuntoDeVenta() {
                   </li>
                 ))}
               </ul>
-              <div className="space-y-3 border-t border-zinc-100 p-4">
+              <div className="shrink-0 space-y-3 border-t border-zinc-100 p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-zinc-500">Total</span>
                   <span className="text-2xl font-semibold tabular-nums text-zinc-900">

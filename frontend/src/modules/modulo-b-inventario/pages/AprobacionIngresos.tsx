@@ -146,7 +146,7 @@ export default function AprobacionIngresos() {
       <div>
         <PageHeader titulo="Aprobación de ingresos" />
         <Card sinPadding>
-          <ModuloPendiente modulo="inventario (Módulo B)" />
+          <ModuloPendiente modulo="inventario" />
         </Card>
       </div>
     );

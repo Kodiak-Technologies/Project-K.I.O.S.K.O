@@ -13,7 +13,7 @@ export function AcercaDelSistema() {
         onClick={() => setAbierto(true)}
         title="Acerca del sistema"
         aria-label="Acerca del sistema"
-        className="fixed bottom-3 right-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white shadow-md transition-all hover:bg-zinc-50 hover:shadow-lg focus:outline-none"
+        className="fixed bottom-3 right-3 z-30 flex h-11 w-11 items-center justify-center sm:h-9 sm:w-9 rounded-full border border-zinc-200 bg-white shadow-md transition-all hover:bg-zinc-50 hover:shadow-lg focus:outline-none"
       >
         <AlertCircle style={{ color: "var(--color-secundario)" }} className="h-4 w-4 shrink-0" aria-hidden />
       </button>

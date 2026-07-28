@@ -74,7 +74,7 @@ export default function MovimientosInventario() {
       <div>
         <PageHeader titulo="Movimientos de inventario" />
         <Card sinPadding>
-          <ModuloPendiente modulo="inventario (Módulo B)" />
+          <ModuloPendiente modulo="inventario" />
         </Card>
       </div>
     );

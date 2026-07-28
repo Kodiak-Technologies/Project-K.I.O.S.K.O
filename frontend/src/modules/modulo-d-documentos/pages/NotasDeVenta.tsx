@@ -116,7 +116,7 @@ export default function NotasDeVenta() {
       <div>
         <PageHeader titulo="Notas de Venta" />
         <Card sinPadding>
-          <ModuloPendiente modulo="documentos (Módulo D)" />
+          <ModuloPendiente modulo="documentos" />
         </Card>
       </div>
     );
