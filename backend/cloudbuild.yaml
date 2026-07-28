@@ -1,18 +1,26 @@
 # Build + deploy del backend a Cloud Run con Cloud Build.
-# Uso:  gcloud builds submit --config cloudbuild.yaml .
-# Requiere: Artifact Registry repo "kiosko" creado y los secretos en Secret Manager.
+# Uso:  gcloud builds submit --config=cloudbuild.yaml .
+# Requiere: repo Artifact Registry "kiosko" y secretos en Secret Manager (ver DEPLOY.md).
+#
+# Notas importantes:
+# - Se etiqueta con $BUILD_ID (siempre presente en submit manual y en triggers).
+#   NO usar $SHORT_SHA: viene VACIO en `gcloud builds submit` -> tag invalido -> docker exit 125.
+# - BD: Supabase por conexion directa (asyncpg). NO usa Cloud SQL, por eso NO lleva
+#   --add-cloudsql-instances ni _SQL_INSTANCE.
+# - CORS_ORIGINS puede llevar varios origenes separados por coma; por eso se usa el
+#   delimitador ^@@^ en --set-env-vars (si no, gcloud parte el valor por la coma).
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - build
       - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$SHORT_SHA
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$BUILD_ID
       - .
 
   - name: gcr.io/cloud-builders/docker
     args:
       - push
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$SHORT_SHA
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$BUILD_ID
 
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
@@ -20,18 +28,25 @@ steps:
       - run
       - deploy
       - kiosko-backend
-      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$SHORT_SHA
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$BUILD_ID
       - --region=${_REGION}
       - --allow-unauthenticated
-      # Conexión a Cloud SQL por socket Unix (sin exponer IP pública de la BD):
-      - --add-cloudsql-instances=$PROJECT_ID:${_REGION}:${_SQL_INSTANCE}
-      - --set-secrets=DATABASE_URL=kiosko-database-url:latest,SECRET_KEY=kiosko-secret-key:latest
-      - --set-env-vars=ENVIRONMENT=production,CORS_ORIGINS=${_CORS_ORIGINS}
+      # Secretos (Secret Manager). Modulo D: solo van aqui los valores SENSIBLES
+      # (client secret de Drive, token del bot de Telegram, password SMTP).
+      - --set-secrets=DATABASE_URL=kiosko-database-url:latest,SECRET_KEY=kiosko-secret-key:latest,GOOGLE_DRIVE_CLIENT_SECRET=kiosko-drive-client-secret:latest,TELEGRAM_BOT_TOKEN=kiosko-telegram-bot-token:latest,SMTP_PASS=kiosko-smtp-pass:latest
+      # Env vars NO secretas (config de Modulo D: client id publico, ids, correos, SMTP host/port).
+      # GOOGLE_DRIVE_REDIRECT_URI usa la URL de prod (no localhost) y debe estar registrada
+      # como "Authorized redirect URI" en el cliente OAuth de Google Cloud.
+      - --set-env-vars=^@@^ENVIRONMENT=production@@CORS_ORIGINS=${_CORS_ORIGINS}@@CORS_ORIGIN_REGEX=https://minimarket-[a-z0-9-]+\.vercel\.app@@GOOGLE_DRIVE_CLIENT_ID=160193075289-tvdpboptvipvegnb60dfvpd67v7prp3k.apps.googleusercontent.com@@GOOGLE_DRIVE_REDIRECT_URI=https://kiosko-backend-ppns2pn4lq-wl.a.run.app/drive/callback@@GOOGLE_DRIVE_FOLDER_ID=1WUpZOja9paDrjXe6ZA8bMtEwhcFSe0CD@@TELEGRAM_CHAT_ID=6883937138@@SMTP_HOST=smtp.gmail.com@@SMTP_PORT=587@@SMTP_USER=fabrix336@gmail.com@@CORREO_REMITENTE=fabrix336@gmail.com@@CORREO_DESTINO=fabrix336@gmail.com
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/kiosko/backend:$BUILD_ID
 
 substitutions:
-  _REGION: us-central1
-  _SQL_INSTANCE: kiosko-db
-  _CORS_ORIGINS: https://TU-PROYECTO.vercel.app
+  _REGION: us-west2
+  # Solo origenes fijos que NO matchean el regex de Vercel (localhost para dev).
+  # Si algun dia hay dominio propio (ej. https://minimarket.com), va aqui separado por coma.
+  _CORS_ORIGINS: http://localhost:5173,http://localhost:5174
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -46,8 +46,8 @@ CARPETA_DRIVE_INGRESOS = "boletas/ingresos"
 
 
 def url_publica(file_id: str) -> str:
-    """URL que un `<img>` puede cargar directamente."""
-    return f"https://drive.google.com/uc?export=view&id={file_id}"
+    """URL que un `<img>` puede cargar directamente en el navegador sin bloqueos CORP."""
+    return f"https://lh3.googleusercontent.com/d/{file_id}"
 
 
 class DriveStorageAdapter(StoragePort):

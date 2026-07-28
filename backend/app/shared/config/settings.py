@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # Orígenes permitidos para CORS (dominio de Vercel en producción), separados por coma.
     cors_origins: str = "http://localhost:5173"
 
+    # Regex opcional para orígenes CORS dinámicos: los previews/deploys de Vercel
+    # generan un subdominio distinto en cada deploy (minimarket-<hash>-kodiak2.vercel.app),
+    # así que en vez de listarlos uno por uno se aceptan por patrón. Vacío = no se usa.
+    # Starlette lo aplica con fullmatch. Ej: r"https://minimarket-[a-z0-9-]+\.vercel\.app"
+    cors_origin_regex: str = ""
+
     # Module D: Google Drive (OAuth)
     google_drive_client_id: str = ""
     google_drive_client_secret: str = ""

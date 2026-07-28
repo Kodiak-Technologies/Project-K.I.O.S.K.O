@@ -97,3 +97,27 @@ export function codigoDeError(error: unknown): string | undefined {
   }
   return undefined;
 }
+
+export function normalizarImagenUrl(url: string | null | undefined): string {
+  if (!url) return "";
+
+  if (url.includes("drive.google.com") || url.includes("googleusercontent.com")) {
+    let fileId: string | null = null;
+
+    if (url.includes("id=")) {
+      const match = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (match) fileId = match[1];
+    }
+
+    if (!fileId && url.includes("/d/")) {
+      const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) fileId = match[1];
+    }
+
+    if (fileId) {
+      return `https://lh3.googleusercontent.com/d/${fileId}`;
+    }
+  }
+
+  return url;
+}

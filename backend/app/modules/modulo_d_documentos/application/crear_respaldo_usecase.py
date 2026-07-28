@@ -1,7 +1,7 @@
 import io
 import logging
 from datetime import datetime, timedelta, timezone
-
+from decimal import Decimal
 
 from app.modules.modulo_d_documentos.domain.entities import Respaldo
 from app.modules.modulo_d_documentos.domain.ports.respaldo_repository_port import RespaldoRepositoryPort
@@ -72,6 +72,8 @@ def _escapar_valor(valor) -> str:
         return "NULL"
     if isinstance(valor, bool):
         return "TRUE" if valor else "FALSE"
+    if isinstance(valor, Decimal):
+        return str(valor)
     if isinstance(valor, (int, float)):
         return str(valor)
     if isinstance(valor, datetime):
@@ -106,8 +108,9 @@ async def _generar_dump_sql(db_params: dict) -> bytes:
         tablas_a_volcar = [t for t in TABLAS_ORDEN if t in nombres_bd]
         tablas_a_volcar.extend(sorted(nombres_bd - set(tablas_a_volcar)))
 
+        # Recopilar datos de todas las tablas primero
+        datos_tablas: dict[str, tuple[list[str], list]] = {}
         for tabla in tablas_a_volcar:
-            # Obtener columnas
             columnas = await conn.fetch(
                 """
                 SELECT column_name, data_type, is_nullable
@@ -117,25 +120,50 @@ async def _generar_dump_sql(db_params: dict) -> bytes:
                 """,
                 tabla,
             )
-
             if not columnas:
                 continue
-
             nombres_col = [c["column_name"] for c in columnas]
-
-            # Obtener datos
             filas = await conn.fetch(f'SELECT * FROM "{tabla}"')
+            datos_tablas[tabla] = (nombres_col, filas)
 
-            buffer.write(f"-- Tabla: {tabla} ({len(filas)} registros)\n")
+        # DELETEs en orden REVERSO (hijos antes que padres)
+        # Excluir respaldos: no borramos el registro que initiate el restore
+        buffer.write("-- DELETEs (orden inverso para respetar FKs)\n")
+        for tabla in reversed(list(datos_tablas.keys())):
+            if tabla == "respaldos":
+                continue
             buffer.write(f'DELETE FROM "{tabla}";\n')
 
-            if filas:
+        buffer.write("\n")
+
+        # INSERTs en orden normal (padres antes que hijos)
+        for tabla, (nombres_col, filas) in datos_tablas.items():
+            buffer.write(f"-- Tabla: {tabla} ({len(filas)} registros)\n")
+
+            # usuarios: INSERT sin deleted_by, luego UPDATE para restaurar FK autorreferencial
+            if tabla == "usuarios" and "deleted_by" in nombres_col:
+                cols_sin_deleted = [c for c in nombres_col if c != "deleted_by"]
+                ids_con_deleted: list[tuple[int, int]] = []
+
                 for fila in filas:
-                    valores = [_escapar_valor(fila[n]) for n in nombres_col]
-                    cols = ", ".join(f'"{n}"' for n in nombres_col)
+                    if fila["deleted_by"] is not None:
+                        ids_con_deleted.append((fila["id"], fila["deleted_by"]))
+                    valores = [_escapar_valor(fila[c]) for c in cols_sin_deleted]
+                    cols = ", ".join(f'"{c}"' for c in cols_sin_deleted)
                     vals = ", ".join(valores)
                     buffer.write(f'INSERT INTO "{tabla}" ({cols}) VALUES ({vals});\n')
 
+                if ids_con_deleted:
+                    buffer.write(f'-- Restaurar deleted_by (FK autorreferencial)\n')
+                    for uid, deleted_by in ids_con_deleted:
+                        buffer.write(f'UPDATE usuarios SET deleted_by = {deleted_by} WHERE id = {uid};\n')
+            else:
+                if filas:
+                    for fila in filas:
+                        valores = [_escapar_valor(fila[n]) for n in nombres_col]
+                        cols = ", ".join(f'"{n}"' for n in nombres_col)
+                        vals = ", ".join(valores)
+                        buffer.write(f'INSERT INTO "{tabla}" ({cols}) VALUES ({vals});\n')
             buffer.write("\n")
 
         # Resetear secuencias
@@ -235,56 +263,4 @@ class ObtenerRutaRespaldoUseCase:
         return contenido, respaldo.archivo_nombre
 
 
-class RestaurarRespaldoUseCase:
-    def __init__(
-        self,
-        respaldo_repository: RespaldoRepositoryPort,
-        drive_storage: DriveStoragePort,
-    ) -> None:
-        self._repo = respaldo_repository
-        self._drive = drive_storage
 
-    async def ejecutar(self, respaldo_id: int) -> bool:
-        respaldo = await self._repo.buscar_por_id(respaldo_id)
-        if respaldo is None:
-            raise ValueError("Respaldo no encontrado")
-        if not respaldo.drive_file_id:
-            raise FileNotFoundError("El respaldo no tiene archivo asociado en Drive")
-
-        database_url = settings.database_url
-        if not database_url:
-            raise ValueError("DATABASE_URL no configurada")
-
-        sql_bytes = await self._drive.descargar(respaldo.drive_file_id)
-        sql_content = sql_bytes.decode("utf-8")
-
-        db_params = _parsear_database_url(database_url)
-        conn = await conectar_directo(
-            host=db_params["host"],
-            port=db_params["port"],
-            user=db_params["user"],
-            password=db_params["password"],
-            database=db_params["dbname"],
-        )
-
-        try:
-            await conn.execute("SET session_replication_role = 'replica'")
-
-            for linea in sql_content.split("\n"):
-                linea = linea.strip()
-                if not linea or linea.startswith("--"):
-                    continue
-                if linea.upper().startswith("SELECT SETVAL"):
-                    await conn.execute(linea)
-                else:
-                    await conn.execute(linea)
-
-            await conn.execute("SET session_replication_role = 'origin'")
-            return True
-
-        except Exception as e:
-            logger.error("Error restaurando respaldo: %s", str(e))
-            return False
-
-        finally:
-            await conn.close()

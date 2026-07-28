@@ -4,7 +4,6 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
-.env
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -14,6 +13,15 @@ node_modules/
 frontend/dist/
 frontend/.vercel/
 *.local
+
+# --- Secretos / credenciales (NUNCA subir a GitHub) ---
+.env
+.env.*
+!.env.example
+google-drive-credentials.json
+*-credentials.json
+*.pem
+*.key
 
 # --- Editor / OS ---
 .vscode/

@@ -1,0 +1,32 @@
+# Controla que sube `gcloud builds submit` a Cloud Build.
+# Sin este archivo, gcloud sube .venv/.env/credenciales (cientos de MB + secretos).
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Caches de Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Git
+.git/
+.gitignore
+
+# Secretos y config local (en prod vienen de Cloud Run / Secret Manager)
+.env
+.env.*
+!.env.example
+google-drive-credentials.json
+*-credentials.json
+
+# Tests
+tests/
+
+# Logs y temporales
+*.log
