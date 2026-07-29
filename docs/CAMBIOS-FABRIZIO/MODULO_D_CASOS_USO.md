@@ -190,21 +190,16 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Actor** | Admin (manual) / Sistema (automatico, diario) |
-| **Precondiciones** | El usuario tiene rol ADMIN (manual) / Google Drive autorizado (automatico) |
+| **Actor** | Sistema (automatico, diario) |
+| **Precondiciones** | Google Drive autorizado |
 | **Postcondiciones** | Existe un archivo .sql en Google Drive y registro en `respaldos` |
 
-### Flujo principal (manual)
-1. El Admin hace clic en "Crear respaldo"
+### Flujo principal
+1. Cada dia a las 3:00 AM, el sistema ejecuta el respaldo automatico
 2. Module D conecta a PostgreSQL con `asyncpg`
 3. Module D genera un archivo `.sql` con la estructura y datos de todas las tablas
 4. Module D sube el archivo a Google Drive en `respaldos/YYYY/MM/`
-5. Module D registra en `respaldos` con estado `COMPLETADO`, `usuario_id` y `drive_file_id`
-
-### Flujo principal (automatico)
-1. Cada dia a las 3:00 AM, el sistema verifica si es dia de respaldo
-2. Module D ejecuta los mismos pasos 2-5 del flujo manual
-3. `usuario_id` queda `NULL` (creado por el sistema)
+5. Module D registra en `respaldos` con estado `COMPLETADO` y `drive_file_id`
 
 ### Flujos alternativos
 - **3a.** Si falla la generacion del .sql → se registra con estado `FALLIDO`

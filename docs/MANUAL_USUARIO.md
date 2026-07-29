@@ -573,16 +573,7 @@ Puedes filtrar por:
 
 **Para qué sirve:** (Solo ADMIN) Crear copias de seguridad de toda la información de tu tienda, descargarlas o restaurarlas si algo sale mal.
 
-#### 4.12.1. Crear respaldo manual
-
-1. Haz clic en **Respaldos** en el menú lateral.
-2. Haz clic en **Crear Respaldo**.
-3. El sistema genera una copia de la información y la sube a Google Drive.
-4. Espera a que el estado cambie de "Procesando" a "Completado".
-
-[IMAGEN: Pantalla de respaldos con un botón azul "Crear Respaldo" arriba, y abajo una tabla de respaldos existentes con columnas: Archivo, Tamaño, Estado, Fecha, Acciones.]
-
-#### 4.12.2. Descargar un respaldo
+#### 4.12.1. Descargar un respaldo
 
 1. En la lista de respaldos, busca el que quieras descargar.
 2. Haz clic en **Descargar**.
@@ -723,7 +714,7 @@ Solo el administrador puede hacerlo. Ve al Catálogo, edita el producto y cambia
 No automáticamente. Debes subirlas manualmente desde Notas de Venta, o autorizar Google Drive para que el sistema las suba.
 
 **¿Cada cuánto se respalda la información?**
-El sistema genera un respaldo automático cada día a las 3:00 AM. También puedes crear respaldos manuales cuando quieras.
+El sistema genera un respaldo automático cada día a las 3:00 AM.
 
 **¿Qué pasa si un cajero vende un producto que no tiene stock?**
 El sistema lo impide. No permite agregar al carrito un producto sin stock.

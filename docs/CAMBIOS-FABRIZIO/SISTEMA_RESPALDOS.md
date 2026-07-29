@@ -155,7 +155,6 @@ Selecciona automáticamente el archivo y restaura sin pedir confirmación.
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | GET | `/respaldos` | Listar respaldos |
-| POST | `/respaldos` | Crear respaldo manual |
 | GET | `/respaldos/{id}/descargar` | Descargar .sql desde Drive |
 | GET | `/drive/auth-url` | Obtener URL de autorización OAuth |
 | GET | `/drive/callback` | Callback de OAuth |

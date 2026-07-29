@@ -82,10 +82,16 @@ async def _ejecutar_tarea_respaldos() -> None:
     while True:
         try:
             await respaldo_automatico_diario()
+        except Exception as e:
+            logger.error("Error en respaldo automático: %s", str(e))
+        try:
             await limpiar_respaldos_expirados()
+        except Exception as e:
+            logger.error("Error limpiando respaldos expirados: %s", str(e))
+        try:
             await purgar_notificaciones_antiguas()
         except Exception as e:
-            logger.error("Error en tarea de respaldos: %s", str(e))
+            logger.error("Error purgando notificaciones antiguas: %s", str(e))
         await asyncio.sleep(TAREA_RESPALDO_INTERVALO)
 
 
