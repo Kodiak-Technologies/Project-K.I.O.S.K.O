@@ -13,6 +13,7 @@ import { ProtectedRoute } from "./shared/components/ProtectedRoute";
 import { Card, PageHeader } from "./shared/components/ui";
 import { AuthProvider } from "./shared/lib/auth-context";
 import { TemaProvider } from "./shared/lib/theme-context";
+import { EstiloProvider } from "./shared/lib/estilo-context";
 import { useAuthContext } from "./shared/lib/auth-context";
 
 function AccesoRapido({ a, titulo, detalle, icono: Icono }: { a: string; titulo: string; detalle: string; icono: LucideIcon }) {
@@ -90,10 +91,12 @@ const router = createBrowserRouter([
 
 export default function App() {
   return (
-    <TemaProvider>
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
-    </TemaProvider>
+    <EstiloProvider>
+      <TemaProvider>
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      </TemaProvider>
+    </EstiloProvider>
   );
 }

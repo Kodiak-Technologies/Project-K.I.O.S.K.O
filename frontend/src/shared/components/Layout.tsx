@@ -1,5 +1,3 @@
-// Layout autenticado: sidebar fijo en escritorio, drawer deslizante en
-// tablet/móvil, topbar y área de contenido.
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { AcercaDelSistema } from "./AcercaDelSistema";
@@ -10,17 +8,18 @@ export function Layout() {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const ubicacion = useLocation();
 
-  // Al navegar, el drawer se cierra solo.
   useEffect(() => setMenuAbierto(false), [ubicacion.pathname]);
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      {/* Sidebar fijo (escritorio) */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 lg:block">
+    // Shell de alto fijo (h-full): sidebar + columna de contenido. El único que
+    // scrollea es <main>; todo lo demás está clipeado para que ni el menú ni la
+    // barra superior se corran, y para que no aparezca una segunda barra
+    // vertical al borde de la pantalla.
+    <div className="flex h-full w-full max-w-full overflow-hidden" style={{ background: "var(--ui-fondo)" }}>
+      <aside className="hidden w-64 shrink-0 lg:block">
         <Sidebar />
       </aside>
 
-      {/* Drawer (tablet/móvil) */}
       {menuAbierto && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-zinc-900/40" onClick={() => setMenuAbierto(false)} aria-hidden />
@@ -30,14 +29,16 @@ export function Layout() {
         </div>
       )}
 
-      <div className="lg:pl-64">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
         <TopBar alAbrirMenu={() => setMenuAbierto(true)} />
-        <main className="mx-auto max-w-6xl p-3 sm:p-6 pb-20">
-          <Outlet />
+        <main className="relative z-20 min-h-0 flex-1 overflow-y-auto overflow-x-clip">
+          {/* pb-14: deja libre la esquina donde flota el botón "Acerca del sistema". */}
+          <div className="mx-auto h-full w-full min-w-0 max-w-6xl p-3 pb-14 sm:p-6 sm:pb-14">
+            <Outlet />
+          </div>
         </main>
       </div>
 
-      {/* "!" flotante abajo a la derecha con el Acerca del sistema */}
       <AcercaDelSistema />
     </div>
   );

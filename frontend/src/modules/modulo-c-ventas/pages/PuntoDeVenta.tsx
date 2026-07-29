@@ -8,8 +8,10 @@
 //   2. haciendo clic/tap en su fila de la tabla.
 //
 // Escáner (HU-C01): el lector de barras/QR emula un teclado y termina con Enter.
-// El buscador mantiene el foco (se recupera solo si se pierde), y al recibir
-// Enter con un código exacto agrega el producto al carrito al instante.
+// El buscador mantiene el foco (se recupera solo si se pierde). Al recibir Enter
+// SOLO agrega si el código COMPLETO coincide exacto (nunca el primer producto
+// parecido); si no calza, reintenta con el código invertido por si el lector lo
+// leyó al revés, y si aun así no existe muestra un aviso sin agregar nada.
 //
 // Modo offline (HU-C10, RF-26): si se cae el internet el POS sigue vendiendo con
 // el catálogo cacheado; las ventas quedan en el navegador y se sincronizan solas
@@ -119,13 +121,13 @@ export default function PuntoDeVenta() {
         setPendientes(colaOffline.listar().length);
         if (sincronizadas.length > 0) {
           setAvisoSync(
-            `Volvió la conexión: ${sincronizadas.length} venta(s) offline sincronizada(s) correctamente.`
+            `Volvió la conexión: se enviaron ${sincronizadas.length} venta(s) que habían quedado guardadas en este equipo.`
           );
           void recargarProductos();
         }
         if (conError.length > 0) {
           setAvisoSync(
-            `Atención: ${conError.length} venta(s) offline fueron rechazadas por el servidor ` +
+            `Atención: ${conError.length} venta(s) guardada(s) en este equipo no se pudieron registrar ` +
               `(${conError[0].error ?? ""}). Revísalas con la administradora.`
           );
         }
@@ -151,9 +153,12 @@ export default function PuntoDeVenta() {
   const [avisoEscaneo, setAvisoEscaneo] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
-  // HU-C03: desplegable de autocompletado del buscador
+  // HU-C03: desplegable de autocompletado del buscador.
+  // `indiceSugerencia === -1` = ninguna sugerencia resaltada: Enter se trata
+  // como un escaneo (código exacto) y NO elige la primera opción del desplegable.
+  // Solo al navegar con ↑/↓ (índice >= 0) Enter agrega la sugerencia resaltada.
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
-  const [indiceSugerencia, setIndiceSugerencia] = useState(0);
+  const [indiceSugerencia, setIndiceSugerencia] = useState(-1);
   const inputBusqueda = useRef<HTMLInputElement>(null);
 
   // El escáner "tipea" donde esté el cursor: si el foco quedó en el body (tras un
@@ -221,42 +226,77 @@ export default function PuntoDeVenta() {
     setAvisoEscaneo(null);
     setBusqueda("");
     setMostrarSugerencias(false);
-    setIndiceSugerencia(0);
+    setIndiceSugerencia(-1);
     inputBusqueda.current?.focus();
   }
 
-  // Enter en el buscador = fin de un escaneo (o búsqueda manual): si el texto
-  // coincide exacto con un código, ese producto entra al carrito al instante;
-  // si no, entra la sugerencia seleccionada del desplegable.
-  //
-  // Estando en esta pantalla, escanear SIEMPRE agrega: si el código no está en
-  // la página cargada de la tabla, se lo pide al backend (búsqueda por código,
-  // indexada). Así el escaneo no depende de los filtros ni de la paginación.
+  // Busca un producto cuyo código sea EXACTAMENTE `codigo` (nada de coincidencias
+  // parciales). Primero en el catálogo cargado/cacheado —así funciona offline— y,
+  // si hay conexión y no está en esta página, se lo pide al backend (búsqueda por
+  // código, indexada y exacta), para no depender de los filtros ni la paginación.
+  async function buscarPorCodigoExacto(codigo: string): Promise<Producto | null> {
+    const local = catalogo.find((p) => p.codigo === codigo);
+    if (local) return local;
+    if (online) {
+      try {
+        const encontrado = await productosHttpAdapter.buscar(codigo);
+        // Con ?codigo= el backend devuelve un único producto (match exacto).
+        const producto = Array.isArray(encontrado) ? encontrado[0] : encontrado;
+        // Defensa extra: exigir que el código devuelto sea idéntico al buscado.
+        if (producto && producto.codigo === codigo) return producto;
+      } catch {
+        // 404 del backend: no existe ese código exacto.
+      }
+    }
+    return null;
+  }
+
+  // Enter en el buscador = fin de un escaneo (o búsqueda manual). Reglas:
+  //   1. Si el cajero resaltó una sugerencia con ↑/↓, esa manda (búsqueda por
+  //      nombre con teclado).
+  //   2. Si no, se trata como escaneo: SOLO agrega si el código COMPLETO coincide
+  //      exacto. Ya no se cuela "el primer producto parecido" cuando el lector
+  //      escribe el código a medias (o cuando se busca por nombre y se da Enter).
+  //   3. Si no calza, reintenta con el código invertido: algunos lectores leen el
+  //      código de barras al revés según el sentido del barrido.
+  //   4. Si aun así no existe, avisa y NO agrega nada (limpia para el próximo
+  //      escaneo).
   async function manejarEnterBusqueda() {
     const texto = busqueda.trim();
     if (!texto) return;
-    const porCodigo = catalogo.find((p) => p.codigo === texto);
-    if (porCodigo) {
-      agregarSiHayStock(porCodigo);
-      return;
-    }
-    if (online) {
-      try {
-        const encontrado = await productosHttpAdapter.buscar(texto);
-        const producto = Array.isArray(encontrado) ? encontrado[0] : encontrado;
-        if (producto) {
-          agregarSiHayStock(producto);
-          return;
-        }
-      } catch {
-        // 404 del backend: no existe ese código. Cae al mensaje de abajo.
-      }
-    }
-    if (sugerencias.length > 0) {
+
+    // (1) Selección deliberada de una sugerencia con el teclado.
+    if (indiceSugerencia >= 0 && sugerencias.length > 0) {
       agregarYLimpiar(sugerencias[Math.min(indiceSugerencia, sugerencias.length - 1)]);
       return;
     }
-    setAvisoEscaneo(`No hay ningún producto que coincida con "${texto}".`);
+
+    // (2) Escaneo: código completo exacto.
+    const exacto = await buscarPorCodigoExacto(texto);
+    if (exacto) {
+      agregarSiHayStock(exacto);
+      return;
+    }
+
+    // (3) Lector que leyó el código al revés: reintento con el texto invertido,
+    // también exacto. (Se omite si es capicúa: invertido == original.)
+    const invertido = texto.split("").reverse().join("");
+    if (invertido !== texto) {
+      const alReves = await buscarPorCodigoExacto(invertido);
+      if (alReves) {
+        agregarSiHayStock(alReves);
+        return;
+      }
+    }
+
+    // (4) Nada coincide exacto: aviso sin agregar y campo limpio para reintentar.
+    setAvisoEscaneo(
+      `No se encontró un producto con el código "${texto}". Revisa que el lector ` +
+        `haya leído el código completo, o toca el producto en la lista.`
+    );
+    setBusqueda("");
+    setMostrarSugerencias(false);
+    setIndiceSugerencia(-1);
   }
 
   /** Agrega al carrito si el producto está activo y tiene stock. */
@@ -394,7 +434,7 @@ export default function PuntoDeVenta() {
       <div>
         <PageHeader titulo="Punto de venta" />
         <Card sinPadding>
-          <ModuloPendiente modulo="ventas (Módulo C)" />
+          <ModuloPendiente modulo="ventas" />
         </Card>
       </div>
     );
@@ -405,28 +445,42 @@ export default function PuntoDeVenta() {
   const columnasCatalogo: Columna<Producto>[] = [
     {
       titulo: "Código",
-      render: (p) => <span className="font-mono text-xs text-zinc-500">{p.codigo}</span>,
+      ancho: "110px",
+      render: (p) => <span className="font-mono text-xs text-zinc-500 truncate block">{p.codigo}</span>,
     },
     {
       titulo: "Producto",
-      render: (p) => <span className="font-medium text-zinc-800">{p.nombre}</span>,
+      ancho: "170px",
+      render: (p) => <span className="font-medium text-zinc-800 leading-snug line-clamp-2">{p.nombre}</span>,
     },
-    { titulo: "Categoría", soloEscritorio: true, render: (p) => p.categoria_nombre ?? "—" },
+    {
+      titulo: "Categoría",
+      ancho: "120px",
+      soloEscritorio: true,
+      render: (p) => <span className="text-zinc-600 truncate block">{p.categoria_nombre ?? "—"}</span>,
+    },
     {
       titulo: "Precio",
-      alinear: "derecha",
-      render: (p) => <span className="tabular-nums">S/ {p.precio.toFixed(2)}</span>,
+      ancho: "85px",
+      render: (p) => <span className="tabular-nums font-medium whitespace-nowrap">S/ {p.precio.toFixed(2)}</span>,
     },
     {
       titulo: "Stock",
-      alinear: "derecha",
-      render: (p) => <span className="tabular-nums">{p.stock}</span>,
+      ancho: "60px",
+      render: (p) => <span className="tabular-nums font-medium text-center block">{p.stock}</span>,
     },
-    { titulo: "Estado", render: badgeDeStock },
+    {
+      titulo: "Estado",
+      ancho: "105px",
+      render: (p) => badgeDeStock(p),
+    },
   ];
 
   return (
-    <div>
+    // En escritorio la pantalla se reparte el alto disponible: la grilla se
+    // queda con lo que sobra y cada columna scrollea por dentro (catálogo y
+    // carrito). En móvil se apila y scrollea la página, como corresponde.
+    <div className="lg:flex lg:h-full lg:min-h-0 lg:flex-col">
       <PageHeader
         titulo="Punto de venta"
         acciones={
@@ -443,13 +497,13 @@ export default function PuntoDeVenta() {
             )}
             {pendientes > 0 && (
               <Badge tono="alerta">
-                <CloudUpload className="h-3.5 w-3.5" aria-hidden /> {pendientes} por sincronizar
+                <CloudUpload className="h-3.5 w-3.5" aria-hidden /> {pendientes} venta(s) por enviar
               </Badge>
             )}
             {turno?.estado === "ABIERTO" ? (
               <Badge tono="exito">Caja abierta</Badge>
             ) : (
-              <Badge tono="alerta">Caja cerrada: abre un turno para vender</Badge>
+              <Badge tono="alerta">Caja cerrada — Abre turno</Badge>
             )}
           </div>
         }
@@ -466,9 +520,14 @@ export default function PuntoDeVenta() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+      {/* `grid-rows-[minmax(0,1fr)]` no es decorativo: sin él la fila es `auto`,
+          o sea del alto de su contenido, y como las grillas no recortan, el
+          catálogo y el carrito se desbordaban de la grilla y estiraban la
+          página igual. Además dejaba sin resolver el `max-h-full` del carrito,
+          porque un porcentaje contra un alto automático no significa nada. */}
+      <div className="grid w-full min-w-0 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_20rem] lg:grid-rows-[minmax(0,1fr)]">
         {/* Productos: botones grandes para tocar */}
-        <div>
+        <div className="w-full min-w-0 lg:flex lg:min-h-0 lg:flex-col">
           <div className="relative mb-3">
             <ScanBarcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden />
             <Input
@@ -481,7 +540,7 @@ export default function PuntoDeVenta() {
                 setBusqueda(e.target.value);
                 setAvisoEscaneo(null);
                 setMostrarSugerencias(true);
-                setIndiceSugerencia(0);
+                setIndiceSugerencia(-1);
               }}
               onKeyDown={manejarTeclasBusqueda}
               onFocus={() => setMostrarSugerencias(true)}
@@ -534,7 +593,7 @@ export default function PuntoDeVenta() {
 
           {/* Filtros del catálogo: categoría, estado de stock y rango de precio.
               (la búsqueda por nombre/código es el mismo campo que usa el lector) */}
-          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-3 grid w-full min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <Select
               aria-label="Filtrar por categoría"
               value={filtroCategoria}
@@ -590,8 +649,18 @@ export default function PuntoDeVenta() {
           </div>
 
           {/* Catálogo en tabla (solo lectura). Un clic en la fila lo agrega a la venta. */}
-          <Card sinPadding>
+          <Card
+            sinPadding
+            className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
+            cuerpoClassName="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
+          >
             <Table
+              minAncho="530px"
+              altoDelContenedor
+              // En móvil las columnas se apilan y el carrito queda debajo: sin
+              // tope, el catálogo se despliega entero y hay que scrollear media
+              // pantalla para llegar a Cobrar. De lg en adelante manda el flex.
+              contenedorClassName="max-h-[50vh] lg:max-h-none lg:min-h-0 lg:flex-1"
               columnas={columnasCatalogo}
               filas={visibles}
               claveDe={(p) => p.id}
@@ -621,12 +690,21 @@ export default function PuntoDeVenta() {
         </div>
 
         {/* Carrito */}
-        <Card titulo="Venta actual" sinPadding className="h-fit lg:sticky lg:top-16">
+        <Card
+          titulo="Venta actual"
+          sinPadding
+          className="h-fit lg:flex lg:max-h-full lg:flex-col"
+          cuerpoClassName="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
+        >
           {carrito.length === 0 ? (
             <EmptyState icono={ShoppingCart} titulo="Carrito vacío" descripcion="Toca un producto para agregarlo." />
           ) : (
-            <div>
-              <ul className="divide-y divide-zinc-100 px-4">
+            <div className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+              {/* La lista se queda con el alto que sobra y scrollea sola: si
+                  creciera libre estiraría la página y volvería a aparecer la
+                  barra vertical de la pantalla. El total y los botones de abajo
+                  quedan siempre a la vista. */}
+              <ul className="max-h-[45vh] divide-y divide-zinc-100 overflow-y-auto px-4 lg:max-h-none lg:min-h-0 lg:flex-1">
                 {carrito.map((item) => (
                   <li key={item.producto_id} className="flex items-center gap-2 py-2.5">
                     <div className="min-w-0 flex-1">
@@ -669,7 +747,7 @@ export default function PuntoDeVenta() {
                   </li>
                 ))}
               </ul>
-              <div className="space-y-3 border-t border-zinc-100 p-4">
+              <div className="shrink-0 space-y-3 border-t border-zinc-100 p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-zinc-500">Total</span>
                   <span className="text-2xl font-semibold tabular-nums text-zinc-900">

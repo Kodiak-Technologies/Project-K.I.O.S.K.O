@@ -16,7 +16,12 @@ interface Props {
   onCancelar: () => void;
 }
 
-const HOY = () => new Date().toISOString().slice(0, 10);
+// Fecha LOCAL de hoy. `toISOString()` da UTC, que de noche (Perú UTC−5) adelanta
+// el valor por defecto al día siguiente.
+const HOY = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 export function FormularioPago({ titulo, deudaActual, tipo, onSubmit, procesando, onCancelar }: Props) {
   const [monto, setMonto] = useState<number>(0);

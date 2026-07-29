@@ -109,7 +109,7 @@ async def subir_nota_a_drive(
         # vez de devolver un 500 opaco.
         raise HTTPException(
             status_code=502,
-            detail="No se pudo subir a Google Drive. Verificá que la cuenta "
+            detail="No se pudo subir a Google Drive. Verifica que la cuenta "
             "siga autorizada en Configuración → Drive.",
         ) from exc
     return SubirNotaDriveResponse(

@@ -1,15 +1,12 @@
-// Página de consulta/descarga de notas de venta.
-//
-// La tabla se pagina contra el servidor y usa los mismos controles que el resto
-// del sistema (elegir cuántas filas ver + Anterior/Siguiente): antes traía TODAS
-// las notas del rango y las acumulaba en una sola lista.
 import { useEffect, useState } from "react";
 import { mensajeDeError } from "../../../shared/lib/http-client";
 import { CloudUpload, Download, FileText, X } from "lucide-react";
 import {
   Alert,
+  Badge,
   Button,
   Card,
+  DatePicker,
   EmptyState,
   Input,
   ModuloPendiente,
@@ -119,7 +116,7 @@ export default function NotasDeVenta() {
       <div>
         <PageHeader titulo="Notas de Venta" />
         <Card sinPadding>
-          <ModuloPendiente modulo="documentos (Módulo D)" />
+          <ModuloPendiente modulo="documentos" />
         </Card>
       </div>
     );
@@ -128,25 +125,35 @@ export default function NotasDeVenta() {
   const columnas: Columna<NotaVenta>[] = [
     {
       titulo: "Identificación",
+      ancho: "230px",
       render: (nv) => <span className="font-mono text-xs text-zinc-700">{nv.identificacion}</span>,
     },
     {
       titulo: "Fecha",
-      render: (nv) => <span className="whitespace-nowrap text-zinc-500">{nv.fecha}</span>,
+      ancho: "185px",
+      render: (nv) => (
+        <span className="whitespace-nowrap text-zinc-500">
+          {nv.fecha ? (isNaN(Date.parse(nv.fecha)) ? nv.fecha : new Date(nv.fecha).toLocaleString("es-PE")) : "—"}
+        </span>
+      ),
     },
     {
       titulo: "Método pago",
-      render: (nv) => <span className="text-zinc-600">{nv.metodo_pago}</span>,
+      ancho: "140px",
+      render: (nv) => <Badge tono="neutro">{nv.metodo_pago}</Badge>,
     },
     {
       titulo: "Total",
+      ancho: "120px",
       alinear: "derecha",
-      render: (nv) => <span className="font-medium tabular-nums">S/ {nv.total.toFixed(2)}</span>,
+      render: (nv) => <span className="font-medium tabular-nums text-zinc-900">S/ {nv.total.toFixed(2)}</span>,
     },
     {
       titulo: "Acciones",
+      ancho: "180px",
+      alinear: "centro",
       render: (nv) => (
-        <div className="flex gap-2">
+        <div className="flex justify-center gap-2">
           <Button
             variante="secundario"
             compacto
@@ -156,8 +163,6 @@ export default function NotasDeVenta() {
           >
             PNG
           </Button>
-          {/* Archiva una copia en Drive. La nota se sigue generando al vuelo:
-              esto es a pedido, no automático. */}
           <Button
             variante="secundario"
             compacto
@@ -193,19 +198,23 @@ export default function NotasDeVenta() {
       />
 
       <Card className="mb-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-44">
-            <Input label="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} onKeyDown={teclaEnter} />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="grid flex-1 grid-cols-2 gap-3 sm:flex sm:flex-initial sm:items-end">
+            <div className="w-full sm:w-44">
+              <DatePicker label="Desde" mostrarAnio value={desde} onChange={(val) => setDesde(val)} />
+            </div>
+            <div className="w-full sm:w-44">
+              <DatePicker label="Hasta" mostrarAnio value={hasta} onChange={(val) => setHasta(val)} />
+            </div>
           </div>
-          <div className="w-44">
-            <Input label="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} onKeyDown={teclaEnter} />
+          <div className="flex items-center gap-2">
+            <Button className="flex-1 sm:flex-initial" variante="secundario" onClick={filtrar}>
+              Filtrar
+            </Button>
+            <Button className="flex-1 sm:flex-initial" variante="secundario" onClick={limpiarFiltros} icono={<X className="h-4 w-4" aria-hidden />}>
+              Limpiar
+            </Button>
           </div>
-          <Button variante="secundario" onClick={filtrar}>
-            Filtrar
-          </Button>
-          <Button variante="secundario" onClick={limpiarFiltros} icono={<X className="h-4 w-4" aria-hidden />}>
-            Limpiar
-          </Button>
         </div>
       </Card>
 
@@ -220,6 +229,7 @@ export default function NotasDeVenta() {
       {!cargando && !error && (
         <Card sinPadding>
           <Table
+            minAncho="650px"
             columnas={columnas}
             filas={notas}
             claveDe={(nv) => nv.venta_id}

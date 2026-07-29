@@ -18,7 +18,7 @@ guarda en **Artifact Registry** y corre en **Cloud Run**. La base de datos es **
 | Región | `us-west2` |
 | Servicio Cloud Run | `kiosko-backend` |
 | Repo Artifact Registry | `kiosko` (formato Docker) |
-| Secretos (Secret Manager) | `kiosko-database-url`, `kiosko-secret-key`, `kiosko-drive-client-secret`, `kiosko-telegram-bot-token`, `kiosko-smtp-pass` |
+| Secretos (Secret Manager) | 13 secretos (core + todo el Módulo D). Ver mapeo en §3 |
 | Service Account del build | `1049232196871-compute@developer.gserviceaccount.com` |
 | URL pública | https://kiosko-backend-1049232196871.us-west2.run.app |
 
@@ -76,10 +76,66 @@ gcloud builds submit --config=cloudbuild.yaml "--substitutions=^@@^_CORS_ORIGINS
 
 ---
 
-## 3. Crear o actualizar un secreto
+## 3. Actualizar secretos
 
-Los valores de `DATABASE_URL` y `SECRET_KEY` viven en Secret Manager. Para cambiarlos
-(ej. rotar la clave o cambiar la BD) **sin dejar el valor en el historial** y **sin salto de
+**Todo el Módulo D** (core + Drive + Telegram + SMTP) vive como secreto en Secret Manager y se
+carga desde tu `.env`. Solo quedan como env vars en `cloudbuild.yaml` los valores **específicos
+del entorno** (que en tu `.env` local apuntan a otra cosa): `ENVIRONMENT`, `CORS_ORIGINS`,
+`CORS_ORIGIN_REGEX` y `GOOGLE_DRIVE_REDIRECT_URI` (usa la URL de prod, no `localhost:8000`).
+
+Mapeo `.env` → Secret Manager (13 secretos):
+
+| Clave en `.env` | Secreto | |
+|---|---|---|
+| `DATABASE_URL` | `kiosko-database-url` | core |
+| `SECRET_KEY` | `kiosko-secret-key` | core |
+| `GOOGLE_DRIVE_CLIENT_ID` | `kiosko-drive-client-id` | Drive |
+| `GOOGLE_DRIVE_CLIENT_SECRET` | `kiosko-drive-client-secret` | Drive |
+| `GOOGLE_DRIVE_FOLDER_ID` | `kiosko-drive-folder-id` | Drive |
+| `TELEGRAM_BOT_TOKEN` | `kiosko-telegram-bot-token` | Telegram |
+| `TELEGRAM_CHAT_ID` | `kiosko-telegram-chat-id` | Telegram |
+| `SMTP_HOST` | `kiosko-smtp-host` | Correo |
+| `SMTP_PORT` | `kiosko-smtp-port` | Correo |
+| `SMTP_USER` | `kiosko-smtp-user` | Correo |
+| `SMTP_PASS` | `kiosko-smtp-pass` | Correo |
+| `CORREO_REMITENTE` | `kiosko-correo-remitente` | Correo |
+| `CORREO_DESTINO` | `kiosko-correo-destino` | Correo |
+
+> `GOOGLE_DRIVE_REDIRECT_URI` **no** está en la tabla a propósito: es específico del entorno
+> (prod ≠ localhost). Vive en `--set-env-vars` de `cloudbuild.yaml`.
+
+### 3.a — En bloque desde el `.env` (recomendado)
+
+`scripts/subir-secretos.ps1` lee esas 13 claves de tu `.env` y sube cada una como **nueva
+versión** (`:latest`) — sobrescribe el valor viejo, crea el secreto si no existe, no imprime
+valores y escribe sin salto de línea final (el `\n` que rompe `DATABASE_URL`). Desde `backend/`:
+
+```powershell
+.\scripts\subir-secretos.ps1
+```
+
+Salta con aviso (`SALTO`) las claves que no estén en tu `.env`. **Ojo:** si una clave se salta,
+su secreto no se crea y el deploy fallará al referenciarlo — asegúrate de tener las 13 en el `.env`.
+
+Para subir **y** rodar una revisión nueva en un solo paso (los secretos solo aplican en una
+revisión nueva del servicio):
+
+```powershell
+.\scripts\subir-secretos.ps1 -Redeploy
+```
+
+> **Primera vez tras mover el Módulo D a secretos:** no uses `-Redeploy` (hace `--update-secrets`,
+> que choca con las env vars viejas del servicio). Sube los secretos con el script **sin**
+> `-Redeploy` y luego haz un **deploy completo** (`gcloud builds submit`, §1): ese usa
+> `--set-secrets`/`--set-env-vars` que **reemplazan** todo y dejan el estado limpio. De ahí en
+> adelante `-Redeploy` ya sirve para rotaciones.
+
+Si agregas un secreto nuevo, añádelo al mapeo `$MAP` del script **y** al `--set-secrets` de
+`cloudbuild.yaml`.
+
+### 3.b — Un secreto suelto (manual)
+
+Para cambiar uno solo **sin dejar el valor en el historial** y **sin salto de
 línea final** (un `\n` extra rompe la connection string), en PowerShell:
 
 ```powershell
@@ -100,11 +156,10 @@ gcloud run services update kiosko-backend --region=us-west2 --update-secrets=DAT
 Para `kiosko-secret-key` es igual, cambiando el par: `--update-secrets=SECRET_KEY=kiosko-secret-key:latest`.
 (El redeploy completo del paso 1 también toma la versión `:latest`.)
 
-> **Módulo D** (Drive/Telegram/SMTP): sus valores **sensibles** van como secretos
-> (`kiosko-drive-client-secret`, `kiosko-telegram-bot-token`, `kiosko-smtp-pass`) en el
-> `--set-secrets`. El resto (client id, folder id, chat id, correos, SMTP host/port) son env
-> vars no secretas en el `--set-env-vars`. `GOOGLE_DRIVE_REDIRECT_URI` usa la URL de prod
-> (`.../drive/callback`), que además debe estar registrada como *Authorized redirect URI* en el
+> **Módulo D** (Drive/Telegram/SMTP): **todos** sus valores van como secretos (`--set-secrets`)
+> y se cargan desde el `.env` con el script de §3.a — ver la tabla de mapeo. La única excepción
+> es `GOOGLE_DRIVE_REDIRECT_URI`, que es específica del entorno: vive en `--set-env-vars` con la
+> URL de prod (`.../drive/callback`) y debe estar registrada como *Authorized redirect URI* en el
 > cliente OAuth de Google Cloud. **Módulo B** (Supabase Storage) aún no se despliega.
 
 ---

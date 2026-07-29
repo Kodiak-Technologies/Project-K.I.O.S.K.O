@@ -1,23 +1,15 @@
-// Componente para subir una imagen a Storage y mostrar preview + URL final.
-// Reutilizado en: IngresosMercaderia (foto de la boleta). Los productos NO llevan foto.
 import { useRef, useState, type ChangeEvent } from "react";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { CheckCircle2, ImagePlus, Loader2, X } from "lucide-react";
+import { ImagenConRespaldo } from "../../../shared/components/ui";
 import { useStorage } from "../hooks/useStorage";
 
 interface Props {
-  /** Carpeta destino en Storage (`boletas` o `productos`). */
   carpeta: "boletas";
-  /** URL ya subida (modo edición). */
   value?: string | null;
-  /** Callback con la URL firmada devuelta por el backend. */
   onChange: (url: string | null) => void;
-  /** Etiqueta visible. */
   label?: string;
-  /** Texto de ayuda debajo. */
   ayuda?: string;
-  /** Si la subida es obligatoria en validación. */
   requerido?: boolean;
-  /** Mensaje de error externo (mostrado abajo). */
   error?: string | null;
 }
 
@@ -34,28 +26,42 @@ export function SubirImagen({
   const { subir, subiendo, error: errorStorage, limpiar } = useStorage();
   const [previewLocal, setPreviewLocal] = useState<string | null>(null);
 
+  const [errorLocal, setErrorLocal] = useState<string | null>(null);
+
   const urlMostrada = previewLocal ?? value ?? null;
 
   async function manejarArchivo(e: ChangeEvent<HTMLInputElement>) {
+    setErrorLocal(null);
     const archivo = e.target.files?.[0];
     if (!archivo) return;
-    // Preview local inmediato.
+
+    const mime = archivo.type.toLowerCase();
+    const ext = "." + (archivo.name.split(".").pop()?.toLowerCase() ?? "");
+
+    const mimesValidos = ["image/jpeg", "image/png", "image/jpg"];
+    const extsValidas = [".jpg", ".jpeg", ".png"];
+
+    if (!mimesValidos.includes(mime) && !extsValidas.includes(ext)) {
+      setErrorLocal("Solo se permiten archivos de imagen en formato JPG o PNG.");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) => setPreviewLocal(ev.target?.result as string);
     reader.readAsDataURL(archivo);
     const resultado = await subir(carpeta, archivo);
     if (resultado) {
       onChange(resultado.url);
-      setPreviewLocal(null); // ya tenemos la URL firmada, dejamos de mostrar el data URI.
+      setPreviewLocal(null);
     } else {
-      // Falló la subida: limpiamos el preview.
       setPreviewLocal(null);
     }
-    // Reset del input para permitir resubir el mismo archivo.
     if (inputRef.current) inputRef.current.value = "";
   }
 
   function limpiarImagen() {
+    setErrorLocal(null);
     setPreviewLocal(null);
     onChange(null);
     limpiar();
@@ -67,49 +73,69 @@ export function SubirImagen({
         {label}
         {requerido && <span className="text-peligro"> *</span>}
       </span>
+
       {urlMostrada ? (
-        <div className="relative inline-block">
-          <img
-            src={urlMostrada}
-            alt="Vista previa"
-            className="h-32 w-32 rounded-lg border border-zinc-200 object-cover"
-          />
-          <button
-            type="button"
-            onClick={limpiarImagen}
-            disabled={subiendo}
-            aria-label="Quitar imagen"
-            className="absolute -right-2 -top-2 rounded-full bg-white p-1 text-zinc-500 shadow hover:text-peligro disabled:opacity-50"
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </button>
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-2.5">
+          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-white">
+            <ImagenConRespaldo
+              src={urlMostrada}
+              alt="Vista previa boleta"
+              className="h-full w-full object-cover"
+            />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-green-700">
+              <CheckCircle2 className="h-4 w-4 text-exito-intenso" />
+              <span>Foto de boleta adjuntada</span>
+            </div>
+            <p className="text-xs text-zinc-500">Se guardará junto con la solicitud de ingreso.</p>
+            <div className="mt-1 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={subiendo}
+                className="text-xs font-medium text-zinc-700 underline hover:text-zinc-900 disabled:opacity-50"
+              >
+                Cambiar foto
+              </button>
+              <button
+                type="button"
+                onClick={limpiarImagen}
+                disabled={subiendo}
+                className="inline-flex items-center gap-1 text-xs font-medium text-peligro hover:underline disabled:opacity-50"
+              >
+                <X className="h-3.5 w-3.5" /> Eliminar
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={subiendo}
-          className="flex h-32 w-32 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-zinc-300 text-xs text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 disabled:opacity-50"
+          className="flex min-h-tactil w-full sm:w-auto items-center justify-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:border-zinc-400 hover:bg-zinc-50 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
         >
           {subiendo ? (
-            <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+            <Loader2 className="h-4 w-4 animate-spin text-zinc-500" aria-hidden />
           ) : (
-            <>
-              <ImagePlus className="h-6 w-6" aria-hidden />
-              <span>Subir imagen</span>
-            </>
+            <ImagePlus className="h-4 w-4 text-zinc-500" aria-hidden />
           )}
+          <span>{subiendo ? "Subiendo foto de boleta…" : "Adjuntar foto de la boleta"}</span>
         </button>
       )}
+
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png"
+        accept="image/jpeg,image/png,.jpg,.jpeg,.png"
         onChange={(e) => void manejarArchivo(e)}
         className="hidden"
       />
       {ayuda && <p className="mt-1 text-xs text-zinc-500">{ayuda}</p>}
-      {(error || errorStorage) && <p className="mt-1 text-xs text-red-700">{error ?? errorStorage}</p>}
+      {(error || errorStorage || errorLocal) && (
+        <p className="mt-1 text-xs font-medium text-peligro">{errorLocal ?? error ?? errorStorage}</p>
+      )}
     </div>
   );
 }

@@ -78,7 +78,7 @@ export default function CierreCaja() {
       <div>
         <PageHeader titulo="Cierre de caja" />
         <Card sinPadding>
-          <ModuloPendiente modulo="ventas (Módulo C)" />
+          <ModuloPendiente modulo="ventas" />
         </Card>
       </div>
     );

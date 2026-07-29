@@ -177,7 +177,7 @@ class SolicitudIngreso(EntidadConBorradoLogico):
         proveedor_id: int | None = ...,
         motivo: str | None = ...,
         foto_boleta_url: str | None = ...,
-        lineas_payload: list[tuple[int, int, "Decimal"]] | None = ...,
+        lineas_payload: list[dict] | None = ...,
     ) -> tuple[dict, list["DetalleSolicitud"] | None]:
         """In-place mutation (FR-3.6). Returns (cabecera_changes, new_lineas_or_None).
 
@@ -200,7 +200,7 @@ class SolicitudIngreso(EntidadConBorradoLogico):
                     code="NOT_EDITABLE_STATE",
                 )
             raise ProhibidoError(
-                "No tenés permiso para editar esta solicitud.",
+                "No tienes permiso para editar esta solicitud.",
                 code="FORBIDDEN",
             )
 
@@ -218,26 +218,42 @@ class SolicitudIngreso(EntidadConBorradoLogico):
         # Replace-all semantics for lineas (FR-3.4). None = "no tocar".
         nuevas_lineas: list[DetalleSolicitud] | None = None
         if lineas_payload is not ... and lineas_payload is not None:
-            for (pid, cant, precio) in lineas_payload:
-                if cant <= 0:
+            for l in lineas_payload:
+                if l["cantidad"] <= 0:
                     raise ValidacionError(
                         "La cantidad debe ser mayor a 0.",
                         code="INVALID_LINE_VALUES",
                     )
-                if precio < 0:
+                if l["precio_compra_total"] < 0:
                     raise ValidacionError(
-                        "El precio unitario debe ser mayor o igual a 0.",
+                        "El total de la línea debe ser mayor o igual a 0.",
+                        code="INVALID_LINE_VALUES",
+                    )
+                # Espejo del CHECK `chk_detsol_producto_o_nuevo`: la línea
+                # apunta a un producto del catálogo o trae los datos del que
+                # se propone dar de alta, nunca ninguno de los dos.
+                if not l.get("producto_id") and not (
+                    (l.get("nuevo_codigo") or "").strip()
+                    and (l.get("nuevo_nombre") or "").strip()
+                ):
+                    raise ValidacionError(
+                        "Cada línea debe indicar un producto del catálogo o el "
+                        "código y nombre del producto nuevo.",
                         code="INVALID_LINE_VALUES",
                     )
             nuevas_lineas = [
                 DetalleSolicitud(
                     id=None,
                     solicitud_id=self.id or 0,  # filled in by repo
-                    producto_id=pid,
-                    cantidad=cant,
-                    precio_compra_unitario=precio,
+                    producto_id=l.get("producto_id"),
+                    cantidad=l["cantidad"],
+                    precio_compra_total=l["precio_compra_total"],
+                    nuevo_codigo=l.get("nuevo_codigo"),
+                    nuevo_nombre=l.get("nuevo_nombre"),
+                    nuevo_categoria_id=l.get("nuevo_categoria_id"),
+                    margen_ganancia=l.get("margen_ganancia"),
                 )
-                for (pid, cant, precio) in lineas_payload
+                for l in lineas_payload
             ]
 
         # Always set audit fields (FR-3.6.3: even no-op PATCH sets the editor).
@@ -257,25 +273,54 @@ class DetalleSolicitud:
 
     id: int | None
     solicitud_id: int
-    producto_id: int
     cantidad: int
-    precio_compra_unitario: Decimal
+    #: Monto de la línea tal cual la boleta ("7 esponjas — S/ 20"). El unitario
+    #: se deriva con `domain.precios.costo_unitario`, nunca se guarda.
+    precio_compra_total: Decimal
+    #: None mientras la línea proponga un producto que no está en el catálogo.
+    producto_id: int | None = None
     created_at: datetime | None = None
     # Datos del producto resueltos por JOIN al leer: evitan que el cliente
     # tenga que cargar el catálogo entero para traducir `producto_id`.
     producto_nombre: str | None = None
     producto_codigo: str | None = None
+    # Producto propuesto por el cajero; solo se leen si `producto_id is None`.
+    nuevo_codigo: str | None = None
+    nuevo_nombre: str | None = None
+    nuevo_categoria_id: int | None = None
+    #: % de ganancia para el precio de venta. None = usar el de configuración.
+    margen_ganancia: Decimal | None = None
+
+    @property
+    def es_producto_nuevo(self) -> bool:
+        return self.producto_id is None
+
+    @property
+    def descripcion(self) -> str:
+        """Cómo nombrar la línea en mensajes y bitácora, exista o no el producto."""
+        return self.producto_nombre or self.nuevo_nombre or f"producto #{self.producto_id}"
 
     @classmethod
     def desde_dto(
-        cls, producto_id: int, cantidad: int, precio: Decimal
+        cls,
+        cantidad: int,
+        precio_total: Decimal,
+        producto_id: int | None = None,
+        nuevo_codigo: str | None = None,
+        nuevo_nombre: str | None = None,
+        nuevo_categoria_id: int | None = None,
+        margen_ganancia: Decimal | None = None,
     ) -> "DetalleSolicitud":
         return cls(
             id=None,
             solicitud_id=0,  # se asigna al persistir
             producto_id=producto_id,
             cantidad=cantidad,
-            precio_compra_unitario=precio,
+            precio_compra_total=precio_total,
+            nuevo_codigo=nuevo_codigo,
+            nuevo_nombre=nuevo_nombre,
+            nuevo_categoria_id=nuevo_categoria_id,
+            margen_ganancia=margen_ganancia,
         )
 
 

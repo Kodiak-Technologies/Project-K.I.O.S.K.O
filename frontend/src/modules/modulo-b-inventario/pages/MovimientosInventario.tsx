@@ -6,6 +6,7 @@ import {
   Alert,
   Badge,
   Card,
+  DatePicker,
   EmptyState,
   ModuloPendiente,
   PageHeader,
@@ -73,7 +74,7 @@ export default function MovimientosInventario() {
       <div>
         <PageHeader titulo="Movimientos de inventario" />
         <Card sinPadding>
-          <ModuloPendiente modulo="inventario (Módulo B)" />
+          <ModuloPendiente modulo="inventario" />
         </Card>
       </div>
     );
@@ -82,15 +83,21 @@ export default function MovimientosInventario() {
   const columnas: Columna<MovimientoInventario>[] = [
     {
       titulo: "Fecha",
+      ancho: "175px",
       render: (m) => (
         <span className="whitespace-nowrap text-zinc-500">
           {m.created_at ? new Date(m.created_at).toLocaleString("es-PE") : "—"}
         </span>
       ),
     },
-    { titulo: "Producto", render: (m) => m.producto_nombre ?? `#${m.producto_id}` },
+    {
+      titulo: "Producto",
+      ancho: "160px",
+      render: (m) => <span className="font-medium text-zinc-800 truncate block" title={m.producto_nombre ?? `#${m.producto_id}`}>{m.producto_nombre ?? `#${m.producto_id}`}</span>,
+    },
     {
       titulo: "Tipo",
+      ancho: "110px",
       render: (m) => {
         const t = String(m.tipo);
         return <Badge tono={TONO_TIPO[t] ?? "neutro"}>{TIPO_LABELS[t] ?? t}</Badge>;
@@ -98,7 +105,7 @@ export default function MovimientosInventario() {
     },
     {
       titulo: "Cantidad",
-      alinear: "derecha",
+      ancho: "90px",
       render: (m) => (
         <span
           className={`tabular-nums font-medium ${
@@ -112,18 +119,24 @@ export default function MovimientosInventario() {
     },
     {
       titulo: "Motivo",
+      ancho: "150px",
       soloEscritorio: true,
-      render: (m) => m.motivo ?? "—",
+      render: (m) => <span className="truncate block" title={m.motivo ?? "—"}>{m.motivo ?? "—"}</span>,
     },
     {
       titulo: "Vinculado a",
+      ancho: "120px",
       soloEscritorio: true,
       render: (m) => {
         if (m.solicitud_ingreso_id) return `Ingreso #${m.solicitud_ingreso_id}`;
         return "—";
       },
     },
-    { titulo: "Registró", soloEscritorio: true, render: (m) => m.registrado_por_nombre },
+    {
+      titulo: "Registró",
+      soloEscritorio: true,
+      render: (m) => <span className="font-medium text-zinc-800">{m.registrado_por_nombre}</span>,
+    },
   ];
 
   return (
@@ -156,32 +169,18 @@ export default function MovimientosInventario() {
           <option value="devolucion">Devolución</option>
           <option value="ajuste">Ajuste</option>
         </Select>
-        <div>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-zinc-700">Desde</span>
-            <input
-              type="date"
-              value={fechaDesde}
-              onChange={(e) => {
-                setFechaDesde(e.target.value);
-              }}
-              className="w-full min-h-tactil rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500"
-            />
-          </label>
-        </div>
-        <div>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-zinc-700">Hasta</span>
-            <input
-              type="date"
-              value={fechaHasta}
-              onChange={(e) => {
-                setFechaHasta(e.target.value);
-              }}
-              className="w-full min-h-tactil rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500"
-            />
-          </label>
-        </div>
+        <DatePicker
+          label="Desde"
+          mostrarAnio
+          value={fechaDesde}
+          onChange={(val) => setFechaDesde(val)}
+        />
+        <DatePicker
+          label="Hasta"
+          mostrarAnio
+          value={fechaHasta}
+          onChange={(val) => setFechaHasta(val)}
+        />
       </div>
 
       {cargando && movimientos.length === 0 ? (
@@ -191,6 +190,7 @@ export default function MovimientosInventario() {
       ) : (
         <Card sinPadding>
           <Table
+            minAncho="100%"
             columnas={columnas}
             filas={movimientos}
             claveDe={(m) => m.id}

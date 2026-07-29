@@ -23,7 +23,11 @@ import {
   type Tono,
 } from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
-import { FormularioLineaIngreso, type LineaIngreso } from "../components/FormularioLineaIngreso";
+import {
+  FormularioLineaIngreso,
+  LINEA_INGRESO_VACIA,
+  type LineaIngreso,
+} from "../components/FormularioLineaIngreso";
 import { usePaginacionCursor } from "../../../shared/lib/use-paginacion-cursor";
 import { PaginacionControles } from "../components/PaginacionControles";
 import { SubirImagen } from "../components/SubirImagen";
@@ -39,7 +43,7 @@ const TONO_ESTADO: Record<string, Tono> = {
   Rechazada: "peligro",
 };
 
-const LINEA_VACIA: LineaIngreso = { producto_id: null, cantidad: 1, precio_compra_unitario: 0 };
+const LINEA_VACIA: LineaIngreso = LINEA_INGRESO_VACIA;
 
 export default function IngresosMercaderia() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -65,9 +69,12 @@ export default function IngresosMercaderia() {
   const paginacion = usePaginacionCursor(20);
   const { page, pageSize, cursor, registrarRespuesta, reiniciar } = paginacion;
 
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+
   // Si la URL trae ?producto_id=NNN, pre-cargamos la primera línea.
   useEffect(() => {
     if (productoInicial) {
+      setMostrarFormulario(true);
       setLineas([{ ...LINEA_VACIA, producto_id: Number(productoInicial) }]);
       // Limpiamos la query para no re-disparar al recargar la lista.
       const next = new URLSearchParams(searchParams);
@@ -118,11 +125,14 @@ export default function IngresosMercaderia() {
       if (yaEsta !== -1) {
         return actuales.map((l, i) => (i === yaEsta ? { ...l, cantidad: l.cantidad + 1 } : l));
       }
-      const vacia = actuales.findIndex((l) => l.producto_id === null);
+      const vacia = actuales.findIndex((l) => !l.esNuevo && l.producto_id === null);
       const nueva: LineaIngreso = {
+        ...LINEA_VACIA,
         producto_id: p.id,
         cantidad: 1,
-        precio_compra_unitario: p.precio_compra_actual ?? 0,
+        // Arranca con el costo conocido × 1 unidad; el cajero lo pisa con el
+        // total real de la boleta.
+        precio_compra_total: p.precio_compra_actual ?? 0,
       };
       if (vacia !== -1) return actuales.map((l, i) => (i === vacia ? nueva : l));
       return [...actuales, nueva];
@@ -156,7 +166,7 @@ export default function IngresosMercaderia() {
         setBusquedaProducto("");
       } else if (coincidencias.length > 1) {
         mostrarAviso(
-          `Hay ${coincidencias.length} productos que coinciden con "${texto}". Escaneá el código o elegilo en la línea.`,
+          `Hay ${coincidencias.length} productos que coinciden con "${texto}". Escanea el código o elígelo en la línea.`,
           "alerta",
         );
       } else {
@@ -181,13 +191,23 @@ export default function IngresosMercaderia() {
   }
 
   function validar(): string | null {
-    if (!fotoUrl) return "Subí la foto de la boleta (obligatoria).";
-    if (lineas.length === 0) return "Agregá al menos una línea.";
+    // La foto es opcional: no toda compra viene con boleta.
+    if (lineas.length === 0) return "Agrega al menos una línea.";
+    const codigosNuevos = new Set<string>();
     for (let i = 0; i < lineas.length; i++) {
       const l = lineas[i];
-      if (!l.producto_id) return `Línea ${i + 1}: elegí un producto.`;
+      if (l.esNuevo) {
+        const codigo = l.nuevo_codigo.trim();
+        if (!codigo) return `Línea ${i + 1}: falta el código de barras.`;
+        if (!l.nuevo_nombre.trim()) return `Línea ${i + 1}: falta el nombre del producto.`;
+        if (codigosNuevos.has(codigo))
+          return `Línea ${i + 1}: el código ${codigo} está repetido en otra línea.`;
+        codigosNuevos.add(codigo);
+      } else if (!l.producto_id) {
+        return `Línea ${i + 1}: elige un producto.`;
+      }
       if (l.cantidad < 1) return `Línea ${i + 1}: la cantidad debe ser mayor a 0.`;
-      if (l.precio_compra_unitario < 0) return `Línea ${i + 1}: el precio no puede ser negativo.`;
+      if (l.precio_compra_total < 0) return `Línea ${i + 1}: el total no puede ser negativo.`;
     }
     return null;
   }
@@ -202,17 +222,22 @@ export default function IngresosMercaderia() {
     }
     setProcesando(true);
     try {
-      // `validar()` ya garantizó que fotoUrl no es null.
       await solicitar({
-        foto_boleta_url: fotoUrl!,
+        // Sin foto va cadena vacía: el backend la acepta así.
+        foto_boleta_url: fotoUrl ?? "",
         proveedor_id: proveedorId === "" ? null : Number(proveedorId),
         lineas: lineas.map((l) => ({
-          producto_id: l.producto_id!,
           cantidad: l.cantidad,
-          precio_compra_unitario: l.precio_compra_unitario,
+          precio_compra_total: l.precio_compra_total,
+          // Uno u otro, nunca los dos: es lo que valida el backend.
+          producto_id: l.esNuevo ? null : l.producto_id,
+          nuevo_codigo: l.esNuevo ? l.nuevo_codigo.trim() : null,
+          nuevo_nombre: l.esNuevo ? l.nuevo_nombre.trim() : null,
+          nuevo_categoria_id: l.esNuevo ? l.nuevo_categoria_id : null,
+          margen_ganancia: l.esNuevo ? l.margen_ganancia : null,
         })),
       });
-      setMensaje("Ingreso registrado. Queda pendiente de aprobación del ADMIN.");
+      setMensaje("Ingreso registrado. Queda pendiente de la aprobación del administrador.");
       setLineas([LINEA_VACIA]);
       setProveedorId("");
       setFotoUrl(null);
@@ -228,7 +253,7 @@ export default function IngresosMercaderia() {
       <div>
         <PageHeader titulo="Ingresos de mercadería" />
         <Card sinPadding>
-          <ModuloPendiente modulo="inventario (Módulo B)" />
+          <ModuloPendiente modulo="inventario" />
         </Card>
       </div>
     );
@@ -237,16 +262,25 @@ export default function IngresosMercaderia() {
   const columnas: Columna<SolicitudIngreso>[] = [
     {
       titulo: "Fecha",
-      render: (i) => (
-        <span className="whitespace-nowrap text-zinc-500">
-          {i.created_at ? new Date(i.created_at).toLocaleString("es-PE") : "—"}
-        </span>
-      ),
+      ancho: "135px",
+      render: (i) => {
+        if (!i.created_at) return <span className="text-zinc-400">—</span>;
+        const d = new Date(i.created_at);
+        const fecha = d.toLocaleDateString("es-PE");
+        const hora = d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        return (
+          <div className="flex flex-col text-xs text-zinc-600">
+            <span className="font-medium text-zinc-800">{fecha}</span>
+            <span className="text-[11px] text-zinc-400">{hora}</span>
+          </div>
+        );
+      },
     },
     {
       titulo: "Productos",
+      ancho: "135px",
       render: (i) => (
-        <div>
+        <div className="whitespace-nowrap">
           <span className="font-medium text-zinc-800">
             {i.cantidad_productos ?? i.lineas.length} unidades
           </span>
@@ -256,28 +290,30 @@ export default function IngresosMercaderia() {
     },
     {
       titulo: "Monto",
-      alinear: "derecha",
+      ancho: "100px",
       soloEscritorio: true,
       render: (i) => (
-        <span className="tabular-nums">
+        <span className="tabular-nums font-medium">
           {i.monto_total != null ? `S/ ${i.monto_total.toFixed(2)}` : "—"}
         </span>
       ),
     },
     {
       titulo: "Solicitado por",
+      ancho: "160px",
       soloEscritorio: true,
-      render: (i) => i.solicitado_por_nombre,
+      render: (i) => <span className="block truncate font-medium text-zinc-800" title={i.solicitado_por_nombre}>{i.solicitado_por_nombre}</span>,
     },
     {
       titulo: "Estado",
+      ancho: "130px",
       render: (i) => {
         const estado = String(i.estado);
         const tono = TONO_ESTADO[estado] ?? "neutro";
         return (
           <div>
             <Badge tono={tono}>{estado}</Badge>
-            {i.motivo_rechazo && <p className="mt-1 text-xs text-zinc-500">{i.motivo_rechazo}</p>}
+            {i.motivo_rechazo && <p className="mt-1 text-xs text-zinc-500 line-clamp-2">{i.motivo_rechazo}</p>}
           </div>
         );
       },
@@ -288,87 +324,108 @@ export default function IngresosMercaderia() {
     <div>
       <PageHeader
         titulo="Ingresos de mercadería"
-        descripcion="Registrá lo que llega a tienda; el ADMIN lo aprueba y recién ahí suma al stock."
+        descripcion="Registra lo que llega a tienda; el ADMIN lo aprueba y recién ahí suma al stock."
+        acciones={
+          <Button
+            icono={mostrarFormulario ? undefined : <Plus className="h-4 w-4" aria-hidden />}
+            variante={mostrarFormulario ? "secundario" : "primario"}
+            onClick={() => setMostrarFormulario(!mostrarFormulario)}
+            className="w-full justify-center sm:w-auto"
+          >
+            {mostrarFormulario ? "Ocultar formulario" : "Nuevo ingreso"}
+          </Button>
+        }
       />
 
-      <Card titulo="Registrar ingreso" className="mb-4" descripcion="Subí la foto de la boleta y una o más líneas con productos y costos.">
-        <div className="space-y-4">
-          <SubirImagen
-            carpeta="boletas"
-            label="Foto de la boleta"
-            ayuda="Obligatoria. JPG/PNG. Se guarda en Storage y queda en la solicitud."
-            requerido
-            value={fotoUrl}
-            onChange={setFotoUrl}
-            error={!fotoUrl && errorAccion?.includes("foto") ? errorAccion : null}
-          />
-          <Select
-            label="Proveedor (opcional)"
-            value={proveedorId}
-            onChange={(e) => setProveedorId(e.target.value ? Number(e.target.value) : "")}
-          >
-            <option value="">Sin proveedor</option>
-            {proveedores.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.razon_social}
-              </option>
-            ))}
-          </Select>
-          {errorProveedores && (
-            <Alert tono="peligro">No se pudieron cargar los proveedores: {errorProveedores}</Alert>
-          )}
-          <div className="space-y-3">
-            {/* Buscador + lector: agrega la línea sin tocar el mouse. */}
-            <div>
-              <div className="relative">
-                <ScanBarcode
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
-                  aria-hidden
-                />
-                <Input
-                  ref={inputEscaner}
-                  className="pl-9"
-                  autoFocus
-                  label="Escaneá un código o buscá por nombre"
-                  placeholder="El lector agrega el producto automáticamente…"
-                  value={busquedaProducto}
-                  onChange={(e) => setBusquedaProducto(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void buscarYAgregar();
-                    }
-                  }}
-                />
-              </div>
-              {aviso && (
-                <div className="mt-2">
-                  <Alert tono={aviso.tono}>{aviso.texto}</Alert>
+      {mostrarFormulario && (
+        <Card titulo="Registrar ingreso" className="mb-4" descripcion="Carga una o más líneas con productos y costos. La foto de la boleta es opcional.">
+          <div className="space-y-4">
+            <SubirImagen
+              carpeta="boletas"
+              label="Foto de la boleta (opcional)"
+              ayuda="Si tienes la boleta, adjúntala: JPG/PNG. Queda guardada en la solicitud."
+              value={fotoUrl}
+              onChange={setFotoUrl}
+            />
+            <Select
+              label="Proveedor (opcional)"
+              value={proveedorId}
+              onChange={(e) => setProveedorId(e.target.value ? Number(e.target.value) : "")}
+            >
+              <option value="">Sin proveedor</option>
+              {proveedores.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.razon_social}
+                </option>
+              ))}
+            </Select>
+            {errorProveedores && (
+              <Alert tono="peligro">No se pudieron cargar los proveedores: {errorProveedores}</Alert>
+            )}
+            <div className="space-y-3">
+              {/* Buscador + lector: agrega la línea sin tocar el mouse. */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">
+                  Escanea un código o busca por nombre
+                </label>
+                <div className="relative">
+                  <ScanBarcode
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+                    aria-hidden
+                  />
+                  <Input
+                    ref={inputEscaner}
+                    className="pl-9"
+                    autoFocus
+                    placeholder="El lector agrega el producto automáticamente…"
+                    value={busquedaProducto}
+                    onChange={(e) => setBusquedaProducto(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void buscarYAgregar();
+                      }
+                    }}
+                  />
                 </div>
-              )}
+                {aviso && (
+                  <div className="mt-2">
+                    <Alert tono={aviso.tono}>{aviso.texto}</Alert>
+                  </div>
+                )}
+              </div>
+              {lineas.map((l, i) => (
+                <FormularioLineaIngreso
+                  key={i}
+                  linea={l}
+                  esUnica={lineas.length === 1}
+                  onChange={(nl) => actualizarLinea(i, nl)}
+                  onEliminar={() => eliminarLinea(i)}
+                />
+              ))}
+              <Button 
+                type="button" 
+                variante="secundario" 
+                onClick={agregarLinea} 
+                icono={<Plus className="h-4 w-4" aria-hidden />}
+                className="w-full justify-center sm:w-auto"
+              >
+                Agregar línea
+              </Button>
             </div>
-            {lineas.map((l, i) => (
-              <FormularioLineaIngreso
-                key={i}
-                linea={l}
-                esUnica={lineas.length === 1}
-                onChange={(nl) => actualizarLinea(i, nl)}
-                onEliminar={() => eliminarLinea(i)}
-              />
-            ))}
-            <Button type="button" variante="secundario" onClick={agregarLinea} icono={<Plus className="h-4 w-4" aria-hidden />}>
-              Agregar línea
-            </Button>
+            {mensaje && <Alert tono="exito">{mensaje}</Alert>}
+            {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+              <Button variante="secundario" onClick={() => setMostrarFormulario(false)} className="w-full justify-center sm:w-auto">
+                Cancelar
+              </Button>
+              <Button onClick={() => void manejarSolicitar()} cargando={procesando} icono={<Truck className="h-4 w-4" aria-hidden />} className="w-full justify-center sm:w-auto">
+                Registrar ingreso
+              </Button>
+            </div>
           </div>
-          {mensaje && <Alert tono="exito">{mensaje}</Alert>}
-          {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
-          <div className="flex justify-end">
-            <Button onClick={() => void manejarSolicitar()} cargando={procesando} icono={<Truck className="h-4 w-4" aria-hidden />}>
-              Registrar ingreso
-            </Button>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <Select
@@ -392,6 +449,7 @@ export default function IngresosMercaderia() {
       {!cargando && !error && (
         <Card sinPadding>
           <Table
+            minAncho="520px"
             columnas={columnas}
             filas={ingresos}
             claveDe={(i) => i.id}

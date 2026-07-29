@@ -5,12 +5,15 @@
 // unitario) y a la derecha la boleta, para contrastarlos sin perder de vista
 // ninguno de los dos.
 import { useEffect, useState } from "react";
-import { Check, ClipboardCheck, ImageOff, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Check, ClipboardCheck, Eye, ImageOff, X } from "lucide-react";
 import {
   Alert,
   Button,
   Card,
+  DatePicker,
   EmptyState,
+  ImagenConRespaldo,
   Input,
   ModuloPendiente,
   PageHeader,
@@ -19,7 +22,7 @@ import {
   type Columna,
 } from "../../../shared/components/ui";
 import { useAuth } from "../../modulo-a-seguridad/hooks/useAuth";
-import { codigoDeError, mensajeDeError } from "../../../shared/lib/http-client";
+import { codigoDeError, mensajeDeError, urlParaAbrir } from "../../../shared/lib/http-client";
 import { FormularioIngresoEditable } from "../components/FormularioIngresoEditable";
 import { IngresoDetalleContent } from "../components/IngresoDetalleContent";
 import { ModalConfirmacion } from "../components/ModalConfirmacion";
@@ -49,6 +52,8 @@ export default function AprobacionIngresos() {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
   // La cola crece mientras la administradora la revisa: con `page`/OFFSET
   // cada ingreso nuevo le corría las filas y le repetía solicitudes.
   const paginacion = usePaginacionCursor(20);
@@ -57,11 +62,13 @@ export default function AprobacionIngresos() {
   useEffect(() => {
     void recargar({
       estado: "Pendiente",
+      fecha_desde: fechaDesde || undefined,
+      fecha_hasta: fechaHasta || undefined,
       page_size: pageSize,
       ...(cursor ? { cursor } : {}),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, cursor]);
+  }, [page, pageSize, cursor, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     if (paginados) registrarRespuesta(paginados.siguiente_cursor);
@@ -146,7 +153,7 @@ export default function AprobacionIngresos() {
       <div>
         <PageHeader titulo="Aprobación de ingresos" />
         <Card sinPadding>
-          <ModuloPendiente modulo="inventario (Módulo B)" />
+          <ModuloPendiente modulo="inventario" />
         </Card>
       </div>
     );
@@ -157,21 +164,35 @@ export default function AprobacionIngresos() {
   const columnas: Columna<SolicitudIngreso>[] = [
     {
       titulo: "Fecha",
-      render: (i) => (
-        <span className="whitespace-nowrap text-zinc-500">
-          {i.created_at ? new Date(i.created_at).toLocaleString("es-PE") : "—"}
-        </span>
-      ),
+      ancho: "135px",
+      render: (i) => {
+        if (!i.created_at) return <span className="text-zinc-400">—</span>;
+        const d = new Date(i.created_at);
+        const fecha = d.toLocaleDateString("es-PE");
+        const hora = d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        return (
+          <div className="flex flex-col text-xs text-zinc-600">
+            <span className="font-medium text-zinc-800">{fecha}</span>
+            <span className="text-[11px] text-zinc-400">{hora}</span>
+          </div>
+        );
+      },
     },
     {
       titulo: "Foto boleta",
+      ancho: "90px",
       render: (i) =>
         i.foto_boleta_url ? (
-          <a href={i.foto_boleta_url} target="_blank" rel="noopener noreferrer" className="block">
-            <img
+          <a href={urlParaAbrir(i.foto_boleta_url)} target="_blank" rel="noopener noreferrer" className="block">
+            <ImagenConRespaldo
               src={i.foto_boleta_url}
               alt="Boleta"
               className="h-10 w-10 rounded border border-zinc-200 object-cover hover:opacity-80"
+              respaldo={
+                <span className="flex h-10 w-10 items-center justify-center rounded border border-dashed border-zinc-300 text-zinc-300">
+                  <ImageOff className="h-4 w-4" aria-hidden />
+                </span>
+              }
             />
           </a>
         ) : (
@@ -180,8 +201,9 @@ export default function AprobacionIngresos() {
     },
     {
       titulo: "Productos",
+      ancho: "135px",
       render: (i) => (
-        <div>
+        <div className="whitespace-nowrap">
           <span className="font-medium text-zinc-800">
             {i.cantidad_productos ?? i.lineas.length} unidades
           </span>
@@ -191,27 +213,39 @@ export default function AprobacionIngresos() {
     },
     {
       titulo: "Solicitado por",
+      ancho: "160px",
       soloEscritorio: true,
       render: (i) => i.solicitado_por_nombre,
     },
     {
       titulo: "Acciones",
+      alinear: "centro",
+      ancho: "140px",
       render: (i) => (
-        <div className="flex flex-wrap gap-1">
-          <Button compacto variante="secundario" onClick={() => void abrirDetalle(i)}>
-            Ver detalle
-          </Button>
+        <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+          <Button
+            compacto
+            variante="secundario"
+            title="Ver detalle"
+            aria-label={`Ver detalle de la solicitud ${i.id}`}
+            onClick={() => void abrirDetalle(i)}
+            icono={<Eye className="h-4 w-4" aria-hidden />}
+          />
           <Button
             compacto
             onClick={() => setParaAprobar(i)}
+            title="Aprobar"
+            aria-label={`Aprobar solicitud ${i.id}`}
             icono={<Check className="h-4 w-4" aria-hidden />}
           >
-            Aprobar
+            <span className="hidden sm:inline">Aprobar</span>
           </Button>
           <Button
             compacto
             variante="secundario"
             className="text-peligro"
+            title="Rechazar"
+            aria-label={`Rechazar solicitud ${i.id}`}
             onClick={() => {
               setParaRechazar(i);
               setMotivo("");
@@ -219,7 +253,7 @@ export default function AprobacionIngresos() {
             }}
             icono={<X className="h-4 w-4" aria-hidden />}
           >
-            Rechazar
+            <span className="hidden sm:inline">Rechazar</span>
           </Button>
         </div>
       ),
@@ -244,9 +278,45 @@ export default function AprobacionIngresos() {
         </div>
       )}
 
+      {/* Filtro de rango de fechas */}
+      <Card className="mb-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-full sm:w-48">
+            <DatePicker
+              label="Desde"
+              valor={fechaDesde}
+              onChange={(val) => setFechaDesde(val)}
+              placeholder="dd/mm/aaaa"
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <DatePicker
+              label="Hasta"
+              valor={fechaHasta}
+              onChange={(val) => setFechaHasta(val)}
+              placeholder="dd/mm/aaaa"
+            />
+          </div>
+          {(fechaDesde || fechaHasta) && (
+            <Button
+              variante="secundario"
+              compacto
+              onClick={() => {
+                setFechaDesde("");
+                setFechaHasta("");
+              }}
+              icono={<X className="h-4 w-4" aria-hidden />}
+            >
+              Limpiar fechas
+            </Button>
+          )}
+        </div>
+      </Card>
+
       {/* La cola sigue siendo una tabla de filas, a todo el ancho. */}
       <Card sinPadding>
         <Table
+          minAncho="480px"
           columnas={columnas}
           filas={ingresos}
           claveDe={(i) => i.id}
@@ -271,7 +341,7 @@ export default function AprobacionIngresos() {
 
       {/* Detalle en pop-up: a la IZQUIERDA los productos por ingresar
           (cantidad y costo unitario), a la DERECHA la boleta para contrastar. */}
-      {detalle && modo && (
+      {detalle && modo && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4"
           onClick={cerrarDetalle}
@@ -323,21 +393,27 @@ export default function AprobacionIngresos() {
                 )}
               </div>
 
-              {/* Derecha: la boleta */}
-              <div>
+              {/* Derecha: la boleta (fija al scrollear la tabla) */}
+              <div className="lg:sticky lg:top-0 h-fit">
                 <h4 className="mb-2 text-sm font-semibold text-zinc-800">Boleta</h4>
                 {detalle.foto_boleta_url ? (
                   <a
-                    href={detalle.foto_boleta_url}
+                    href={urlParaAbrir(detalle.foto_boleta_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     title="Abrir la boleta en tamaño completo"
                     className="block rounded-lg border border-zinc-200 bg-zinc-50 p-2"
                   >
-                    <img
+                    <ImagenConRespaldo
                       src={detalle.foto_boleta_url}
                       alt={`Boleta de la solicitud #${detalle.id}`}
                       className="max-h-[28rem] w-full rounded object-contain"
+                      respaldo={
+                        <span className="flex items-center gap-2 px-3 py-6 text-sm text-zinc-500">
+                          <ImageOff className="h-4 w-4" aria-hidden />
+                          No se pudo cargar la boleta. Ábrela en una pestaña nueva para verla.
+                        </span>
+                      }
                     />
                   </a>
                 ) : (
@@ -378,7 +454,8 @@ export default function AprobacionIngresos() {
               </footer>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal: confirmar aprobación */}
@@ -399,50 +476,51 @@ export default function AprobacionIngresos() {
       />
 
       {/* Modal: rechazar (con motivo obligatorio) */}
-      <div
-        className={`fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4 ${
-          paraRechazar ? "" : "hidden"
-        }`}
-        onClick={() => !procesando && setParaRechazar(null)}
-      >
+      {paraRechazar && createPortal(
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Rechazar ingreso"
-          className="w-full max-w-lg overflow-hidden rounded-t-2xl bg-white shadow-lg sm:rounded-2xl"
-          onClick={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4"
+          onClick={() => !procesando && setParaRechazar(null)}
         >
-          <header className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
-            <h3 className="font-semibold text-zinc-900">Rechazar ingreso #{paraRechazar?.id}</h3>
-            <button
-              onClick={() => setParaRechazar(null)}
-              disabled={procesando}
-              aria-label="Cerrar"
-              className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-50"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </header>
-          <div className="px-5 py-4">
-            <Input
-              label="Motivo del rechazo"
-              requerido
-              placeholder="ej. cantidad no coincide con la guía"
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-            />
-            {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Rechazar ingreso"
+            className="w-full max-w-lg overflow-hidden rounded-t-2xl bg-white shadow-lg sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
+              <h3 className="font-semibold text-zinc-900">Rechazar ingreso #{paraRechazar?.id}</h3>
+              <button
+                onClick={() => setParaRechazar(null)}
+                disabled={procesando}
+                aria-label="Cerrar"
+                className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="px-5 py-4">
+              <Input
+                label="Motivo del rechazo"
+                requerido
+                placeholder="ej. cantidad no coincide con la guía"
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+              />
+              {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
+              <Button variante="secundario" onClick={() => setParaRechazar(null)} disabled={procesando}>
+                Cancelar
+              </Button>
+              <Button variante="peligro" cargando={procesando} onClick={() => void manejarRechazar()}>
+                Rechazar ingreso
+              </Button>
+            </footer>
           </div>
-          <footer className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
-            <Button variante="secundario" onClick={() => setParaRechazar(null)} disabled={procesando}>
-              Cancelar
-            </Button>
-            <Button variante="peligro" cargando={procesando} onClick={() => void manejarRechazar()}>
-              Rechazar ingreso
-            </Button>
-          </footer>
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

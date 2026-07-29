@@ -4,12 +4,12 @@
 //   · "Nuevo producto" inserta una FILA VACÍA editable arriba de todo.
 //   · El lápiz de una fila existente la vuelve editable en el lugar.
 //   · En ambos casos el ícono pasa a ser un diskette; al guardarlo la fila
-//     pregunta "¿Seguro que querés hacer este cambio?" con ✓ / ✗ y recién
+//     pregunta "¿Seguro que quieres hacer este cambio?" con ✓ / ✗ y recién
 //     entonces se aplica.
 //
 // La consulta de solo lectura del catálogo vive en el punto de venta.
-import { useState } from "react";
-import { Check, PackagePlus, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, PackagePlus, Pencil, Plus, Save, ScanBarcode, Search, SlidersHorizontal, Tag, Trash2, X } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -22,13 +22,18 @@ import {
   PageHeader,
   PageSpinner,
   Select,
+  SelectorCategoriaModal,
   Table,
   type Columna,
 } from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
+import { ModalConfirmacion } from "../components/ModalConfirmacion";
+import { ModalGestionCategorias } from "../components/ModalGestionCategorias";
 import { PaginacionControles } from "../components/PaginacionControles";
+
 import { useCategorias } from "../hooks/useCategorias";
 import { useProductos } from "../hooks/useProductos";
+import { productosHttpAdapter } from "../services/productos.http-adapter";
 import type { NuevoProducto, Producto } from "../types";
 
 /** Id ficticio de la fila de alta (no existe en el backend). */
@@ -84,9 +89,11 @@ function validar(fila: FilaEditada): string | null {
   const precio = Number(fila.precio);
   const stock = Number(fila.stock);
   const stockMinimo = Number(fila.stock_minimo);
-  if (!fila.codigo.trim()) return "Escaneá o escribí un código.";
+  if (!fila.codigo.trim()) return "Escanea o escribe un código.";
   if (!fila.nombre.trim()) return "El nombre no puede quedar vacío.";
   if (!(precio > 0)) return "El precio de venta debe ser mayor a 0.";
+  if (Math.round(precio * 100) % 10 !== 0)
+    return "El precio de venta debe ser un múltiplo de S/ 0.10 (ej. 2.50, 3.80).";
   if (!Number.isInteger(stock) || stock < 0) return "El stock debe ser un entero no negativo.";
   if (!Number.isInteger(stockMinimo) || stockMinimo < 0)
     return "El stock mínimo debe ser un entero no negativo.";
@@ -107,13 +114,22 @@ export default function Catalogo() {
     ajustarStock,
     eliminar,
   } = useProductos();
-  const { categorias, crear: crearCategoria } = useCategorias();
 
-  // Alta de categoría: hasta ahora sólo se podían crear por BD. El único
-  // componente que las creaba (`SelectorCategoria`) quedó huérfano cuando esta
-  // página reemplazó a GestionProductos.
+  const {
+    categorias,
+    cargando: cargandoCategorias,
+    crear: crearCategoria,
+    editar: editarCategoria,
+    eliminar: eliminarCategoria,
+  } = useCategorias();
+
+
+  const [modalCategoriasAbierto, setModalCategoriasAbierto] = useState(false);
+
+  // Alta de categoría rápida
   const [nuevaCategoria, setNuevaCategoria] = useState<string | null>(null);
   const [creandoCategoria, setCreandoCategoria] = useState(false);
+
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -128,6 +144,108 @@ export default function Catalogo() {
   const [confirmando, setConfirmando] = useState(false);
   /** Producto en espera de confirmación de baja. */
   const [porEliminar, setPorEliminar] = useState<Producto | null>(null);
+
+  // --- Buscador y Filtros sobre la tabla con autocompletado en tiempo real ---
+  const [busquedaInput, setBusquedaInput] = useState("");
+  const [busquedaAplicada, setBusquedaAplicada] = useState("");
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
+  const [indiceSugerencia, setIndiceSugerencia] = useState(0);
+  const [sugerencias, setSugerencias] = useState<Producto[]>([]);
+  const inputBusquedaRef = useRef<HTMLInputElement>(null);
+
+  // Filtros adicionales en modal
+  const [modalFiltrosAbierto, setModalFiltrosAbierto] = useState(false);
+  const [filtroCategoriaId, setFiltroCategoriaId] = useState<number | "">("");
+  const [filtroEstado, setFiltroEstado] = useState<"todos" | "activos" | "inactivos">("todos");
+  const [filtroStock, setFiltroStock] = useState<"todos" | "con_stock" | "sin_stock" | "bajo_minimo">("todos");
+
+  const filtrosActivosCount = useMemo(() => {
+    let count = 0;
+    if (filtroCategoriaId !== "") count++;
+    if (filtroEstado !== "todos") count++;
+    if (filtroStock !== "todos") count++;
+    return count;
+  }, [filtroCategoriaId, filtroEstado, filtroStock]);
+
+  // Sugerencias del autocompletado: se piden al backend (búsqueda indexada por
+  // nombre/código) con un pequeño debounce mientras se escribe.
+  //
+  // Antes se traía TODO el catálogo de una sola vez (`page_size: 250`) para
+  // filtrarlo en el cliente, pero el backend topa `page_size` en 100: devolvía
+  // 422 y, al tragarse el error en el `.catch`, el buscador se quedaba sin
+  // sugerencias. Pedirlas al servidor cubre además catálogos de cualquier
+  // tamaño (no solo los primeros 100 productos).
+  useEffect(() => {
+    const q = busquedaInput.trim();
+    if (!q) {
+      setSugerencias([]);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      void productosHttpAdapter
+        .listar({ search: q, page_size: 8 })
+        .then((resp) => setSugerencias(resp.items ?? []))
+        .catch(() => setSugerencias([]));
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [busquedaInput]);
+
+  function construirFiltros(override?: { page?: number; pageSize?: number; search?: string }) {
+    const p = override?.page ?? 1;
+    const ps = override?.pageSize ?? pageSize;
+    const s = override?.search !== undefined ? override.search : busquedaAplicada;
+
+    return {
+      page: p,
+      page_size: ps,
+      search: s || undefined,
+      categoria_id: filtroCategoriaId === "" ? undefined : Number(filtroCategoriaId),
+      activo: filtroEstado === "activos" ? true : filtroEstado === "inactivos" ? false : undefined,
+      solo_con_stock: filtroStock === "con_stock" ? true : undefined,
+      sin_stock: filtroStock === "sin_stock" ? true : undefined,
+      solo_bajo_minimo: filtroStock === "bajo_minimo" ? true : undefined,
+    };
+  }
+
+  function aplicarBusqueda(texto?: string) {
+    const query = (texto !== undefined ? texto : busquedaInput).trim();
+    setBusquedaAplicada(query);
+    setMostrarSugerencias(false);
+    setPage(1);
+    void recargar(construirFiltros({ page: 1, search: query }));
+  }
+
+  function seleccionarSugerencia(p: Producto) {
+    setBusquedaInput(p.nombre);
+    aplicarBusqueda(p.nombre);
+  }
+
+  function limpiarBusqueda() {
+    setBusquedaInput("");
+    setBusquedaAplicada("");
+    setMostrarSugerencias(false);
+    setPage(1);
+    void recargar(construirFiltros({ page: 1, search: "" }));
+  }
+
+  function aplicarFiltros() {
+    setModalFiltrosAbierto(false);
+    setPage(1);
+    void recargar(construirFiltros({ page: 1 }));
+  }
+
+  function limpiarFiltros() {
+    setFiltroCategoriaId("");
+    setFiltroEstado("todos");
+    setFiltroStock("todos");
+    setModalFiltrosAbierto(false);
+    setPage(1);
+    void recargar({
+      page: 1,
+      page_size: pageSize,
+      search: busquedaAplicada || undefined,
+    });
+  }
 
   function empezarAlta() {
     setErrorAccion(null);
@@ -269,13 +387,13 @@ export default function Catalogo() {
 
   function manejarCambioPage(nueva: number) {
     setPage(nueva);
-    void recargar({ page: nueva, page_size: pageSize });
+    void recargar(construirFiltros({ page: nueva }));
   }
 
   function manejarCambioPageSize(nueva: number) {
     setPageSize(nueva);
     setPage(1);
-    void recargar({ page: 1, page_size: nueva });
+    void recargar(construirFiltros({ page: 1, pageSize: nueva }));
   }
 
   if (noDisponible) {
@@ -283,7 +401,7 @@ export default function Catalogo() {
       <div>
         <PageHeader titulo="Catálogo" />
         <Card sinPadding>
-          <ModuloPendiente modulo="inventario (Módulo B)" />
+          <ModuloPendiente modulo="inventario" />
         </Card>
       </div>
     );
@@ -307,11 +425,12 @@ export default function Catalogo() {
   const columnas: Columna<Producto>[] = [
     {
       titulo: "Código",
+      ancho: "135px",
       render: (p) =>
         enEdicion(p) ? (
           <Input
             aria-label="Código"
-            className="w-32"
+            className="w-full min-w-0"
             autoFocus={esNueva(p)}
             placeholder="7750100000000"
             value={fila!.codigo}
@@ -319,7 +438,7 @@ export default function Catalogo() {
             onKeyDown={teclasDeFila}
           />
         ) : (
-          <span className="font-mono text-xs text-zinc-500">{p.codigo}</span>
+          <span className="font-mono text-xs text-zinc-500 truncate block">{p.codigo}</span>
         ),
     },
     {
@@ -328,6 +447,7 @@ export default function Catalogo() {
         enEdicion(p) ? (
           <Input
             aria-label="Nombre"
+            className="w-full min-w-0"
             autoFocus={!esNueva(p)}
             placeholder="Arroz 5kg"
             value={fila!.nombre}
@@ -335,62 +455,54 @@ export default function Catalogo() {
             onKeyDown={teclasDeFila}
           />
         ) : (
-          <span className="font-medium text-zinc-800">{p.nombre}</span>
+          <span className="font-medium text-zinc-800 leading-snug">{p.nombre}</span>
         ),
     },
     {
       titulo: "Categoría",
+      ancho: "150px",
       soloEscritorio: true,
       render: (p) =>
         enEdicion(p) ? (
-          <Select
-            aria-label="Categoría"
-            className="w-40"
-            value={fila!.categoria_id}
-            onChange={(e) =>
-              setFila({ ...fila!, categoria_id: e.target.value ? Number(e.target.value) : "" })
-            }
+          <SelectorCategoriaModal
+            categorias={categorias}
+            className="w-full min-w-0"
+            valor={fila!.categoria_id}
+            onSeleccionar={(id) => setFila({ ...fila!, categoria_id: id })}
             onKeyDown={teclasDeFila}
-          >
-            <option value="">Sin categoría</option>
-            {categorias.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </Select>
+          />
         ) : (
-          (p.categoria_nombre ?? "—")
+          <span className="text-zinc-600">{p.categoria_nombre ?? "—"}</span>
         ),
     },
     {
       titulo: "Precio",
-      alinear: "derecha",
+      ancho: "95px",
       render: (p) =>
         enEdicion(p) ? (
           <Input
             aria-label="Precio de venta"
-            className="w-24"
+            className="w-full min-w-0"
             type="number"
             step="0.10"
-            min={0.01}
+            min={0.10}
             placeholder="0.00"
             value={fila!.precio}
             onChange={(e) => setFila({ ...fila!, precio: e.target.value })}
             onKeyDown={teclasDeFila}
           />
         ) : (
-          <span className="tabular-nums">S/ {(p.precio_venta ?? p.precio).toFixed(2)}</span>
+          <span className="tabular-nums font-medium">S/ {(p.precio_venta ?? p.precio).toFixed(2)}</span>
         ),
     },
     {
       titulo: "Stock",
-      alinear: "derecha",
+      ancho: "80px",
       render: (p) =>
         enEdicion(p) ? (
           <Input
             aria-label={esNueva(p) ? "Stock inicial" : "Stock"}
-            className="w-20"
+            className="w-full min-w-0"
             type="number"
             min={0}
             value={fila!.stock}
@@ -398,18 +510,18 @@ export default function Catalogo() {
             onKeyDown={teclasDeFila}
           />
         ) : (
-          <span className="tabular-nums">{p.stock}</span>
+          <span className="tabular-nums font-medium">{p.stock}</span>
         ),
     },
     {
       titulo: "Stock mín.",
-      alinear: "derecha",
+      ancho: "85px",
       soloEscritorio: true,
       render: (p) =>
         enEdicion(p) ? (
           <Input
             aria-label="Stock mínimo"
-            className="w-20"
+            className="w-full min-w-0"
             type="number"
             min={0}
             value={fila!.stock_minimo}
@@ -417,11 +529,12 @@ export default function Catalogo() {
             onKeyDown={teclasDeFila}
           />
         ) : (
-          <span className="tabular-nums">{p.stock_minimo}</span>
+          <span className="tabular-nums font-medium">{p.stock_minimo}</span>
         ),
     },
     {
       titulo: "Estado",
+      ancho: "95px",
       render: (p) =>
         esNueva(p) ? (
           <Badge tono="alerta">Nuevo</Badge>
@@ -431,38 +544,9 @@ export default function Catalogo() {
     },
     {
       titulo: "Acciones",
+      ancho: "95px",
       alinear: "derecha",
       render: (p) => {
-        // Paso 3: confirmación inline (✓ / ✗).
-        if (enEdicion(p) && confirmando) {
-          return (
-            <div className="flex items-center justify-end gap-2">
-              <span className="hidden text-xs text-zinc-600 sm:inline">
-                {esNueva(p) ? "¿Creamos este producto?" : "¿Seguro que querés hacer este cambio?"}
-              </span>
-              <button
-                type="button"
-                onClick={() => void (esNueva(p) ? guardarAlta() : guardarEdicion(p))}
-                disabled={procesando}
-                title="Sí, guardar"
-                aria-label="Confirmar"
-                className="rounded border border-exito/30 bg-exito/10 p-1.5 text-exito hover:bg-exito/20 disabled:opacity-50"
-              >
-                <Check className="h-4 w-4" aria-hidden />
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmando(false)}
-                disabled={procesando}
-                title="No, volver a editar"
-                aria-label="Cancelar"
-                className="rounded border border-zinc-300 p-1.5 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
-              >
-                <X className="h-4 w-4" aria-hidden />
-              </button>
-            </div>
-          );
-        }
         // Paso 2: fila editable → el lápiz pasó a ser diskette.
         if (enEdicion(p)) {
           return (
@@ -472,7 +556,7 @@ export default function Catalogo() {
                 onClick={pedirConfirmacion}
                 title="Guardar"
                 aria-label="Guardar"
-                className="rounded p-1.5 text-marca hover:bg-zinc-100"
+                className="inline-flex min-h-tactil min-w-11 items-center justify-center rounded p-1.5 sm:min-h-0 sm:min-w-0 text-marca hover:bg-zinc-100"
               >
                 <Save className="h-4 w-4" aria-hidden />
               </button>
@@ -481,7 +565,7 @@ export default function Catalogo() {
                 onClick={cancelarEdicion}
                 title="Descartar"
                 aria-label="Descartar"
-                className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100"
+                className="inline-flex min-h-tactil min-w-11 items-center justify-center rounded p-1.5 sm:min-h-0 sm:min-w-0 text-zinc-500 hover:bg-zinc-100"
               >
                 <X className="h-4 w-4" aria-hidden />
               </button>
@@ -497,7 +581,7 @@ export default function Catalogo() {
               disabled={editandoId !== null}
               title="Editar fila"
               aria-label={`Editar ${p.nombre}`}
-              className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-40"
+              className="inline-flex min-h-tactil min-w-11 items-center justify-center rounded p-1.5 sm:min-h-0 sm:min-w-0 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-40"
             >
               <Pencil className="h-4 w-4" aria-hidden />
             </button>
@@ -510,7 +594,7 @@ export default function Catalogo() {
               disabled={editandoId !== null}
               title="Eliminar producto"
               aria-label={`Eliminar ${p.nombre}`}
-              className="rounded p-1.5 text-zinc-500 hover:bg-red-50 hover:text-peligro disabled:opacity-40"
+              className="inline-flex min-h-tactil min-w-11 items-center justify-center rounded p-1.5 sm:min-h-0 sm:min-w-0 text-zinc-500 hover:bg-red-50 hover:text-peligro disabled:opacity-40"
             >
               <Trash2 className="h-4 w-4" aria-hidden />
             </button>
@@ -527,26 +611,40 @@ export default function Catalogo() {
     <div>
       <PageHeader
         titulo="Catálogo"
-        descripcion="Se edita como una planilla: tocá el lápiz para modificar una fila."
+        descripcion="Se edita como una planilla: toca el lápiz para modificar una fila."
         acciones={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variante="secundario"
-              onClick={() => setNuevaCategoria("")}
-              disabled={nuevaCategoria !== null}
-              icono={<Plus className="h-4 w-4" aria-hidden />}
-            >
-              Nueva categoría
-            </Button>
+          <div className="flex flex-col w-full gap-2 sm:flex-row sm:w-auto">
+            <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
+              <Button
+                variante="secundario"
+                onClick={() => setModalCategoriasAbierto(true)}
+                icono={<Tag className="h-4 w-4" aria-hidden />}
+                className="w-full justify-center"
+              >
+                Categorías
+              </Button>
+              <Button
+                variante="secundario"
+                onClick={() => setNuevaCategoria("")}
+                disabled={nuevaCategoria !== null}
+                icono={<Plus className="h-4 w-4" aria-hidden />}
+                className="w-full justify-center"
+              >
+                Nueva categoría
+              </Button>
+            </div>
             <Button
               onClick={empezarAlta}
               disabled={editandoId !== null}
               icono={<Plus className="h-4 w-4" aria-hidden />}
+              className="w-full justify-center sm:w-auto"
             >
               Nuevo producto
             </Button>
           </div>
         }
+
+
       />
 
       {/* Alta de categoría en línea: mismo criterio que el resto de la página
@@ -600,8 +698,172 @@ export default function Catalogo() {
         </div>
       )}
 
+      {/* Buscador + Botón de Filtros sobre la tabla */}
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2.5">
+        <div className="relative flex-1 w-full min-w-0">
+          <div className="relative flex w-full items-center rounded-xl border border-zinc-200 bg-white p-1 shadow-sm transition-all focus-within:border-zinc-400 focus-within:ring-2 focus-within:ring-marca/20">
+            <ScanBarcode className="pointer-events-none absolute left-3.5 h-5 w-5 text-zinc-400" />
+            <input
+              ref={inputBusquedaRef}
+              type="text"
+              className="w-full bg-transparent py-2 pl-11 pr-10 sm:pr-32 text-sm text-zinc-900 focus:outline-none placeholder:text-zinc-400 truncate"
+              placeholder="Escanea un código o busca por nombre…"
+              value={busquedaInput}
+              onChange={(e) => {
+                setBusquedaInput(e.target.value);
+                setMostrarSugerencias(true);
+                setIndiceSugerencia(0);
+              }}
+              onFocus={() => setMostrarSugerencias(true)}
+              onBlur={() => setTimeout(() => setMostrarSugerencias(false), 200)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setIndiceSugerencia((prev) => Math.min(prev + 1, sugerencias.length - 1));
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setIndiceSugerencia((prev) => Math.max(prev - 1, 0));
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (mostrarSugerencias && sugerencias[indiceSugerencia]) {
+                    seleccionarSugerencia(sugerencias[indiceSugerencia]);
+                  } else {
+                    aplicarBusqueda();
+                  }
+                } else if (e.key === "Escape") {
+                  setMostrarSugerencias(false);
+                  if (busquedaInput || busquedaAplicada) {
+                    limpiarBusqueda();
+                  }
+                }
+              }}
+              role="combobox"
+              aria-expanded={mostrarSugerencias && sugerencias.length > 0}
+            />
+            <div className="absolute right-1.5 flex items-center gap-1.5">
+              {(busquedaInput || busquedaAplicada) && (
+                <button
+                  type="button"
+                  onClick={limpiarBusqueda}
+                  title="Limpiar búsqueda"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 transition-all active:scale-95"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <div className="hidden sm:flex items-center gap-1.5">
+                {(busquedaInput || busquedaAplicada) && <div className="h-4 w-px bg-zinc-200" />}
+                <Button
+                  compacto
+                  onClick={() => aplicarBusqueda()}
+                  icono={<Search className="h-4 w-4" aria-hidden />}
+                >
+                  Buscar
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Desplegable de autocompletado en tiempo real */}
+          {mostrarSugerencias && busquedaInput.trim().length > 0 && sugerencias.length > 0 && (
+            <ul
+              role="listbox"
+              className="absolute left-0 right-0 z-30 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border shadow-xl"
+              style={{
+                background: "var(--ui-fondo-panel)",
+                borderColor: "var(--ui-borde)",
+              }}
+            >
+              {sugerencias.map((p, idx) => {
+                const esSeleccionado = idx === indiceSugerencia;
+                return (
+                  <li key={p.id} role="option" aria-selected={esSeleccionado}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        seleccionarSugerencia(p);
+                      }}
+                      onMouseEnter={() => setIndiceSugerencia(idx)}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition-colors"
+                      style={{
+                        background: esSeleccionado ? "var(--ui-item-activo)" : "transparent",
+                        color: "var(--ui-texto-principal)",
+                      }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-medium">{p.nombre}</span>
+                          {p.categoria_nombre && (
+                            <Badge tono="neutro">
+                              {p.categoria_nombre}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="font-mono text-xs opacity-60">{p.codigo}</span>
+                      </div>
+                      <div className="text-right shrink-0 text-xs font-semibold">
+                        <span>S/ {(p.precio_venta ?? p.precio).toFixed(2)}</span>
+                        <span className="block text-[10px] font-normal opacity-70">
+                          Stock: {p.stock}
+                        </span>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Fila de botones solo en MODO RESPONSIVO: Buscar + Filtros mitad y mitad (50% - 50%) */}
+        <div className="flex sm:hidden w-full gap-2">
+          <Button
+            type="button"
+            onClick={() => aplicarBusqueda()}
+            icono={<Search className="h-4 w-4" aria-hidden />}
+            className="flex-1 justify-center"
+          >
+            Buscar
+          </Button>
+          <Button
+            type="button"
+            variante={filtrosActivosCount > 0 ? "primario" : "secundario"}
+            onClick={() => setModalFiltrosAbierto(true)}
+            icono={<SlidersHorizontal className="h-4 w-4" aria-hidden />}
+            className="flex-1 justify-center"
+          >
+            <span>Filtros</span>
+            {filtrosActivosCount > 0 && (
+              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-marca shadow-xs">
+                {filtrosActivosCount}
+              </span>
+            )}
+          </Button>
+        </div>
+
+        {/* Botón de Filtros en DESKTOP */}
+        <Button
+          type="button"
+          variante={filtrosActivosCount > 0 ? "primario" : "secundario"}
+          onClick={() => setModalFiltrosAbierto(true)}
+          icono={<SlidersHorizontal className="h-4 w-4" aria-hidden />}
+          className="hidden sm:inline-flex shrink-0"
+          title="Filtros avanzados"
+        >
+          <span>Filtros</span>
+          {filtrosActivosCount > 0 && (
+            <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-marca shadow-xs">
+              {filtrosActivosCount}
+            </span>
+          )}
+        </Button>
+      </div>
+
+
       <Card sinPadding>
         <Table
+          minAncho="850px"
           columnas={columnas}
           filas={filas}
           claveDe={(p) => p.id}
@@ -623,6 +885,26 @@ export default function Catalogo() {
           etiqueta="productos"
         />
       </Card>
+
+      {/* Guardar producto: confirmación en modal */}
+      <ModalConfirmacion
+        abierto={confirmando}
+        titulo={editandoId === ID_NUEVA ? "Crear producto" : "Guardar cambios"}
+        mensaje={
+          editandoId === ID_NUEVA
+            ? `¿Creamos el producto "${fila?.nombre.trim() || "nuevo"}" en el catálogo?`
+            : `¿Guardar los cambios en "${fila?.nombre.trim() || "este producto"}"?`
+        }
+        textoConfirmar={editandoId === ID_NUEVA ? "Sí, crear" : "Sí, guardar"}
+        cargando={procesando}
+        alCancelar={() => setConfirmando(false)}
+        alConfirmar={() => {
+          const esNuevo = editandoId === ID_NUEVA;
+          const productoActual = productos.find((p) => p.id === editandoId) ?? null;
+          if (esNuevo) void guardarAlta();
+          else if (productoActual) void guardarEdicion(productoActual);
+        }}
+      />
 
       {/* Baja de producto: confirmación explícita */}
       <Modal
@@ -653,7 +935,7 @@ export default function Catalogo() {
       >
         <div className="space-y-2 text-sm text-zinc-700">
           <p>
-            ¿Seguro que querés eliminar <strong>{porEliminar?.nombre}</strong> (
+            ¿Seguro que quieres eliminar <strong>{porEliminar?.nombre}</strong> (
             {porEliminar?.codigo})?
           </p>
           <p className="text-zinc-500">
@@ -663,6 +945,108 @@ export default function Catalogo() {
           {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
         </div>
       </Modal>
+
+      {/* Modal de Filtros Avanzados */}
+      <Modal
+        abierto={modalFiltrosAbierto}
+        titulo="Filtros de catálogo"
+        alCerrar={() => setModalFiltrosAbierto(false)}
+        pie={
+          <div className="flex w-full items-center justify-between gap-2">
+            <Button
+              variante="secundario"
+              onClick={limpiarFiltros}
+              disabled={filtrosActivosCount === 0}
+            >
+              Limpiar filtros
+            </Button>
+            <Button onClick={() => aplicarFiltros()}>
+              Aplicar filtros
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-5 py-1">
+          {/* Categoría */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-700">
+              Categoría
+            </label>
+            <SelectorCategoriaModal
+              categorias={categorias}
+              valor={filtroCategoriaId}
+              onSeleccionar={(id) => setFiltroCategoriaId(id)}
+              placeholderSinCategoria="Todas las categorías"
+            />
+          </div>
+
+          {/* Estado de producto */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-700">
+              Estado del producto
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: "todos", label: "Todos" },
+                { id: "activos", label: "Activos" },
+                { id: "inactivos", label: "Inactivos" },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setFiltroEstado(opt.id as any)}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                    filtroEstado === opt.id
+                      ? "border-marca bg-marca/10 font-semibold text-marca ring-1 ring-marca"
+                      : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Estado de stock */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-700">
+              Nivel de stock
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: "todos", label: "Todo el stock" },
+                { id: "con_stock", label: "Con stock disponible" },
+                { id: "sin_stock", label: "Sin stock (Agotados)" },
+                { id: "bajo_minimo", label: "Stock crítico (Bajo mín.)" },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setFiltroStock(opt.id as any)}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                    filtroStock === opt.id
+                      ? "border-marca bg-marca/10 font-semibold text-marca ring-1 ring-marca"
+                      : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      <ModalGestionCategorias
+        abierto={modalCategoriasAbierto}
+        alCerrar={() => setModalCategoriasAbierto(false)}
+        categorias={categorias}
+        cargando={cargandoCategorias}
+        onCrear={crearCategoria}
+        onEditar={editarCategoria}
+        onEliminar={eliminarCategoria}
+      />
     </div>
   );
 }
+

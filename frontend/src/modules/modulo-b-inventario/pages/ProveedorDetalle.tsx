@@ -16,6 +16,7 @@ import {
   type Columna,
   type Tono,
 } from "../../../shared/components/ui";
+import { mensajeDeError } from "../../../shared/lib/http-client";
 import { useAuthContext } from "../../../shared/lib/auth-context";
 import { FormularioPago } from "../components/FormularioPago";
 import { PaginacionControles } from "../components/PaginacionControles";
@@ -75,7 +76,7 @@ export default function ProveedorDetalle() {
       setPaginados({ total: respPagos.total, total_pages: respPagos.total_pages });
     } catch (e) {
       if (e instanceof Error && /404|501|503/.test(e.message)) setNoDisponible(true);
-      setError(e instanceof Error ? e.message : "No se pudo cargar.");
+      setError(mensajeDeError(e));
     } finally {
       setCargando(false);
     }
@@ -95,7 +96,7 @@ export default function ProveedorDetalle() {
       setModalCompra(false);
       await recargar();
     } catch (e) {
-      setErrorAccion(e instanceof Error ? e.message : "No se pudo registrar.");
+      setErrorAccion(mensajeDeError(e));
       throw e;
     } finally {
       setProcesando(false);
@@ -112,7 +113,7 @@ export default function ProveedorDetalle() {
       setModalPago(false);
       await recargar();
     } catch (e) {
-      setErrorAccion(e instanceof Error ? e.message : "No se pudo registrar.");
+      setErrorAccion(mensajeDeError(e));
       throw e;
     } finally {
       setProcesando(false);
@@ -134,7 +135,7 @@ export default function ProveedorDetalle() {
       <div>
         <PageHeader titulo="Detalle de proveedor" />
         <Card sinPadding>
-          <ModuloPendiente modulo="inventario (Módulo B)" />
+          <ModuloPendiente modulo="inventario" />
         </Card>
       </div>
     );
@@ -293,7 +294,7 @@ export default function ProveedorDetalle() {
             <EmptyState
               icono={ScrollText}
               titulo="Sin movimientos"
-              descripcion="Cuando registres una compra o un pago, aparecerá acá."
+              descripcion="Cuando registres una compra o un pago, aparecerá aquí."
             />
           }
         />

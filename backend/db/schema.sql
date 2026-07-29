@@ -128,6 +128,9 @@ CREATE TABLE configuracion_negocio (
     session_ttl_cajero_minutos INTEGER      NOT NULL DEFAULT 720,
     max_intentos_login         INTEGER      NOT NULL DEFAULT 3,
     minutos_bloqueo            INTEGER      NOT NULL DEFAULT 15,
+    -- % de ganancia por defecto para calcular el precio de venta de un producto
+    -- nuevo dado de alta desde un ingreso. Editable por línea al aprobar.
+    margen_ganancia_default    NUMERIC(5,2) NOT NULL DEFAULT 20,
     updated_by                 BIGINT REFERENCES usuarios (id) ON DELETE RESTRICT,
     updated_at                 TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
@@ -208,7 +211,9 @@ CREATE TABLE solicitudes_ingreso (
     id                    BIGSERIAL PRIMARY KEY,
     proveedor_id          BIGINT REFERENCES proveedores (id) ON DELETE RESTRICT,
     estado                VARCHAR(20)  NOT NULL DEFAULT 'Pendiente',
-    foto_boleta_url       TEXT         NOT NULL,
+    -- La foto es OPCIONAL: cadena vacía cuando la compra vino sin boleta.
+    -- Se usa '' en vez de NULL por la misma convención que `ip`/`user_agent`.
+    foto_boleta_url       TEXT         NOT NULL DEFAULT '',
     motivo                TEXT,
     motivo_rechazo        TEXT,
     solicitado_por        BIGINT       NOT NULL REFERENCES usuarios (id) ON DELETE RESTRICT,
@@ -247,15 +252,40 @@ CREATE INDEX idx_solicitudes_created_at_id ON solicitudes_ingreso (created_at DE
 CREATE TABLE detalle_solicitud (
     id                     BIGSERIAL PRIMARY KEY,
     solicitud_id           BIGINT        NOT NULL REFERENCES solicitudes_ingreso (id) ON DELETE CASCADE,
-    producto_id            BIGINT        NOT NULL REFERENCES productos (id)           ON DELETE RESTRICT,
+    -- NULL mientras la línea proponga un producto que todavía no está en el
+    -- catálogo: el cajero transcribe la boleta sin depender de que un ADMIN
+    -- lo dé de alta antes. Se completa al aprobar, que es cuando el producto
+    -- se crea de verdad (crearlo antes sería saltear `productos.crear`).
+    producto_id            BIGINT REFERENCES productos (id) ON DELETE RESTRICT,
     cantidad               INTEGER       NOT NULL,
-    precio_compra_unitario NUMERIC(10,2) NOT NULL,
+    -- Monto de la línea TAL CUAL figura en la boleta: "7 esponjas — S/ 20".
+    -- El unitario se deriva (total/cantidad) y nunca al revés: la división no
+    -- da exacta (20/7 = 2.857…) y con NUMERIC(10,2) reconstruir el total desde
+    -- el unitario daría 20.02, descuadrando la deuda contra la boleta real.
+    precio_compra_total    NUMERIC(10,2) NOT NULL,
+    -- Producto propuesto por el cajero. Solo se leen si `producto_id IS NULL`.
+    nuevo_codigo           VARCHAR(60),
+    nuevo_nombre           VARCHAR(150),
+    nuevo_categoria_id     INTEGER REFERENCES categorias (id) ON DELETE RESTRICT,
+    -- % de ganancia con el que se calcula el precio de venta. NULL = usar
+    -- `configuracion_negocio.margen_ganancia_default`.
+    margen_ganancia        NUMERIC(5,2),
     created_at             TIMESTAMPTZ   NOT NULL DEFAULT now(),
     CONSTRAINT chk_detsol_cantidad_positiva  CHECK (cantidad > 0),
-    CONSTRAINT chk_detsol_precio_no_negativo CHECK (precio_compra_unitario >= 0)
+    CONSTRAINT chk_detsol_precio_no_negativo CHECK (precio_compra_total >= 0),
+    -- O apunta a un producto del catálogo, o trae los datos del que se propone.
+    CONSTRAINT chk_detsol_producto_o_nuevo CHECK (
+        producto_id IS NOT NULL
+        OR (nuevo_codigo IS NOT NULL AND length(trim(nuevo_codigo)) > 0
+            AND nuevo_nombre IS NOT NULL AND length(trim(nuevo_nombre)) > 0)
+    ),
+    CONSTRAINT chk_detsol_margen_no_negativo CHECK (
+        margen_ganancia IS NULL OR margen_ganancia >= 0
+    )
 );
 CREATE INDEX idx_detsol_solicitud ON detalle_solicitud (solicitud_id);
-CREATE INDEX idx_detsol_producto  ON detalle_solicitud (producto_id);
+CREATE INDEX idx_detsol_producto  ON detalle_solicitud (producto_id)
+    WHERE producto_id IS NOT NULL;
 
 CREATE TABLE pagos_proveedor (
     id                    BIGSERIAL PRIMARY KEY,

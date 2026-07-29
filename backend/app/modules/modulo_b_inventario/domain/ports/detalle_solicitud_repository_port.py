@@ -16,3 +16,11 @@ class DetalleSolicitudRepositoryPort(ABC):
     @abstractmethod
     async def eliminar_por_solicitud(self, solicitud_id: int) -> None:
         """Útil para rollback explícito en la transacción de creación."""
+
+    @abstractmethod
+    async def asignar_producto(self, detalle_id: int, producto_id: int) -> None:
+        """Ata una línea al producto que se acaba de crear al aprobarla.
+
+        Deja la trazabilidad completa: la línea pasa a apuntar al producto real
+        y los campos `nuevo_*` quedan como registro de lo que se propuso.
+        """

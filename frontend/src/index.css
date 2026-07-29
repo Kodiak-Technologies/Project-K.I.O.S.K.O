@@ -2,27 +2,181 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Variables del tema. --color-primario/--color-secundario/--tipografia las
-   sobreescribe theme-context con lo que la dueña guarda en Configuración. */
 :root {
   --color-primario: #18181b;
   --color-secundario: #71717a;
   --tipografia: "Inter";
+
+  /* ── Variables de superficie (estilo "Claro" por defecto) ── */
+  --ui-fondo:              #f4f4f5;
+  --ui-fondo-panel:        #ffffff;
+  --ui-borde:              #e4e4e7;
+  --ui-texto-principal:    #18181b;
+  --ui-texto-secundario:   #71717a;
+  --ui-item-hover:         #f4f4f5;
+  --ui-item-activo:        #e4e4e7;
+  --ui-activo-bg:          #f0f0f1;
+  --ui-separador:          #e4e4e7;
+  --ui-scroll-track:       #f4f4f5;
+  --ui-scroll-thumb:       #d4d4d8;
+  --ui-scroll-thumb-hover: #a1a1aa;
+}
+
+/* ── Tema Celeste ── */
+[data-estilo="celeste"] {
+  --ui-fondo:              #f0f9ff;
+  --ui-fondo-panel:        #e0f2fe;
+  --ui-borde:              #bae6fd;
+  --ui-texto-principal:    #0c4a6e;
+  --ui-texto-secundario:   #075985;
+  --ui-item-hover:         #e0f2fe;
+  --ui-item-activo:        #bae6fd;
+  --ui-activo-bg:          #e0f2fe;
+  --ui-separador:          #bae6fd;
+  --ui-scroll-track:       #e0f2fe;
+  --ui-scroll-thumb:       #7dd3fc;
+  --ui-scroll-thumb-hover: #38bdf8;
+}
+
+/* ── Tema Menta ── */
+[data-estilo="menta"] {
+  --ui-fondo:              #f0fdf4;
+  --ui-fondo-panel:        #dcfce7;
+  --ui-borde:              #bbf7d0;
+  --ui-texto-principal:    #14532d;
+  --ui-texto-secundario:   #166534;
+  --ui-item-hover:         #bbf7d0;
+  --ui-item-activo:        #86efac;
+  --ui-activo-bg:          #dcfce7;
+  --ui-separador:          #bbf7d0;
+  --ui-scroll-track:       #dcfce7;
+  --ui-scroll-thumb:       #86efac;
+  --ui-scroll-thumb-hover: #4ade80;
+}
+
+/* ── Tema Rosa ── */
+[data-estilo="rosa"] {
+  --ui-fondo:              #fff0f6;
+  --ui-fondo-panel:        #fce7f3;
+  --ui-borde:              #fbcfe8;
+  --ui-texto-principal:    #831843;
+  --ui-texto-secundario:   #9d174d;
+  --ui-item-hover:         #fce7f3;
+  --ui-item-activo:        #fbcfe8;
+  --ui-activo-bg:          #fce7f3;
+  --ui-separador:          #fbcfe8;
+  --ui-scroll-track:       #fce7f3;
+  --ui-scroll-thumb:       #f9a8d4;
+  --ui-scroll-thumb-hover: #ec4899;
+}
+
+/* ── Tema Lavanda ── */
+[data-estilo="lavanda"] {
+  --ui-fondo:              #f5f3ff;
+  --ui-fondo-panel:        #ede9fe;
+  --ui-borde:              #ddd6fe;
+  --ui-texto-principal:    #4c1d95;
+  --ui-texto-secundario:   #5b21b6;
+  --ui-item-hover:         #ede9fe;
+  --ui-item-activo:        #ddd6fe;
+  --ui-activo-bg:          #ede9fe;
+  --ui-separador:          #ddd6fe;
+  --ui-scroll-track:       #ede9fe;
+  --ui-scroll-thumb:       #c4b5fd;
+  --ui-scroll-thumb-hover: #a78bfa;
+}
+
+/* ── Tema Melocotón ── */
+[data-estilo="melocoton"] {
+  --ui-fondo:              #fff7ed;
+  --ui-fondo-panel:        #ffedd5;
+  --ui-borde:              #fed7aa;
+  --ui-texto-principal:    #7c2d12;
+  --ui-texto-secundario:   #9a3412;
+  --ui-item-hover:         #ffedd5;
+  --ui-item-activo:        #fed7aa;
+  --ui-activo-bg:          #ffedd5;
+  --ui-separador:          #fed7aa;
+  --ui-scroll-track:       #ffedd5;
+  --ui-scroll-thumb:       #fdba74;
+  --ui-scroll-thumb-hover: #f97316;
+}
+
+/* ── Scrollbar global: responde a data-estilo ── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-scroll-thumb) var(--ui-scroll-track);
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--ui-scroll-track);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--ui-scroll-thumb);
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ui-scroll-thumb-hover);
 }
 
 @layer base {
-  body {
-    @apply bg-zinc-50 font-sans text-zinc-900 antialiased;
+  /*
+   * El alto de la app lo fija el shell (Layout), no el contenido: la ventana
+   * nunca scrollea. Así la única barra vertical es la del contenedor que
+   * corresponde (la tabla), y no se suma una segunda al borde de la pantalla.
+   *
+   * `max-width: 100%` y no `100vw`: `100vw` incluye el ancho de la barra
+   * vertical y deja ~15px de desborde horizontal en escritorio.
+   */
+  html,
+  body,
+  #root {
+    height: 100%;
+    max-width: 100%;
   }
 
-  /* Foco visible y consistente en todo el sistema (accesibilidad teclado). */
+  /*
+   * Red de contención para las pantallas que se montan fuera del shell (login,
+   * cambio de contraseña): si no entran, scrollean acá. Con el shell montado no
+   * se activa nunca, porque el Layout mide exactamente el alto disponible.
+   */
+  #root {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  body {
+    /* Se propaga al viewport: la página en sí no scrollea. */
+    overflow: hidden;
+    background-color: var(--ui-fondo);
+    @apply font-sans text-zinc-900 antialiased;
+  }
+
   :focus-visible {
     @apply outline-none ring-2 ring-marca ring-offset-2 ring-offset-white;
   }
 
-  /* En tablet no queremos el resaltado azul nativo al tocar. */
   button,
   a {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
   }
 }

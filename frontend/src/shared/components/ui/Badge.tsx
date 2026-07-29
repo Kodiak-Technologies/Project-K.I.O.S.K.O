@@ -1,5 +1,3 @@
-// Badge de estado: fondo suave + texto oscuro (nunca texto claro sobre blanco,
-// por contraste). El color en esta UI gris significa algo — úsalo solo para estados.
 import type { ReactNode } from "react";
 
 export type Tono = "exito" | "peligro" | "alerta" | "info" | "neutro";
@@ -23,10 +21,10 @@ const PUNTO: Record<Tono, string> = {
 export function Badge({ tono = "neutro", children }: { tono?: Tono; children: ReactNode }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${ESTILOS[tono]}`}
+      className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${ESTILOS[tono]}`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${PUNTO[tono]}`} aria-hidden />
-      {children}
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PUNTO[tono]}`} aria-hidden />
+      <span className="inline-flex items-center gap-1 whitespace-nowrap min-w-0">{children}</span>
     </span>
   );
 }

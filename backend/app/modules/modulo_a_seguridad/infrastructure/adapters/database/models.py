@@ -1,6 +1,7 @@
 # Modelos SQLAlchemy (tablas) del módulo de seguridad.
 # Nombres en español y snake_case. Todas las fechas TIMESTAMPTZ.
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -9,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     func,
@@ -126,6 +128,11 @@ class ConfiguracionNegocioModel(Base):
     session_ttl_cajero_minutos: Mapped[int] = mapped_column(Integer, default=720, nullable=False)
     max_intentos_login: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     minutos_bloqueo: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
+    # % de ganancia por defecto para el precio de venta de un producto dado de
+    # alta desde un ingreso de mercadería. Pisable por línea al aprobar.
+    margen_ganancia_default: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), default=Decimal("20"), server_default="20", nullable=False
+    )
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="RESTRICT"))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False

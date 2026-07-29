@@ -65,7 +65,7 @@ export const colaOffline = {
         if (respuesta?.status && respuesta.status >= 400 && respuesta.status < 500) {
           // El backend la rechazó (sin stock, sin turno...): se conserva marcada
           // con el motivo para que el cajero decida, NUNCA se pierde en silencio.
-          pendiente.error = respuesta.data?.detail ?? "El servidor rechazó esta venta.";
+          pendiente.error = respuesta.data?.detail ?? "No se pudo registrar esta venta.";
           const cola = colaOffline.listar().map((p) => (p.uuid === pendiente.uuid ? pendiente : p));
           localStorage.setItem(CLAVE_PENDIENTES, JSON.stringify(cola));
           conError.push(pendiente);

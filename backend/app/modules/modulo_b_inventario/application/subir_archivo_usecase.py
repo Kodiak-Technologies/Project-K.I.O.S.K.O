@@ -1,4 +1,4 @@
-# Caso de uso: subir un archivo a Supabase Storage (REQ-STO).
+# Caso de uso: subir la foto de boleta a Google Drive (REQ-STO).
 # - Valida MIME (image/jpeg | image/png) y tamaño (<= 10 MB).
 # - Genera path único {carpeta}/{YYYY-MM-DD}-{uuid}.{ext}.
 # - Llama al StoragePort.

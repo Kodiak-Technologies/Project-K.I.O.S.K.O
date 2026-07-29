@@ -65,6 +65,7 @@ export function TemaProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     aplicarVariablesCss(tema);
+    document.title = tema.nombreNegocio.trim() || TEMA_POR_DEFECTO.nombreNegocio;
     localStorage.setItem(CLAVE_TEMA, JSON.stringify(tema));
   }, [tema]);
 

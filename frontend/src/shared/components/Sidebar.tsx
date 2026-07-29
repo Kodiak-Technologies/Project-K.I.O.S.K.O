@@ -81,16 +81,21 @@ function Item({ enlace }: { enlace: Enlace }) {
     <NavLink
       to={enlace.a}
       end={enlace.a === "/"}
-      className={({ isActive }) =>
-        `relative flex min-h-tactil items-center gap-3 rounded-lg px-3 text-sm transition-colors ${
-          isActive ? "bg-zinc-100 font-medium text-zinc-900" : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-        }`
-      }
+      className="relative flex min-h-tactil items-center gap-3 rounded-lg px-3 text-sm transition-colors"
+      style={({ isActive }) => ({
+        background: isActive ? "var(--ui-item-activo)" : "transparent",
+        color: isActive ? "var(--ui-texto-principal)" : "var(--ui-texto-secundario)",
+        fontWeight: isActive ? 500 : undefined,
+      })}
     >
       {({ isActive }) => (
         <>
           {isActive && <span className="absolute left-0 h-5 w-1 rounded-r bg-marca" aria-hidden />}
-          <Icono className={`h-5 w-5 shrink-0 ${isActive ? "text-marca" : ""}`} aria-hidden />
+          <Icono
+            className="h-5 w-5 shrink-0"
+            style={{ color: isActive ? "var(--color-primario)" : "var(--ui-texto-secundario)" }}
+            aria-hidden
+          />
           {enlace.texto}
         </>
       )}
@@ -104,10 +109,10 @@ export function Sidebar() {
   const esAdmin = usuario?.rol === "ADMIN";
 
   return (
-    <div className="flex h-full flex-col border-r border-zinc-200 bg-white">
+    <div className="flex h-full flex-col" style={{ background: "var(--ui-fondo-panel)", borderRight: "1px solid var(--ui-borde)" }}>
       {/* Identidad del negocio. Altura FIJA h-16, igual que la TopBar: así los
           bordes inferiores quedan alineados sin importar el logo que suban. */}
-      <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-zinc-100 px-4">
+      <div className="flex h-16 shrink-0 items-center gap-2.5 px-4" style={{ borderBottom: "1px solid var(--ui-borde)" }}>
         {tema.logoUrl ? (
           <img src={tema.logoUrl} alt="Logo" className="h-9 w-9 shrink-0 rounded-lg object-contain" />
         ) : (
@@ -115,7 +120,7 @@ export function Sidebar() {
             <Store className="h-5 w-5" aria-hidden />
           </span>
         )}
-        <span className="truncate font-semibold text-zinc-900">{tema.nombreNegocio}</span>
+        <span className="truncate font-semibold" style={{ color: "var(--ui-texto-principal)" }}>{tema.nombreNegocio}</span>
       </div>
 
       {/* Navegación por módulos */}
@@ -126,7 +131,7 @@ export function Sidebar() {
           return (
             <div key={grupo.titulo ?? "raiz"}>
               {grupo.titulo && (
-                <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--ui-texto-secundario)" }}>
                   {grupo.titulo}
                 </p>
               )}
@@ -142,7 +147,7 @@ export function Sidebar() {
 
       {/* Configuración SIEMPRE al fondo del panel */}
       {esAdmin && (
-        <div className="border-t border-zinc-100 px-3 py-3">
+        <div className="px-3 py-3" style={{ borderTop: "1px solid var(--ui-borde)" }}>
           <Item enlace={{ a: "/configuracion", texto: "Configuración", icono: Settings }} />
         </div>
       )}

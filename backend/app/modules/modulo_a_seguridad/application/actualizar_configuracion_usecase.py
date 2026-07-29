@@ -1,6 +1,7 @@
 # Caso de uso: actualizar la configuración e identidad visual (solo ADMIN).
 # Cualquier usuario autenticado puede LEERLA (GET /configuracion); eso no pasa por aquí.
 from dataclasses import asdict
+from decimal import Decimal
 
 from app.modules.modulo_a_seguridad.application.registrar_auditoria_usecase import (
     RegistrarAuditoriaUseCase,
@@ -15,7 +16,7 @@ from app.shared.kernel.exceptions import ValidacionError
 _CAMPOS_EDITABLES = {
     "nombre_negocio", "logo_url", "color_primario", "color_secundario", "tipografia",
     "session_ttl_admin_minutos", "session_ttl_cajero_minutos",
-    "max_intentos_login", "minutos_bloqueo",
+    "max_intentos_login", "minutos_bloqueo", "margen_ganancia_default",
 }
 _CAMPOS_ENTEROS_POSITIVOS = {
     "session_ttl_admin_minutos", "session_ttl_cajero_minutos",
@@ -43,6 +44,12 @@ class ActualizarConfiguracionUseCase:
                 continue
             if campo in _CAMPOS_ENTEROS_POSITIVOS and (not isinstance(valor, int) or valor <= 0):
                 raise ValidacionError(f"'{campo}' debe ser un entero positivo.")
+            if campo == "margen_ganancia_default":
+                # La columna es NUMERIC: pasar el float directo arrastraría el
+                # error binario al precio de venta que se calcula con él.
+                valor = Decimal(str(valor))
+                if valor < 0:
+                    raise ValidacionError("El margen de ganancia no puede ser negativo.")
             setattr(config, campo, valor)
 
         config.updated_by = admin.id

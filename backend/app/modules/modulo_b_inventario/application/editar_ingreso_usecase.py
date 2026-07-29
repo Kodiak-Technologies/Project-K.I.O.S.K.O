@@ -68,7 +68,9 @@ class EditarIngresoUseCase:
         ip: str = "",
         user_agent: str = "",
     ) -> Any:  # returns SolicitudIngreso
-        """lineas is a list of {producto_id, cantidad, precio_unitario} dicts, or None."""
+        """lineas: list of dicts con {cantidad, precio_compra_total} y, o bien
+        `producto_id`, o bien `nuevo_codigo`/`nuevo_nombre` para un producto a
+        crear al aprobar. `margen_ganancia` es opcional. None = no tocar."""
 
         # 1. EMPTY_PATCH check (FR-3.3.2)
         if all(
@@ -82,19 +84,37 @@ class EditarIngresoUseCase:
 
         # 2. Lineas value validation (Pydantic ya valida formato; acá solo
         #    verificamos FKs que el use case no puede confiar del todo).
-        lineas_payload: list[tuple[int, int, Any]] | None = None
+        lineas_payload: list[dict] | None = None
         if lineas is not ... and lineas is not None:
             lineas_payload = []
             for idx, l in enumerate(lineas, start=1):
-                pid = l.get("producto_id")
                 cant = l.get("cantidad")
-                precio = l.get("precio_unitario")
-                if pid is None or cant is None or precio is None:
+                precio = l.get("precio_compra_total")
+                if cant is None or precio is None:
                     raise ValidacionError(
-                        f"Línea {idx}: producto_id, cantidad y precio_unitario son obligatorios.",
+                        f"Línea {idx}: cantidad y precio_compra_total son obligatorios.",
                         code="INVALID_LINE_VALUES",
                     )
-                lineas_payload.append((int(pid), int(cant), precio))
+                pid = l.get("producto_id")
+                codigo = (l.get("nuevo_codigo") or "").strip()
+                nombre = (l.get("nuevo_nombre") or "").strip()
+                if pid is None and not (codigo and nombre):
+                    raise ValidacionError(
+                        f"Línea {idx}: indica un producto del catálogo o el código "
+                        "y nombre del producto nuevo.",
+                        code="INVALID_LINE_VALUES",
+                    )
+                lineas_payload.append(
+                    {
+                        "producto_id": int(pid) if pid is not None else None,
+                        "cantidad": int(cant),
+                        "precio_compra_total": precio,
+                        "nuevo_codigo": codigo or None,
+                        "nuevo_nombre": nombre or None,
+                        "nuevo_categoria_id": l.get("nuevo_categoria_id"),
+                        "margen_ganancia": l.get("margen_ganancia"),
+                    }
+                )
 
         # 2.b Validación de FKs ANTES de tocar nada: sin esto un producto_id o
         #     proveedor_id inexistente llegaba al INSERT y Postgres respondía
@@ -106,7 +126,21 @@ class EditarIngresoUseCase:
                     "El proveedor indicado no existe.", code="PROVEEDOR_NOT_FOUND"
                 )
         if lineas_payload and self._productos:
-            for idx, (pid, _cant, _precio) in enumerate(lineas_payload, start=1):
+            for idx, l in enumerate(lineas_payload, start=1):
+                pid = l["producto_id"]
+                if pid is None:
+                    # Producto a crear: no hay FK que validar todavía, pero sí
+                    # que el código no esté ya tomado (si no, la aprobación
+                    # reventaría después de que la admin ya la dio por buena).
+                    codigo = l["nuevo_codigo"]
+                    existente = await self._productos.buscar_por_codigo(codigo)
+                    if existente is not None and existente.deleted_at is None:
+                        raise ValidacionError(
+                            f"Línea {idx}: el código '{codigo}' ya pertenece a "
+                            f"'{existente.nombre}'. Elígelo del catálogo.",
+                            code="CODIGO_DUPLICADO",
+                        )
+                    continue
                 producto = await self._productos.buscar_por_id(pid)
                 if producto is None or producto.deleted_at is not None:
                     raise ValidacionError(
@@ -150,8 +184,9 @@ class EditarIngresoUseCase:
         lineas_anteriores: list[dict] = [
             {
                 "producto_id": l.producto_id,
+                "producto": l.descripcion,
                 "cantidad": l.cantidad,
-                "precio_unitario": float(l.precio_compra_unitario),
+                "precio_compra_total": float(l.precio_compra_total),
             }
             for l in solicitud.lineas
         ]
@@ -205,8 +240,9 @@ class EditarIngresoUseCase:
                 "lineas": [
                     {
                         "producto_id": l.producto_id,
+                        "producto": l.descripcion,
                         "cantidad": l.cantidad,
-                        "precio_unitario": float(l.precio_compra_unitario),
+                        "precio_compra_total": float(l.precio_compra_total),
                     }
                     for l in nuevas_lineas
                 ]

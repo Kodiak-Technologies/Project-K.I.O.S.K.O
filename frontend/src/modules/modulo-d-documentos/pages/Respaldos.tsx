@@ -1,4 +1,4 @@
-import { useEffect, useState  } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Database, Download, ExternalLink, Plus, RotateCcw } from "lucide-react";
 import {
   Alert,
@@ -37,7 +37,6 @@ export default function Respaldos() {
 
   useEffect(() => {
     void recargar(page, pageSize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
   const [driveAutorizado, setDriveAutorizado] = useState<boolean | null>(null);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
@@ -65,7 +64,7 @@ export default function Respaldos() {
       <div>
         <PageHeader titulo="Respaldos" />
         <Card sinPadding>
-          <ModuloPendiente modulo="documentos (Módulo D)" />
+          <ModuloPendiente modulo="documentos" />
         </Card>
       </div>
     );
@@ -74,19 +73,25 @@ export default function Respaldos() {
   const columnas: Columna<Respaldo>[] = [
     {
       titulo: "Archivo",
+      ancho: "230px",
       render: (r) => <span className="font-mono text-xs text-zinc-700">{r.archivo_nombre}</span>,
     },
     {
       titulo: "Tamaño",
+      ancho: "90px",
       alinear: "derecha",
       render: (r) => <span className="tabular-nums">{formatearTamano(r.tamano_bytes)}</span>,
     },
     {
       titulo: "Estado",
+      ancho: "125px",
+      alinear: "centro",
       render: (r) => <Badge tono={TONO_ESTADO[r.estado]}>{r.estado}</Badge>,
     },
     {
       titulo: "Generado",
+      ancho: "175px",
+      alinear: "centro",
       render: (r) => (
         <span className="whitespace-nowrap text-zinc-500">
           {r.generado_en ? new Date(r.generado_en).toLocaleString("es-PE") : "—"}
@@ -95,6 +100,8 @@ export default function Respaldos() {
     },
     {
       titulo: "Expira",
+      ancho: "100px",
+      alinear: "centro",
       render: (r) => (
         <span className="whitespace-nowrap text-zinc-500">
           {r.expira_en ? new Date(r.expira_en).toLocaleDateString("es-PE") : "—"}
@@ -103,31 +110,35 @@ export default function Respaldos() {
     },
     {
       titulo: "Creado por",
+      ancho: "130px",
+      alinear: "centro",
       render: (r) => (
         <span className="text-zinc-600">{r.usuario_nombre ?? "—"}</span>
       ),
     },
     {
       titulo: "Acción",
+      ancho: "90px",
+      alinear: "centro",
       render: (r) =>
         r.estado === "COMPLETADO" ? (
-          <div className="flex gap-1">
+          <div className="flex justify-center gap-1">
             <Button
-              variante="secundario"
+              variante="fantasma"
               compacto
-              icono={<Download className="h-4 w-4" aria-hidden />}
+              title="Descargar respaldo"
+              aria-label="Descargar respaldo"
               onClick={() => void descargar(r.id, r.archivo_nombre)}
-            >
-              Descargar
-            </Button>
+              icono={<Download className="h-4 w-4 text-zinc-600" aria-hidden />}
+            />
             <Button
-              variante="secundario"
+              variante="fantasma"
               compacto
-              icono={<RotateCcw className="h-4 w-4" aria-hidden />}
+              title="Restaurar respaldo"
+              aria-label="Restaurar respaldo"
               onClick={() => void restaurar(r.id)}
-            >
-              Restaurar
-            </Button>
+              icono={<RotateCcw className="h-4 w-4 text-zinc-600" aria-hidden />}
+            />
           </div>
         ) : (
           <span className="text-xs text-zinc-400">—</span>
@@ -183,6 +194,7 @@ export default function Respaldos() {
       {!cargando && !error && (
         <Card sinPadding>
           <Table
+            minAncho="940px"
             columnas={columnas}
             filas={respaldos}
             claveDe={(r) => r.id}

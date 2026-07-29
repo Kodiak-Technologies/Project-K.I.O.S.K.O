@@ -1,5 +1,6 @@
 // Modal accesible: cierra con Escape o clic en el fondo, bloquea el scroll del body.
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 interface Props {
@@ -25,7 +26,7 @@ export function Modal({ abierto, titulo, alCerrar, pie, children }: Props) {
 
   if (!abierto) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4"
       onClick={alCerrar}
@@ -50,6 +51,7 @@ export function Modal({ abierto, titulo, alCerrar, pie, children }: Props) {
         <div className="px-5 py-4">{children}</div>
         {pie && <footer className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">{pie}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
