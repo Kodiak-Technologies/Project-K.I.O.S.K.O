@@ -59,7 +59,7 @@ from app.shared.http.middlewares import registrar_middlewares
 
 logger = logging.getLogger(__name__)
 
-TAREA_RESPALDO_INTERVALO = 604800  # 7 días (una semana)
+TAREA_RESPALDO_INTERVALO = 86400  # 1 día
 
 # Nota: la tarea periódica de reintento de subidas a Drive
 # (`modulo_d_documentos/infrastructure/tasks/reintentar_subidas.py`) NO se

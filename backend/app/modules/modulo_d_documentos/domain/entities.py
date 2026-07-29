@@ -60,7 +60,7 @@ class Respaldo:
         if self.expira_en is None:
             from datetime import timedelta
 
-            self.expira_en = ahora + timedelta(days=21)
+            self.expira_en = ahora + timedelta(days=4)
 
     @property
     def esta_completado(self) -> bool:
