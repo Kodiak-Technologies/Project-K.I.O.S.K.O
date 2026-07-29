@@ -24,6 +24,14 @@ interface Props<T> {
    * ahí daría un resultado peor, porque la otra columna se lee como desborde.
    */
   altoDelContenedor?: boolean;
+  /**
+   * Por defecto el contenedor redondea sus esquinas superiores para calzar con
+   * la `Card` que lo envuelve: el fondo del encabezado sticky (opaco) tapaba la
+   * curva de la tarjeta y la esquina se veía recta. Ponlo en `true` cuando la
+   * tabla NO va pegada al borde superior de la tarjeta (debajo del encabezado
+   * de la Card o de otro contenido), donde redondear dejaría un escalón raro.
+   */
+  sinRedondeoSuperior?: boolean;
 }
 
 /** Menos de esto y la tabla deja de ser usable: mejor que scrollee la página. */
@@ -38,6 +46,7 @@ export function Table<T>({
   contenedorClassName = "",
   minAncho = "800px",
   altoDelContenedor = false,
+  sinRedondeoSuperior = false,
 }: Props<T>) {
   const { ref: raizRef, altoMaximo } = useAltoDisponible<HTMLDivElement>(
     ALTO_MINIMO,
@@ -53,7 +62,13 @@ export function Table<T>({
     <div
       ref={raizRef}
       style={{ maxHeight: altoMaximo }}
-      className={`w-full min-w-0 max-w-full overflow-auto [scrollbar-gutter:stable] ${contenedorClassName}`}
+      // `overflow-auto` ya recorta el contenido: con `rounded-t-xl` esa curva
+      // corta el fondo del encabezado sticky y deja ver la esquina redondeada
+      // de la Card (antes se veía recta). El pie (paginación) y el borde inferior
+      // los redondea la propia Card, así que solo hace falta arriba.
+      className={`w-full min-w-0 max-w-full overflow-auto ${
+        sinRedondeoSuperior ? "" : "rounded-t-xl"
+      } [scrollbar-gutter:stable] ${contenedorClassName}`}
     >
       <table
         style={{ minWidth: minAncho }}

@@ -352,6 +352,9 @@ export default function Reportes() {
               </div>
             )}
             <Table
+              // Va debajo del encabezado de la Card (y del gráfico), no al ras
+              // del borde superior: sin redondeo arriba para no dejar un escalón.
+              sinRedondeoSuperior
               minAncho="0"
               columnas={columnasTop}
               filas={orden === "mayor" ? resumen.top_productos : masVendidos}

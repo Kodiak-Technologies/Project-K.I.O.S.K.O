@@ -15,7 +15,7 @@ export function Layout() {
     // scrollea es <main>; todo lo demás está clipeado para que ni el menú ni la
     // barra superior se corran, y para que no aparezca una segunda barra
     // vertical al borde de la pantalla.
-    <div className="flex h-full w-full max-w-full overflow-hidden bg-zinc-50">
+    <div className="flex h-full w-full max-w-full overflow-hidden" style={{ background: "var(--ui-fondo)" }}>
       <aside className="hidden w-64 shrink-0 lg:block">
         <Sidebar />
       </aside>
