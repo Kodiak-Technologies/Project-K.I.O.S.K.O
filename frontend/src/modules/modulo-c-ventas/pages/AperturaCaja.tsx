@@ -375,6 +375,9 @@ export default function AperturaCaja() {
         }
       >
         <Table
+          // Va debajo del encabezado de la Card, no al ras del borde: sin
+          // redondeo arriba para no dejar un escalón bajo el título.
+          sinRedondeoSuperior
           columnas={columnas}
           filas={turnosFiltrados}
           claveDe={(t) => t.id}

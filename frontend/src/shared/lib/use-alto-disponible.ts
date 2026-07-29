@@ -44,12 +44,19 @@ export function useAltoDisponible<T extends HTMLElement>(altoMinimo: number, act
     if (!el || !activo) return;
     const scroller = (el.closest("main") as HTMLElement | null) ?? document.documentElement;
 
+    // Al soltar el límite el elemento deja de ser scrollable un instante y el
+    // navegador le pone `scrollTop` en 0. Lo guardamos para restaurarlo: si no,
+    // cualquier render con la tabla desplazada (p. ej. tocar el lápiz para
+    // editar una fila del medio) la mandaba de vuelta al inicio.
+    const scrollTopPrevio = el.scrollTop;
+
     // Momentáneo: se restaura antes de salir, dentro del mismo frame.
     const limiteAplicado = el.style.maxHeight;
     el.style.maxHeight = "none";
     const altoDeseado = el.scrollHeight;
     const desborde = scroller.scrollHeight - scroller.clientHeight;
     el.style.maxHeight = limiteAplicado;
+    el.scrollTop = scrollTopPrevio;
 
     const disponible = altoDeseado - desborde - RESPIRO;
     // Sin desborde entra entera y no necesita barra propia.
