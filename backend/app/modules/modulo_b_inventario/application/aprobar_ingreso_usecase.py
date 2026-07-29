@@ -96,7 +96,7 @@ class AprobarIngresoUseCase:
         if existente is not None and existente.deleted_at is None:
             raise ConflictoError(
                 f"El código '{codigo}' ya pertenece a '{existente.nombre}'. "
-                "Editá la solicitud para apuntar la línea a ese producto."
+                "Edita la solicitud para apuntar la línea a ese producto."
             )
 
         margen = d.margen_ganancia if d.margen_ganancia is not None else margen_default

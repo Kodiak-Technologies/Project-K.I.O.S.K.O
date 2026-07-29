@@ -14,6 +14,8 @@ import { Trash2 } from "lucide-react";
 import { Input } from "../../../shared/components/ui";
 import { SelectorProducto } from "./SelectorProducto";
 import { SelectorCategoria } from "./SelectorCategoria";
+import { precioVentaSugerido } from "../lib/precios";
+import { useMargenDefault } from "../hooks/useMargenDefault";
 
 export interface LineaIngreso {
   /** true = producto a crear; false = producto del catálogo. */
@@ -65,8 +67,16 @@ export function FormularioLineaIngreso({
   onChange,
   onEliminar,
 }: Props) {
+  const margenDefault = useMargenDefault();
   const costoUnitario =
     linea.cantidad > 0 ? linea.precio_compra_total / linea.cantidad : 0;
+  // El margen de la línea pisa al del negocio; si está vacío, manda el global.
+  const margenAplicado = linea.margen_ganancia ?? margenDefault;
+  const precioVenta = precioVentaSugerido(
+    linea.precio_compra_total,
+    linea.cantidad,
+    margenAplicado,
+  );
 
   function alternarModo() {
     // Limpiar ambos lados al cambiar: dejar residuos del modo anterior
@@ -107,7 +117,7 @@ export function FormularioLineaIngreso({
               label="Código de barras"
               requerido
               maxLength={60}
-              placeholder="Escanealo o escribilo"
+              placeholder="Escanéalo o escríbelo"
               value={linea.nuevo_codigo}
               onChange={(e) => onChange({ ...linea, nuevo_codigo: e.target.value })}
               error={errores?.nuevo_codigo}
@@ -165,26 +175,46 @@ export function FormularioLineaIngreso({
             }
             error={errores?.precio_compra_total}
           />
-          {linea.cantidad > 0 && linea.precio_compra_total > 0 && (
+          {/* Solo con 2+ unidades: con 1, el unitario ES el total y el cartel
+              parecería estar contradiciendo lo que el cajero acaba de escribir.
+              Se muestra la división entera para que quede claro que es un
+              derivado y no otro dato a cargar. */}
+          {linea.cantidad > 1 && linea.precio_compra_total > 0 && (
             <p className="text-xs text-zinc-500 tabular-nums">
-              S/ {costoUnitario.toFixed(2)} c/u
+              {linea.precio_compra_total.toFixed(2)} ÷ {linea.cantidad} = S/{" "}
+              {costoUnitario.toFixed(2)} por unidad
             </p>
           )}
           {linea.esNuevo && (
-            <Input
-              label="Margen (%)"
-              type="number"
-              min={0}
-              step="1"
-              placeholder="Por defecto del negocio"
-              value={linea.margen_ganancia ?? ""}
-              onChange={(e) =>
-                onChange({
-                  ...linea,
-                  margen_ganancia: e.target.value === "" ? null : Number(e.target.value),
-                })
-              }
-            />
+            <>
+              <Input
+                label="Margen (%)"
+                type="number"
+                min={0}
+                step="1"
+                placeholder={`${margenDefault} (del negocio)`}
+                value={linea.margen_ganancia ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    ...linea,
+                    margen_ganancia:
+                      e.target.value === "" ? null : Number(e.target.value),
+                  })
+                }
+              />
+              {/* Lo que el cajero necesita ver antes de enviar: con qué precio
+                  va a quedar el producto en el catálogo. */}
+              {linea.precio_compra_total > 0 && linea.cantidad > 0 && (
+                <div className="rounded-md bg-emerald-50 px-2 py-1.5 text-xs text-emerald-900">
+                  Se venderá a{" "}
+                  <strong className="tabular-nums">S/ {precioVenta.toFixed(2)}</strong>{" "}
+                  c/u
+                  <span className="block text-emerald-700">
+                    costo S/ {costoUnitario.toFixed(2)} + {margenAplicado}%
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

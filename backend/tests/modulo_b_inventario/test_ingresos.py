@@ -140,15 +140,22 @@ class TestRegistrarIngreso:
         )
         assert s.id is not None
 
+    @pytest.mark.parametrize("foto", ["", "   "])
+    async def test_la_foto_de_la_boleta_es_opcional(self, foto):
+        """No toda compra viene con boleta; exigirla dejaba mercadería sin registrar."""
+        e = EscenarioRegistro()
+        s = await e.registrar(foto_boleta_url=foto)
+        assert s.id is not None
+        assert s.foto_boleta_url == ""
+
+    async def test_se_puede_registrar_sin_pasar_la_foto(self):
+        """El parámetro tiene default: el cliente puede omitirlo del todo."""
+        e = EscenarioRegistro()
+        s = await e.caso.ejecutar(proveedor_id=7, lineas=[linea()], **CTX)
+        assert s.foto_boleta_url == ""
+
 
 class TestRegistroRechazado:
-    @pytest.mark.parametrize("foto", ["", "   "])
-    async def test_la_foto_de_la_boleta_es_obligatoria(self, foto):
-        """HU-B06: sin boleta no hay respaldo de lo que entró."""
-        e = EscenarioRegistro()
-        with pytest.raises(ValidacionError):
-            await e.registrar(foto_boleta_url=foto)
-
     async def test_sin_lineas(self):
         e = EscenarioRegistro()
         with pytest.raises(ValidacionError):

@@ -660,7 +660,7 @@ export default function Catalogo() {
       >
         <div className="space-y-2 text-sm text-zinc-700">
           <p>
-            ¿Seguro que querés eliminar <strong>{porEliminar?.nombre}</strong> (
+            ¿Seguro que quieres eliminar <strong>{porEliminar?.nombre}</strong> (
             {porEliminar?.codigo})?
           </p>
           <p className="text-zinc-500">

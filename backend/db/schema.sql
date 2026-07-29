@@ -211,7 +211,9 @@ CREATE TABLE solicitudes_ingreso (
     id                    BIGSERIAL PRIMARY KEY,
     proveedor_id          BIGINT REFERENCES proveedores (id) ON DELETE RESTRICT,
     estado                VARCHAR(20)  NOT NULL DEFAULT 'Pendiente',
-    foto_boleta_url       TEXT         NOT NULL,
+    -- La foto es OPCIONAL: cadena vacía cuando la compra vino sin boleta.
+    -- Se usa '' en vez de NULL por la misma convención que `ip`/`user_agent`.
+    foto_boleta_url       TEXT         NOT NULL DEFAULT '',
     motivo                TEXT,
     motivo_rechazo        TEXT,
     solicitado_por        BIGINT       NOT NULL REFERENCES usuarios (id) ON DELETE RESTRICT,

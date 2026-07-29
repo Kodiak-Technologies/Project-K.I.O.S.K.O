@@ -1,5 +1,5 @@
 # Caso de uso: registrar una solicitud de ingreso de mercadería (HU-B05/06, REQ-ING).
-# - Valida foto_boleta_url no vacía.
+# - La foto de la boleta es OPCIONAL (cadena vacía = sin foto).
 # - Valida líneas (>=1, cada una con cantidad>0 y precio>=0).
 # - Valida productos y proveedor (opcional) existen.
 # - INSERT solicitud + detalles en una sola tx.
@@ -80,17 +80,15 @@ class RegistrarIngresoUseCase:
         self,
         *,
         proveedor_id: int | None,
-        foto_boleta_url: str,
         lineas: list[LineaSolicitudDTO],
         usuario_id: int,
         usuario_nombre: str,
+        #: Opcional: no toda compra viene con boleta, y frenar la carga por eso
+        #: dejaba mercadería sin registrar. Cadena vacía = sin foto.
+        foto_boleta_url: str = "",
         ip: str = "",
         user_agent: str = "",
     ) -> SolicitudIngreso:
-        if not foto_boleta_url or not foto_boleta_url.strip():
-            raise ValidacionError(
-                "Debes adjuntar la foto de la boleta para enviar la solicitud."
-            )
         if not lineas:
             raise ValidacionError("La solicitud debe tener al menos una línea.")
         codigos_nuevos: set[str] = set()
@@ -134,7 +132,7 @@ class RegistrarIngresoUseCase:
             if existente is not None and existente.deleted_at is None:
                 raise ValidacionError(
                     f"El código '{codigo}' ya pertenece a '{existente.nombre}'. "
-                    "Elegí ese producto del catálogo en vez de crearlo de nuevo."
+                    "Elige ese producto del catálogo en vez de crearlo de nuevo."
                 )
 
         if proveedor_id is not None:
@@ -146,7 +144,7 @@ class RegistrarIngresoUseCase:
             SolicitudIngreso(
                 id=None,
                 estado=EstadoSolicitud("Pendiente"),
-                foto_boleta_url=foto_boleta_url.strip(),
+                foto_boleta_url=(foto_boleta_url or "").strip(),
                 solicitado_por=usuario_id,
                 solicitado_por_nombre=usuario_nombre,
                 proveedor_id=proveedor_id,

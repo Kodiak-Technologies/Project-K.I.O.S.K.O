@@ -172,7 +172,10 @@ class SolicitudIngresoModel(Base, SoftDeleteMixin):
         ForeignKey("proveedores.id", ondelete="RESTRICT")
     )
     estado: Mapped[str] = mapped_column(String(20), default="Pendiente", nullable=False)
-    foto_boleta_url: Mapped[str] = mapped_column(Text, nullable=False)
+    # Opcional: '' cuando la compra vino sin boleta (misma convención que `ip`).
+    foto_boleta_url: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
     motivo_rechazo: Mapped[str | None] = mapped_column(Text)
     solicitado_por: Mapped[int] = mapped_column(
         ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False

@@ -100,7 +100,7 @@ class EditarIngresoUseCase:
                 nombre = (l.get("nuevo_nombre") or "").strip()
                 if pid is None and not (codigo and nombre):
                     raise ValidacionError(
-                        f"Línea {idx}: indicá un producto del catálogo o el código "
+                        f"Línea {idx}: indica un producto del catálogo o el código "
                         "y nombre del producto nuevo.",
                         code="INVALID_LINE_VALUES",
                     )
@@ -137,7 +137,7 @@ class EditarIngresoUseCase:
                     if existente is not None and existente.deleted_at is None:
                         raise ValidacionError(
                             f"Línea {idx}: el código '{codigo}' ya pertenece a "
-                            f"'{existente.nombre}'. Elegilo del catálogo.",
+                            f"'{existente.nombre}'. Elígelo del catálogo.",
                             code="CODIGO_DUPLICADO",
                         )
                     continue

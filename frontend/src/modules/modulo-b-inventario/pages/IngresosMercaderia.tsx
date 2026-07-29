@@ -191,7 +191,7 @@ export default function IngresosMercaderia() {
   }
 
   function validar(): string | null {
-    if (!fotoUrl) return "Sube la foto de la boleta (obligatoria).";
+    // La foto es opcional: no toda compra viene con boleta.
     if (lineas.length === 0) return "Agrega al menos una línea.";
     const codigosNuevos = new Set<string>();
     for (let i = 0; i < lineas.length; i++) {
@@ -222,9 +222,9 @@ export default function IngresosMercaderia() {
     }
     setProcesando(true);
     try {
-      // `validar()` ya garantizó que fotoUrl no es null.
       await solicitar({
-        foto_boleta_url: fotoUrl!,
+        // Sin foto va cadena vacía: el backend la acepta así.
+        foto_boleta_url: fotoUrl ?? "",
         proveedor_id: proveedorId === "" ? null : Number(proveedorId),
         lineas: lineas.map((l) => ({
           cantidad: l.cantidad,
@@ -330,16 +330,14 @@ export default function IngresosMercaderia() {
       />
 
       {mostrarFormulario && (
-        <Card titulo="Registrar ingreso" className="mb-4" descripcion="Sube la foto de la boleta y una o más líneas con productos y costos.">
+        <Card titulo="Registrar ingreso" className="mb-4" descripcion="Carga una o más líneas con productos y costos. La foto de la boleta es opcional.">
           <div className="space-y-4">
             <SubirImagen
               carpeta="boletas"
-              label="Foto de la boleta"
-              ayuda="Obligatoria. JPG/PNG. Se guarda en Storage y queda en la solicitud."
-              requerido
+              label="Foto de la boleta (opcional)"
+              ayuda="Si tienes la boleta, adjúntala: JPG/PNG. Queda guardada en la solicitud."
               value={fotoUrl}
               onChange={setFotoUrl}
-              error={!fotoUrl && errorAccion?.includes("foto") ? errorAccion : null}
             />
             <Select
               label="Proveedor (opcional)"
@@ -360,7 +358,7 @@ export default function IngresosMercaderia() {
               {/* Buscador + lector: agrega la línea sin tocar el mouse. */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">
-                  Escaneá un código o buscá por nombre
+                  Escanea un código o busca por nombre
                 </label>
                 <div className="relative">
                   <ScanBarcode

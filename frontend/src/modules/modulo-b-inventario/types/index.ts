@@ -191,10 +191,11 @@ export interface DetalleSolicitud {
   margen_ganancia: number | null;
 }
 
-/** Body para `POST /ingresos`. Mínimo 1 línea, `foto_boleta_url` obligatorio. */
+/** Body para `POST /ingresos`. Mínimo 1 línea; la foto de la boleta es opcional. */
 export interface NuevaSolicitudIngreso {
   proveedor_id?: number | null;
-  foto_boleta_url: string;
+  /** `""` o ausente = sin boleta. */
+  foto_boleta_url?: string;
   lineas: DetalleSolicitudCreate[];
 }
 

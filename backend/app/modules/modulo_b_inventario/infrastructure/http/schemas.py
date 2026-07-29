@@ -377,7 +377,8 @@ class DetalleCreate(BaseModel):
 
 class SolicitudIngresoCreate(BaseModel):
     proveedor_id: int | None = None
-    foto_boleta_url: Annotated[str, Field(min_length=1, max_length=2000)]
+    #: Opcional: no toda compra viene con boleta. Ausente o "" = sin foto.
+    foto_boleta_url: Annotated[str, Field(max_length=2000)] = ""
     lineas: list[DetalleCreate]
 
     @model_validator(mode="after")
