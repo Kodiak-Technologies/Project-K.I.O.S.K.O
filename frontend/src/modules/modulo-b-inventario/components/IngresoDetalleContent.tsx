@@ -26,9 +26,11 @@ export function IngresoDetalleContent({
   onEditarClick,
 }: Props) {
   const puedeEditar = canEditIngreso(ingreso, currentUser);
+  // Suma de totales de línea: son el dato de la boleta. Reconstruirlos como
+  // cantidad × unitario redondeado descuadraría contra lo que se pagó.
   const total =
     ingreso.monto_total ??
-    ingreso.lineas.reduce((suma, l) => suma + l.cantidad * l.precio_compra_unitario, 0);
+    ingreso.lineas.reduce((suma, l) => suma + l.precio_compra_total, 0);
   const unidades = ingreso.lineas.reduce((suma, l) => suma + l.cantidad, 0);
 
   return (
@@ -76,7 +78,7 @@ export function IngresoDetalleContent({
                 <th className="px-3 py-2 font-medium">Producto</th>
                 <th className="px-3 py-2 text-right font-medium">Cantidad</th>
                 <th className="px-3 py-2 text-right font-medium">Costo unit.</th>
-                <th className="px-3 py-2 text-right font-medium">Subtotal</th>
+                <th className="px-3 py-2 text-right font-medium">Total boleta</th>
               </tr>
             </thead>
             <tbody>
@@ -84,18 +86,25 @@ export function IngresoDetalleContent({
                 <tr key={l.id} className="border-b border-zinc-100 last:border-0">
                   <td className="px-3 py-2">
                     <span className="block truncate text-zinc-800">
-                      {l.producto_nombre ?? `#${l.producto_id}`}
+                      {l.producto_nombre ?? l.nuevo_nombre ?? `#${l.producto_id}`}
                     </span>
-                    {l.producto_codigo && (
-                      <span className="font-mono text-xs text-zinc-400">{l.producto_codigo}</span>
+                    {(l.producto_codigo ?? l.nuevo_codigo) && (
+                      <span className="font-mono text-xs text-zinc-400">
+                        {l.producto_codigo ?? l.nuevo_codigo}
+                      </span>
+                    )}
+                    {l.es_producto_nuevo && (
+                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">
+                        se creará al aprobar
+                      </span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{l.cantidad}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2 text-right tabular-nums text-zinc-500">
                     S/ {l.precio_compra_unitario.toFixed(2)}
                   </td>
                   <td className="px-3 py-2 text-right font-medium tabular-nums">
-                    S/ {(l.cantidad * l.precio_compra_unitario).toFixed(2)}
+                    S/ {l.precio_compra_total.toFixed(2)}
                   </td>
                 </tr>
               ))}

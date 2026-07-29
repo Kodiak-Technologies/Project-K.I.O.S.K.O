@@ -43,7 +43,7 @@ class SqlEgresosDataProvider:
                     SELECT s.id,
                            (s.revisado_en AT TIME ZONE :tz)::date AS fecha,
                            p.razon_social                AS proveedor,
-                           SUM(d.cantidad * d.precio_compra_unitario) AS monto,
+                           SUM(d.precio_compra_total)    AS monto,
                            SUM(d.cantidad)               AS unidades
                     FROM solicitudes_ingreso s
                     JOIN detalle_solicitud d ON d.solicitud_id = s.id
@@ -83,7 +83,7 @@ class SqlEgresosDataProvider:
             await self._db.execute(
                 text(
                     """
-                    SELECT COALESCE(SUM(d.cantidad * d.precio_compra_unitario), 0)
+                    SELECT COALESCE(SUM(d.precio_compra_total), 0)
                     FROM solicitudes_ingreso s
                     JOIN detalle_solicitud d ON d.solicitud_id = s.id
                     WHERE s.estado = 'Aprobada'

@@ -1,8 +1,20 @@
-# Seed inicial: roles, permisos, usuario ADMIN y fila única de configuración.
+# Seed inicial: lo MÍNIMO para que el sistema arranque y se pueda operar.
+#
+# Qué siembra y por qué cada cosa es imprescindible:
+#   - roles + permisos + rol_permisos → sin esto nadie puede hacer nada.
+#   - un usuario ADMIN               → sin esto no hay forma de entrar.
+#   - configuracion_negocio          → el backend responde 404 si falta la fila.
+#   - config_notificaciones          → ídem para la pantalla de notificaciones.
+#   - metodos_pago                   → sin esto NO SE PUEDE COBRAR: al registrar
+#     una venta se valida el código contra esta tabla y, si no está, se rechaza.
+#
+# Lo que NO siembra, a propósito: productos, categorías, proveedores, ingresos
+# ni ventas. Eso son datos del negocio, se cargan desde la aplicación. Para
+# datos de ejemplo está `scripts.seed_demo`.
+#
 # Idempotente: se puede correr varias veces sin duplicar datos.
 #
 # Uso:  ADMIN_USERNAME=admin ADMIN_PASSWORD=... python -m scripts.seed
-# La contraseña del ADMIN viene SIEMPRE de la variable de entorno, nunca hardcodeada.
 import asyncio
 import os
 import sys
@@ -16,6 +28,9 @@ from app.modules.modulo_a_seguridad.infrastructure.adapters.database.models impo
     RolPermisoModel,
     UsuarioModel,
 )
+from app.modules.modulo_c_ventas.infrastructure.adapters.database.models import (
+    MetodoPagoModel,
+)
 from app.modules.modulo_d_documentos.infrastructure.adapters.database.models import (
     ConfigNotificacionesModel,
 )
@@ -27,6 +42,22 @@ from app.shared.database.session import SessionLocal, engine
 ROLES = [
     ("ADMIN", "Dueña de la tienda: control total del sistema."),
     ("CAJERO", "Vendedor: permisos limitados a la operación diaria."),
+]
+
+# (codigo, nombre, es_efectivo)
+#
+# EFECTIVO es obligatorio: `es_efectivo=True` es lo que hace que el monto cuente
+# para el arqueo de caja (RF-17). Los demás son los que se usan de mostrador.
+#
+# Vale la pena editarlos acá antes de arrancar: hoy no hay pantalla para dar de
+# alta un método de pago, así que lo que no esté en esta lista no se va a poder
+# cobrar (existe `POST /metodos-pago`, pero ninguna pantalla lo usa todavía).
+METODOS_PAGO = [
+    ("EFECTIVO", "Efectivo", True),
+    ("YAPE", "Yape", False),
+    ("PLIN", "Plin", False),
+    ("TARJETA", "Tarjeta", False),
+    ("TRANSFERENCIA", "Transferencia", False),
 ]
 
 # (codigo, descripcion, lo tiene CAJERO?)  — ADMIN los tiene todos.
@@ -65,10 +96,13 @@ PERMISOS = [
 
 
 async def seed() -> None:
-    admin_username = os.environ.get("ADMIN_USERNAME", "pepe")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "pepe")
+    # `pepe/pepe` es una comodidad para desarrollo local. Fuera de local hay que
+    # pasar ADMIN_USERNAME/ADMIN_PASSWORD por entorno: son las credenciales del
+    # único usuario que puede entrar al sistema recién instalado.
+    admin_username = os.environ.get("ADMIN_USERNAME", "admin")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "admin")
     if not admin_password:
-        print("ERROR: define la variable de entorno ADMIN_PASSWORD (nunca va en el código).")
+        print("ERROR: ADMIN_PASSWORD está definida pero vacía.")
         sys.exit(1)
 
     async with SessionLocal() as db:
@@ -141,8 +175,26 @@ async def seed() -> None:
         if config_notif is None:
             db.add(ConfigNotificacionesModel(id=1))
 
+        # --- Métodos de pago ---
+        # Sin al menos uno, el POS no puede cerrar una venta: `RegistrarVentaUseCase`
+        # compara el código contra los métodos activos y rechaza lo que no esté.
+        for codigo, nombre, es_efectivo in METODOS_PAGO:
+            metodo = (
+                await db.execute(select(MetodoPagoModel).where(MetodoPagoModel.codigo == codigo))
+            ).scalar_one_or_none()
+            if metodo is None:
+                db.add(
+                    MetodoPagoModel(
+                        codigo=codigo, nombre=nombre, es_efectivo=es_efectivo, activo=True
+                    )
+                )
+
         await db.commit()
-        print(f"Seed completado: roles, {len(PERMISOS)} permisos, usuario '{admin_username}', configuración y notificaciones.")
+        print(
+            f"Seed completado: {len(ROLES)} roles, {len(PERMISOS)} permisos, "
+            f"{len(METODOS_PAGO)} métodos de pago, usuario '{admin_username}', "
+            "configuración del negocio y de notificaciones."
+        )
 
     # Cierra el pool antes de que asyncio.run() cierre el loop; si no, en Windows
     # las conexiones SSL se destruyen con el loop ya cerrado ("Event loop is closed").

@@ -174,11 +174,21 @@ export type IngresoMercaderia = SolicitudIngreso;
  *  no hace falta cargar el catálogo para mostrarlos. */
 export interface DetalleSolicitud {
   id: number;
-  producto_id: number;
+  /** null mientras el producto todavía no se creó (solicitud sin aprobar). */
+  producto_id: number | null;
   producto_nombre: string | null;
   producto_codigo: string | null;
   cantidad: number;
+  /** Monto de la línea tal cual la boleta ("7 esponjas — S/ 20"). */
+  precio_compra_total: number;
+  /** Derivado por el backend (total / cantidad). Solo para mostrar. */
   precio_compra_unitario: number;
+  es_producto_nuevo: boolean;
+  nuevo_codigo: string | null;
+  nuevo_nombre: string | null;
+  nuevo_categoria_id: number | null;
+  /** % de ganancia de la línea. null = usar el del negocio. */
+  margen_ganancia: number | null;
 }
 
 /** Body para `POST /ingresos`. Mínimo 1 línea, `foto_boleta_url` obligatorio. */
@@ -188,11 +198,20 @@ export interface NuevaSolicitudIngreso {
   lineas: DetalleSolicitudCreate[];
 }
 
-/** Una línea del body de `POST /ingresos` (sin `id`, lo asigna el backend). */
+/** Una línea del body de `POST /ingresos` (sin `id`, lo asigna el backend).
+ *
+ *  O trae `producto_id` (producto del catálogo), o `nuevo_codigo` +
+ *  `nuevo_nombre` para dar de alta uno que todavía no existe: el cajero no
+ *  necesita que un ADMIN lo cree antes para poder transcribir la boleta.
+ *  `precio_compra_total` es el monto de la línea, NO el unitario. */
 export interface DetalleSolicitudCreate {
-  producto_id: number;
   cantidad: number;
-  precio_compra_unitario: number;
+  precio_compra_total: number;
+  producto_id?: number | null;
+  nuevo_codigo?: string | null;
+  nuevo_nombre?: string | null;
+  nuevo_categoria_id?: number | null;
+  margen_ganancia?: number | null;
 }
 
 /** `GET /ingresos` (cada item) y `GET /ingresos/{id}`. */
@@ -225,9 +244,13 @@ export interface SolicitudIngresoUpdateBody {
 }
 
 export interface LineaIngresoUpdate {
-  producto_id: number;
   cantidad: number;
-  precio_unitario: number;
+  precio_compra_total: number;
+  producto_id?: number | null;
+  nuevo_codigo?: string | null;
+  nuevo_nombre?: string | null;
+  nuevo_categoria_id?: number | null;
+  margen_ganancia?: number | null;
 }
 
 /** Body de `POST /productos/{id}/ajustar-stock` (solo ADMIN). */
@@ -282,6 +305,8 @@ export interface AprobacionIngreso {
   revisado_en: string | null;
   productos_actualizados: number;
   unidades_agregadas: number;
+  /** Productos dados de alta en el catálogo al aprobar. */
+  productos_creados?: number;
 }
 
 /** Filtros para `GET /ingresos`. */

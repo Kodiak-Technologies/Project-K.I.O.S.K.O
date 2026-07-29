@@ -39,11 +39,25 @@ CTX = dict(usuario_id=2, usuario_nombre="Cajero", ip="", user_agent="")
 FOTO = "https://drive.google.com/uc?export=view&id=abc"
 
 
-def linea(producto_id=1, cantidad=10, precio="2.00") -> LineaSolicitudDTO:
+def linea(producto_id=1, cantidad=10, total="20.00", **kwargs) -> LineaSolicitudDTO:
+    """`total` es el monto de la línea en la boleta, no el unitario."""
     return LineaSolicitudDTO(
         producto_id=producto_id,
         cantidad=cantidad,
-        precio_compra_unitario=Decimal(precio),
+        precio_compra_total=Decimal(total),
+        **kwargs,
+    )
+
+
+def linea_nueva(codigo="7501234567890", nombre="Esponja verde", **kwargs):
+    """Línea que propone un producto que todavía no está en el catálogo."""
+    return LineaSolicitudDTO(
+        producto_id=None,
+        cantidad=kwargs.pop("cantidad", 7),
+        precio_compra_total=Decimal(kwargs.pop("total", "20.00")),
+        nuevo_codigo=codigo,
+        nuevo_nombre=nombre,
+        **kwargs,
     )
 
 
@@ -149,7 +163,7 @@ class TestRegistroRechazado:
     async def test_precio_negativo(self):
         e = EscenarioRegistro()
         with pytest.raises(ValidacionError):
-            await e.registrar(lineas=[linea(precio="-1")])
+            await e.registrar(lineas=[linea(total="-1")])
 
     async def test_el_error_dice_QUE_linea_falla(self):
         """Con 20 líneas cargadas, 'cantidad inválida' a secas no sirve."""

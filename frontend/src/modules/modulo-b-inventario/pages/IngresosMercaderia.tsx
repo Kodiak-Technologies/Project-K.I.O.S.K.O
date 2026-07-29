@@ -23,7 +23,11 @@ import {
   type Tono,
 } from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
-import { FormularioLineaIngreso, type LineaIngreso } from "../components/FormularioLineaIngreso";
+import {
+  FormularioLineaIngreso,
+  LINEA_INGRESO_VACIA,
+  type LineaIngreso,
+} from "../components/FormularioLineaIngreso";
 import { usePaginacionCursor } from "../../../shared/lib/use-paginacion-cursor";
 import { PaginacionControles } from "../components/PaginacionControles";
 import { SubirImagen } from "../components/SubirImagen";
@@ -39,7 +43,7 @@ const TONO_ESTADO: Record<string, Tono> = {
   Rechazada: "peligro",
 };
 
-const LINEA_VACIA: LineaIngreso = { producto_id: null, cantidad: 1, precio_compra_unitario: 0 };
+const LINEA_VACIA: LineaIngreso = LINEA_INGRESO_VACIA;
 
 export default function IngresosMercaderia() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -121,11 +125,14 @@ export default function IngresosMercaderia() {
       if (yaEsta !== -1) {
         return actuales.map((l, i) => (i === yaEsta ? { ...l, cantidad: l.cantidad + 1 } : l));
       }
-      const vacia = actuales.findIndex((l) => l.producto_id === null);
+      const vacia = actuales.findIndex((l) => !l.esNuevo && l.producto_id === null);
       const nueva: LineaIngreso = {
+        ...LINEA_VACIA,
         producto_id: p.id,
         cantidad: 1,
-        precio_compra_unitario: p.precio_compra_actual ?? 0,
+        // Arranca con el costo conocido × 1 unidad; el cajero lo pisa con el
+        // total real de la boleta.
+        precio_compra_total: p.precio_compra_actual ?? 0,
       };
       if (vacia !== -1) return actuales.map((l, i) => (i === vacia ? nueva : l));
       return [...actuales, nueva];
@@ -186,11 +193,21 @@ export default function IngresosMercaderia() {
   function validar(): string | null {
     if (!fotoUrl) return "Sube la foto de la boleta (obligatoria).";
     if (lineas.length === 0) return "Agrega al menos una línea.";
+    const codigosNuevos = new Set<string>();
     for (let i = 0; i < lineas.length; i++) {
       const l = lineas[i];
-      if (!l.producto_id) return `Línea ${i + 1}: elige un producto.`;
+      if (l.esNuevo) {
+        const codigo = l.nuevo_codigo.trim();
+        if (!codigo) return `Línea ${i + 1}: falta el código de barras.`;
+        if (!l.nuevo_nombre.trim()) return `Línea ${i + 1}: falta el nombre del producto.`;
+        if (codigosNuevos.has(codigo))
+          return `Línea ${i + 1}: el código ${codigo} está repetido en otra línea.`;
+        codigosNuevos.add(codigo);
+      } else if (!l.producto_id) {
+        return `Línea ${i + 1}: elige un producto.`;
+      }
       if (l.cantidad < 1) return `Línea ${i + 1}: la cantidad debe ser mayor a 0.`;
-      if (l.precio_compra_unitario < 0) return `Línea ${i + 1}: el precio no puede ser negativo.`;
+      if (l.precio_compra_total < 0) return `Línea ${i + 1}: el total no puede ser negativo.`;
     }
     return null;
   }
@@ -210,9 +227,14 @@ export default function IngresosMercaderia() {
         foto_boleta_url: fotoUrl!,
         proveedor_id: proveedorId === "" ? null : Number(proveedorId),
         lineas: lineas.map((l) => ({
-          producto_id: l.producto_id!,
           cantidad: l.cantidad,
-          precio_compra_unitario: l.precio_compra_unitario,
+          precio_compra_total: l.precio_compra_total,
+          // Uno u otro, nunca los dos: es lo que valida el backend.
+          producto_id: l.esNuevo ? null : l.producto_id,
+          nuevo_codigo: l.esNuevo ? l.nuevo_codigo.trim() : null,
+          nuevo_nombre: l.esNuevo ? l.nuevo_nombre.trim() : null,
+          nuevo_categoria_id: l.esNuevo ? l.nuevo_categoria_id : null,
+          margen_ganancia: l.esNuevo ? l.margen_ganancia : null,
         })),
       });
       setMensaje("Ingreso registrado. Queda pendiente de la aprobación del administrador.");

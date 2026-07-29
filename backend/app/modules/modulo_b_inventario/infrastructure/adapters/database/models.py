@@ -206,21 +206,43 @@ class DetalleSolicitudModel(Base):
     __table_args__ = (
         CheckConstraint("cantidad > 0", name="chk_detsol_cantidad_positiva"),
         CheckConstraint(
-            "precio_compra_unitario >= 0", name="chk_detsol_precio_no_negativo"
+            "precio_compra_total >= 0", name="chk_detsol_precio_no_negativo"
+        ),
+        CheckConstraint(
+            "producto_id IS NOT NULL"
+            " OR (nuevo_codigo IS NOT NULL AND length(trim(nuevo_codigo)) > 0"
+            "     AND nuevo_nombre IS NOT NULL AND length(trim(nuevo_nombre)) > 0)",
+            name="chk_detsol_producto_o_nuevo",
+        ),
+        CheckConstraint(
+            "margen_ganancia IS NULL OR margen_ganancia >= 0",
+            name="chk_detsol_margen_no_negativo",
         ),
         Index("idx_detsol_solicitud", "solicitud_id"),
-        Index("idx_detsol_producto", "producto_id"),
+        Index(
+            "idx_detsol_producto",
+            "producto_id",
+            postgresql_where=sa.text("producto_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     solicitud_id: Mapped[int] = mapped_column(
         ForeignKey("solicitudes_ingreso.id", ondelete="CASCADE"), nullable=False
     )
-    producto_id: Mapped[int] = mapped_column(
-        ForeignKey("productos.id", ondelete="RESTRICT"), nullable=False
+    # NULL mientras la línea proponga un producto que no está en el catálogo.
+    producto_id: Mapped[int | None] = mapped_column(
+        ForeignKey("productos.id", ondelete="RESTRICT"), nullable=True
     )
     cantidad: Mapped[int] = mapped_column(Integer, nullable=False)
-    precio_compra_unitario: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    # Monto de la línea tal cual la boleta. El unitario se deriva, no se guarda.
+    precio_compra_total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    nuevo_codigo: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    nuevo_nombre: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    nuevo_categoria_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categorias.id", ondelete="RESTRICT"), nullable=True
+    )
+    margen_ganancia: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

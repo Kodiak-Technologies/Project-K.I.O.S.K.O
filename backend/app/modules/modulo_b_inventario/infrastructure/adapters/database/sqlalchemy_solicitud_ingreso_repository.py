@@ -70,7 +70,9 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
         filas = (
             await self._db.execute(
                 select(DetalleSolicitudModel, ProductoModel.nombre, ProductoModel.codigo)
-                .join(
+                # OUTER: las líneas con producto propuesto no tienen
+                # `producto_id` hasta que se aprueba la solicitud.
+                .outerjoin(
                     ProductoModel,
                     DetalleSolicitudModel.producto_id == ProductoModel.id,
                 )
@@ -85,10 +87,14 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
                     solicitud_id=linea.solicitud_id,
                     producto_id=linea.producto_id,
                     cantidad=linea.cantidad,
-                    precio_compra_unitario=linea.precio_compra_unitario,
+                    precio_compra_total=linea.precio_compra_total,
                     created_at=linea.created_at,
                     producto_nombre=nombre,
                     producto_codigo=codigo,
+                    nuevo_codigo=linea.nuevo_codigo,
+                    nuevo_nombre=linea.nuevo_nombre,
+                    nuevo_categoria_id=linea.nuevo_categoria_id,
+                    margen_ganancia=linea.margen_ganancia,
                 )
             )
         return por_solicitud
