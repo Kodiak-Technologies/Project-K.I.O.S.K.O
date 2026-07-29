@@ -1,7 +1,7 @@
 // Formulario para registrar una compra a crédito o un pago a proveedor.
 // Reutilizado en ProveedorDetalle.
 import { useState } from "react";
-import { Input } from "../../../shared/components/ui";
+import { Button, DatePicker, Input } from "../../../shared/components/ui";
 import type { NuevoPagoProveedor } from "../types";
 
 interface Props {
@@ -64,12 +64,11 @@ export function FormularioPago({ titulo, deudaActual, tipo, onSubmit, procesando
         onChange={(e) => setMonto(Number(e.target.value))}
         error={errores.monto}
       />
-      <Input
+      <DatePicker
         label="Fecha"
-        type="date"
         requerido
-        value={fecha}
-        onChange={(e) => setFecha(e.target.value)}
+        valor={fecha}
+        alCambiar={(val) => setFecha(val)}
         error={errores.fecha}
       />
       <Input
@@ -79,21 +78,20 @@ export function FormularioPago({ titulo, deudaActual, tipo, onSubmit, procesando
         onChange={(e) => setConcepto(e.target.value)}
       />
       <div className="flex justify-end gap-2 pt-1">
-        <button
+        <Button
           type="button"
+          variante="secundario"
           onClick={onCancelar}
           disabled={procesando}
-          className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
         >
           Cancelar
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          disabled={procesando}
-          className="inline-flex min-h-tactil items-center justify-center gap-2 rounded-lg bg-marca px-4 py-2 text-sm font-medium text-white hover:opacity-85 disabled:opacity-60"
+          cargando={procesando}
         >
-          {procesando ? "Registrando…" : "Registrar"}
-        </button>
+          Registrar
+        </Button>
       </div>
     </form>
   );

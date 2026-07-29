@@ -1,9 +1,5 @@
 // Selector de categoría para el alta de producto desde un ingreso.
-//
-// A diferencia de `SelectorProducto`, acá un `<select>` nativo alcanza: las
-// categorías son decenas, no miles, y el listado viene entero en una llamada.
-// La categoría es opcional (`productos.categoria_id` es nullable), así que el
-// selector siempre ofrece la opción vacía.
+import { Select } from "../../../shared/components/ui";
 import { useCategorias } from "../hooks/useCategorias";
 
 interface Props {
@@ -16,8 +12,7 @@ export function SelectorCategoria({ value, onChange, disabled }: Props) {
   const { categorias, cargando } = useCategorias();
 
   return (
-    <select
-      className="w-full rounded border border-zinc-200 px-2 py-1 text-sm text-zinc-900 disabled:bg-zinc-50"
+    <Select
       value={value ?? ""}
       disabled={disabled || cargando}
       aria-label="Categoría"
@@ -31,6 +26,6 @@ export function SelectorCategoria({ value, onChange, disabled }: Props) {
             {c.nombre}
           </option>
         ))}
-    </select>
+    </Select>
   );
 }

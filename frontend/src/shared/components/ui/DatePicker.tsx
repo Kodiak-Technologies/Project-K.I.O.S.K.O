@@ -60,7 +60,7 @@ export function DatePicker({
   etiqueta,
   label,
   placeholder,
-  mostrarAnio = false,
+  mostrarAnio = true,
   requerido = false,
   error,
   className = "",
