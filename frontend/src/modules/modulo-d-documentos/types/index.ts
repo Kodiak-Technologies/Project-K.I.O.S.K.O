@@ -37,12 +37,26 @@ export interface ResumenReporte {
   ticket_promedio: number;
   top_productos: TopProducto[];
   metodos_pago: Record<string, number>;
+  /** Desglose de `total_egresos` por proveedor, de mayor a menor. */
+  costo_por_proveedor: CostoProveedor[];
 }
 
 export interface TopProducto {
   nombre: string;
   cantidad: number;
   total: number;
+}
+
+/** Costo de mercadería atribuido a un proveedor en el período.
+ *
+ *  Sale de las solicitudes de ingreso aprobadas. Las que no tienen proveedor
+ *  asignado llegan agrupadas bajo `"Sin proveedor"`. */
+export interface CostoProveedor {
+  proveedor: string;
+  monto: number;
+  unidades: number;
+  /** Cuántas solicitudes de ingreso aprobadas componen el monto. */
+  ingresos: number;
 }
 
 export type TipoNotificacion = "STOCK_BAJO" | "APERTURA_CAJA" | "CIERRE_CAJA" | "SOLICITUD_INGRESO" | "SISTEMA";

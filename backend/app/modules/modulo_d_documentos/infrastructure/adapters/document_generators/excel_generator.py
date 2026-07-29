@@ -253,6 +253,8 @@ class ExcelGenerator(ReporteGeneratorPort):
             )
             fila += 1
 
+        fila = self._tabla_costo_proveedor(ws, fila, datos, ncols)
+
         top = datos.get("top_productos") or []
         fila = self._seccion(ws, fila, "Productos más vendidos", ncols)
         fila = self._encabezado_tabla(ws, fila, ["Producto", "Unidades", "Total"], ["left", "right", "right"])
@@ -272,6 +274,53 @@ class ExcelGenerator(ReporteGeneratorPort):
         else:
             self._fila_vacia(ws, fila, "No hubo ventas en el período.", ncols)
 
+    def _tabla_costo_proveedor(
+        self, ws: Worksheet, fila: int, datos: dict, ncols: int, con_unidades: bool = False
+    ) -> int:
+        """Costo de mercadería por proveedor, de mayor a menor.
+
+        Sale de las mismas solicitudes de ingreso aprobadas que el detalle de
+        egresos, así que ambos totales coinciden por construcción. Las
+        solicitudes sin proveedor vienen agrupadas como "Sin proveedor" desde la
+        consulta y se muestran igual: si se omitieran, el total de la tabla no
+        cuadraría con el de egresos y el faltante pasaría inadvertido.
+
+        `con_unidades` agrega una columna más; solo entra en las hojas de 4
+        columnas (la de resumen tiene 3).
+        """
+        proveedores = datos.get("costo_por_proveedor") or []
+        fila = self._seccion(ws, fila, "Costo por proveedor", ncols, _ROSE_HEADER)
+
+        if con_unidades:
+            titulos = ["Proveedor", "Ingresos", "Unidades", "Monto"]
+            alineados = ["left", "right", "right", "right"]
+            formatos = [None, _ENTERO, _ENTERO, _MONEDA]
+        else:
+            titulos = ["Proveedor", "Ingresos", "Monto"]
+            alineados = ["left", "right", "right"]
+            formatos = [None, _ENTERO, _MONEDA]
+
+        fila = self._encabezado_tabla(ws, fila, titulos, alineados, _ROSE_HEADER)
+        if not proveedores:
+            fila = self._fila_vacia(ws, fila, "No hubo ingresos aprobados en el período.", ncols)
+            return fila + 1
+
+        total = sum(float(p.get("monto", 0) or 0) for p in proveedores)
+        total_unidades = sum(int(p.get("unidades", 0) or 0) for p in proveedores)
+        for idx, prov in enumerate(proveedores):
+            valores = [prov.get("proveedor", ""), int(prov.get("ingresos", 0) or 0)]
+            if con_unidades:
+                valores.append(int(prov.get("unidades", 0) or 0))
+            valores.append(float(prov.get("monto", 0) or 0))
+            fila = self._fila_tabla(ws, fila, valores, formatos, alineados, idx)
+
+        totales = ["Total", ""]
+        if con_unidades:
+            totales.append(total_unidades)
+        totales.append(total)
+        fila = self._fila_total(ws, fila, totales, formatos, alineados)
+        return fila + 1
+
     def _render_egresos(self, ws: Worksheet, datos: dict) -> None:
         ws.title = "Egresos"
         ncols = 4
@@ -289,6 +338,8 @@ class ExcelGenerator(ReporteGeneratorPort):
         fila = self._kpi(ws, fila, "Ingresos aprobados", registros, ncols, _ENTERO, _SLATE_900, 1)
         fila = self._kpi(ws, fila, "Unidades ingresadas", unidades, ncols, _ENTERO, _SLATE_900, 2)
         fila += 1
+
+        fila = self._tabla_costo_proveedor(ws, fila, datos, ncols, con_unidades=True)
 
         fila = self._seccion(ws, fila, "Detalle de egresos", ncols, _ROSE_HEADER)
         fila = self._encabezado_tabla(
@@ -317,9 +368,10 @@ class ExcelGenerator(ReporteGeneratorPort):
         fila += 1
         self._nota(
             ws, fila,
-            "Cada egreso es el costo (cantidad × precio de compra unitario) de una solicitud de "
-            "ingreso aprobada. Refleja el COSTO de la mercadería que entró al inventario, no la forma "
-            "de pago al proveedor (contado o crédito).",
+            "Cada egreso es la suma de los totales de línea de una solicitud de ingreso aprobada, "
+            "tal como figuran en la boleta. Refleja el COSTO de la mercadería que entró al "
+            "inventario, no la forma de pago al proveedor (contado o crédito). Las solicitudes sin "
+            "proveedor asignado se agrupan como «Sin proveedor».",
             ncols,
         )
 
