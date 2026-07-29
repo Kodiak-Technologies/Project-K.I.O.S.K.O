@@ -15,10 +15,13 @@ import {
   type Columna,
 } from "../../../shared/components/ui";
 import { useReportes } from "../hooks/useReportes";
-import type { TopProducto } from "../types";
+import type { CostoProveedor, TopProducto } from "../types";
 import { GraficoVentasEgresos } from "../components/GraficoVentasEgresos";
 
 const COLORES = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+
+/** Etiqueta con la que el backend agrupa las solicitudes sin proveedor. */
+const SIN_PROVEEDOR = "Sin proveedor";
 
 function recortarNombre(nombre: string, maxPalabras: number = 3, maxChars: number = 22): string {
   if (!nombre) return "";
@@ -119,6 +122,52 @@ export default function Reportes() {
   const datosMetodosPago = resumen
     ? Object.entries(resumen.metodos_pago).map(([metodo, monto]) => ({ name: metodo, value: monto }))
     : [];
+
+  // Costo de mercadería por proveedor. Sale de las solicitudes de ingreso
+  // aprobadas, así que suma igual que `total_egresos`. Las solicitudes sin
+  // proveedor llegan del backend agrupadas como "Sin proveedor".
+  const costoProveedores = resumen?.costo_por_proveedor ?? [];
+  const totalCostoProveedores = costoProveedores.reduce((s, c) => s + c.monto, 0);
+  const datosCostoProveedor = costoProveedores.map((c) => ({
+    nombreCompleto: c.proveedor,
+    name: recortarNombre(c.proveedor, 3, 22),
+    monto: c.monto,
+  }));
+
+  const columnasCostoProveedor: Columna<CostoProveedor>[] = [
+    { titulo: "Proveedor", render: (c) => c.proveedor },
+    {
+      titulo: "Ingresos",
+      alinear: "derecha",
+      soloEscritorio: true,
+      render: (c) => <span className="tabular-nums">{c.ingresos}</span>,
+    },
+    {
+      titulo: "Unidades",
+      alinear: "derecha",
+      soloEscritorio: true,
+      render: (c) => <span className="tabular-nums">{c.unidades}</span>,
+    },
+    {
+      titulo: "Costo",
+      alinear: "derecha",
+      render: (c) => (
+        <span className="font-semibold tabular-nums">S/ {c.monto.toFixed(2)}</span>
+      ),
+    },
+    {
+      titulo: "% del total",
+      alinear: "derecha",
+      render: (c) => (
+        <span className="tabular-nums text-zinc-500">
+          {totalCostoProveedores > 0
+            ? ((c.monto / totalCostoProveedores) * 100).toFixed(1)
+            : "0.0"}
+          %
+        </span>
+      ),
+    },
+  ];
 
   const datosTopProductos = (resumen && orden === "mayor"
     ? resumen.top_productos
@@ -263,6 +312,70 @@ export default function Reportes() {
               </div>
             </Card>
           )}
+
+          {/* Gasto en mercadería por proveedor. No hay tabla de gastos: sale de
+              las solicitudes de ingreso aprobadas, que es donde viven el costo
+              y la asociación al proveedor. */}
+          <Card
+            titulo="Costo por proveedor"
+            descripcion="Gasto en mercadería de los ingresos aprobados en el período."
+            sinPadding
+          >
+            {costoProveedores.length > 0 ? (
+              <div className="p-4">
+                <ResponsiveContainer width="100%" height={Math.max(160, datosCostoProveedor.length * 42)}>
+                  <BarChart
+                    data={datosCostoProveedor}
+                    layout="vertical"
+                    margin={{ left: 130, right: 30, top: 10, bottom: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                    <XAxis type="number" tickFormatter={(v) => `S/ ${v}`} fontSize={12} />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={130}
+                      fontSize={12}
+                      interval={0}
+                    />
+                    <Tooltip
+                      formatter={(v) => `S/ ${Number(v).toFixed(2)}`}
+                      labelFormatter={(_, carga) =>
+                        carga?.[0]?.payload?.nombreCompleto ?? ""
+                      }
+                    />
+                    <Bar dataKey="monto" radius={[0, 4, 4, 0]}>
+                      {datosCostoProveedor.map((d, i) => (
+                        <Cell
+                          key={i}
+                          // "Sin proveedor" no es un proveedor: se pinta gris
+                          // para que no se lea como uno más de la lista.
+                          fill={
+                            d.nombreCompleto === SIN_PROVEEDOR
+                              ? "#94a3b8"
+                              : COLORES[i % COLORES.length]
+                          }
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="mt-2">
+                  <Table
+                    columnas={columnasCostoProveedor}
+                    filas={costoProveedores}
+                    claveDe={(c) => c.proveedor}
+                  />
+                </div>
+              </div>
+            ) : (
+              <EmptyState
+                icono={BarChart3}
+                titulo="Sin ingresos aprobados"
+                descripcion="No hubo ingresos de mercadería aprobados en el período."
+              />
+            )}
+          </Card>
 
           <Card
             titulo={orden === "mayor" ? "Productos más vendidos" : "Productos de menor rotación"}

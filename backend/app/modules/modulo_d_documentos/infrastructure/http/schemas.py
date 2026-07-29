@@ -51,6 +51,23 @@ class TopProductoResponse(BaseModel):
         return cls(nombre=t.nombre, cantidad=t.cantidad, total=t.total)
 
 
+class CostoProveedorResponse(BaseModel):
+    #: "Sin proveedor" para las solicitudes sin proveedor asignado.
+    proveedor: str
+    monto: float
+    unidades: int = 0
+    ingresos: int = 0
+
+    @classmethod
+    def desde_entidad(cls, c) -> "CostoProveedorResponse":
+        return cls(
+            proveedor=c.proveedor,
+            monto=c.monto,
+            unidades=c.unidades,
+            ingresos=c.ingresos,
+        )
+
+
 class ReporteResumenResponse(BaseModel):
     desde: str
     hasta: str
@@ -61,6 +78,8 @@ class ReporteResumenResponse(BaseModel):
     ticket_promedio: float
     top_productos: list[TopProductoResponse]
     metodos_pago: dict[str, float]
+    #: Desglose de `total_egresos` por proveedor, de mayor a menor.
+    costo_por_proveedor: list[CostoProveedorResponse] = []
 
     @classmethod
     def desde_entidad(cls, r) -> "ReporteResumenResponse":
@@ -74,6 +93,10 @@ class ReporteResumenResponse(BaseModel):
             ticket_promedio=r.ticket_promedio,
             top_productos=[TopProductoResponse.desde_entidad(p) for p in r.top_productos],
             metodos_pago=r.metodos_pago,
+            costo_por_proveedor=[
+                CostoProveedorResponse.desde_entidad(c)
+                for c in getattr(r, "costo_por_proveedor", [])
+            ],
         )
 
 

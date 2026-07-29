@@ -109,6 +109,21 @@ class TopProducto:
 
 
 @dataclass
+class CostoProveedor:
+    """Costo de mercadería atribuido a un proveedor en el período.
+
+    Sale de las solicitudes de ingreso APROBADAS: no hay tabla de gastos, el
+    costo y la asociación al proveedor ya viven ahí.
+    """
+
+    proveedor: str
+    monto: float
+    unidades: int = 0
+    #: Cuántas solicitudes de ingreso aprobadas componen el monto.
+    ingresos: int = 0
+
+
+@dataclass
 class ResumenReporte:
     """Resumen de ventas para un período dado."""
 
@@ -124,6 +139,9 @@ class ResumenReporte:
     ticket_promedio: float = 0.0
     top_productos: list[TopProducto] = field(default_factory=list)
     metodos_pago: dict[str, float] = field(default_factory=dict)
+    #: Desglose de `total_egresos` por proveedor, de mayor a menor. Suma igual
+    #: que `total_egresos` porque sale de las mismas solicitudes aprobadas.
+    costo_por_proveedor: list[CostoProveedor] = field(default_factory=list)
 
     def calcular_ticket_promedio(self) -> None:
         if self.numero_ventas > 0:
