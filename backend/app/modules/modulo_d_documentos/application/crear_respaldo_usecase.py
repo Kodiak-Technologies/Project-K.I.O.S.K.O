@@ -189,58 +189,6 @@ async def _generar_dump_sql(db_params: dict) -> bytes:
     return buffer.getvalue().encode("utf-8")
 
 
-class CrearRespaldoUseCase:
-    def __init__(
-        self,
-        respaldo_repository: RespaldoRepositoryPort,
-        drive_storage: DriveStoragePort,
-    ) -> None:
-        self._repo = respaldo_repository
-        self._drive = drive_storage
-
-    async def ejecutar(self, usuario_id: int | None = None) -> Respaldo:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        nombre = f"tienda_sistema_{timestamp}.sql"
-
-        ahora = datetime.now(timezone.utc)
-        respaldo = Respaldo(
-            id=None,
-            archivo_nombre=nombre,
-            estado="PENDIENTE",
-            expira_en=ahora + timedelta(days=21),
-            usuario_id=usuario_id,
-        )
-        respaldo = await self._repo.crear(respaldo)
-
-        database_url = settings.database_url
-        if not database_url:
-            respaldo.estado = "FALLIDO"
-            return await self._repo.actualizar(respaldo)
-
-        try:
-            db_params = _parsear_database_url(database_url)
-            sql_bytes = await _generar_dump_sql(db_params)
-
-            anio = ahora.strftime("%Y")
-            mes = ahora.strftime("%m")
-            carpeta_drive = f"respaldos/{anio}/{mes}"
-            drive_file_id = await self._drive.subir(
-                archivo_bytes=sql_bytes,
-                nombre=nombre,
-                carpeta=carpeta_drive,
-            )
-
-            respaldo.estado = "COMPLETADO"
-            respaldo.tamano_bytes = len(sql_bytes)
-            respaldo.drive_file_id = drive_file_id
-            return await self._repo.actualizar(respaldo)
-
-        except Exception as e:
-            logger.error("Error creando respaldo: %s", str(e))
-            respaldo.estado = "FALLIDO"
-            return await self._repo.actualizar(respaldo)
-
-
 class ObtenerRutaRespaldoUseCase:
     """Descarga un respaldo desde Drive y retorna los bytes."""
 

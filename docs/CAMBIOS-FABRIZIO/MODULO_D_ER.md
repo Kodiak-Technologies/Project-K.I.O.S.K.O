@@ -87,6 +87,6 @@ erDiagram
 - Las 4 tablas son del **modulo D**. Las tablas referenciadas (`usuarios`, `productos`) pertenecen a otros modulos.
 - `config_notificaciones` es **fila unica** (id=1), similar a `configuracion_negocio` de Module A.
 - `notificaciones` no tiene borrado logico; se purgan despues de 30 dias (RNF-14).
-- `respaldos` almacena archivos `.sql` en Google Drive (carpeta `respaldos/YYYY/MM/`). Retencion: 21 dias. `usuario_id` es NULL para respaldos automaticos (cada domingo).
+- `respaldos` almacena archivos `.sql` en Google Drive (carpeta `respaldos/YYYY/MM/`). Retencion: 4 dias. `usuario_id` es NULL para respaldos automaticos (diarios a las 3:00 AM).
 - `oauth_tokens` almacena tokens OAuth para Google Drive. Un solo registro por proveedor (google_drive). El `refresh_token` nunca expira; el `access_token` se renueva automaticamente.
 - Las tablas `boletas_clientes` y `archivos_drive` fueron eliminadas en migraciones anteriores.

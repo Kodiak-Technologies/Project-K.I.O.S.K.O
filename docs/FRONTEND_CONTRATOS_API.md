@@ -219,9 +219,6 @@ Estado de la autorización de Google Drive.
 ### `POST /boletas/{id}/subir-drive`
 Sube la boleta a Google Drive (solo ADMIN). Retorna el archivo registrado.
 
-### `POST /respaldos` (ADMIN)
-Crea un respaldo manual de la base de datos.
-
 ### `GET /respaldos/{id}/descargar`
 Descarga el archivo de respaldo (.dump).
 
