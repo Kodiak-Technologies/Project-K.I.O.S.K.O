@@ -1,5 +1,5 @@
 // Página de generación/consulta de reportes de ventas (solo ADMIN).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, BarChart3, Download } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
@@ -68,6 +68,15 @@ export default function Reportes() {
   const [hasta, setHasta] = useState("");
   const [criterio, setCriterio] = useState<"unidades" | "monto">("unidades");
   const [orden, setOrden] = useState<"mayor" | "menor">("mayor");
+  const [esMobile, setEsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
+
+  useEffect(() => {
+    const manejarResize = () => {
+      setEsMobile(window.innerWidth < 640);
+    };
+    window.addEventListener("resize", manejarResize);
+    return () => window.removeEventListener("resize", manejarResize);
+  }, []);
 
   if (noDisponible) {
     return (
@@ -327,15 +336,15 @@ export default function Reportes() {
                   <BarChart
                     data={datosCostoProveedor}
                     layout="vertical"
-                    margin={{ left: 130, right: 30, top: 10, bottom: 10 }}
+                    margin={{ left: 0, right: esMobile ? 10 : 20, top: 10, bottom: 10 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                    <XAxis type="number" tickFormatter={(v) => `S/ ${v}`} fontSize={12} />
+                    <XAxis type="number" tickFormatter={(v) => `S/ ${v}`} fontSize={esMobile ? 11 : 12} />
                     <YAxis
                       type="category"
                       dataKey="name"
-                      width={130}
-                      fontSize={12}
+                      width={esMobile ? 85 : 125}
+                      fontSize={esMobile ? 11 : 12}
                       interval={0}
                     />
                     <Tooltip
@@ -428,7 +437,11 @@ export default function Reportes() {
             {datosTopProductos.length > 0 && (
               <div className="p-4">
                 <ResponsiveContainer width="100%" height={Math.max(280, datosTopProductos.length * 45)}>
-                  <BarChart data={datosTopProductos} layout="vertical" margin={{ left: 130, right: 30, top: 10, bottom: 10 }}>
+                  <BarChart
+                    data={datosTopProductos}
+                    layout="vertical"
+                    margin={{ left: 0, right: esMobile ? 10 : 20, top: 10, bottom: 10 }}
+                  >
                     <defs>
                       <linearGradient id="gradTopProd" x1="0" y1="0" x2="1" y2="0">
                         <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.85} />
@@ -436,14 +449,14 @@ export default function Reportes() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                    <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                    <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: "#94a3b8", fontSize: esMobile ? 11 : 12 }} />
                     <YAxis
                       type="category"
                       dataKey="name"
-                      width={125}
+                      width={esMobile ? 85 : 125}
                       tickLine={false}
                       axisLine={false}
-                      tick={{ fill: "#475569", fontSize: 12, fontWeight: 500 }}
+                      tick={{ fill: "#475569", fontSize: esMobile ? 11 : 12, fontWeight: 500 }}
                     />
                     <Tooltip
                       formatter={(v) => (criterio === "unidades" ? `${v} uds` : `S/ ${Number(v).toFixed(2)}`)}

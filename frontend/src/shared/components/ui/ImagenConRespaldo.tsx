@@ -1,15 +1,3 @@
-// Imagen de Drive con reintentos y, como última red, descarga por el backend.
-//
-// Por qué es tan defensivo: la boleta se guarda como URL pública de Drive, y
-// eso falla de dos formas distintas. Google fue cambiando cuál de sus formatos
-// devuelve la imagen (`lh3.googleusercontent.com/d/`, `thumbnail`,
-// `uc?export=view`), y además todos exigen que el archivo esté compartido con
-// "cualquiera con el enlace" — si ese permiso no quedó puesto, ninguno sirve.
-//
-// Orden: se prueban los formatos directos (no cuestan nada al servidor) y, si
-// fallan todos, se pide el archivo a `GET /storage/boleta/{file_id}`, que lo
-// lee de Drive con las credenciales del negocio. Ese camino no depende de que
-// el archivo sea público, así que siempre funciona.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { fileIdDeDrive, httpClient, urlsDeImagen } from "../../lib/http-client";
 
@@ -63,9 +51,9 @@ export function ImagenConRespaldo({ src, alt, className, respaldo = null }: Prop
     return <img src={urlDescargada} alt={alt} className={className} />;
   }
 
-  // Sin candidatas directas que probar y sin descarga posible.
+  // Sin candidatas directas que probar y sin descarga posible → mostrar respaldo.
   if (agotadas && (sinSalida || !fileId)) return <>{respaldo}</>;
-  // Esperando la descarga del backend: nada que pintar todavía.
+  // Esperando la descarga del backend o aún cargando URLs directas → respaldo temporal.
   if (agotadas) return <>{respaldo}</>;
 
   return (

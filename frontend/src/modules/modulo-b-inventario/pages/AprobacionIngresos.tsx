@@ -220,7 +220,7 @@ export default function AprobacionIngresos() {
     {
       titulo: "Acciones",
       alinear: "centro",
-      ancho: "140px",
+      ancho: "250px",
       render: (i) => (
         <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
           <Button
@@ -316,7 +316,8 @@ export default function AprobacionIngresos() {
       {/* La cola sigue siendo una tabla de filas, a todo el ancho. */}
       <Card sinPadding>
         <Table
-          minAncho="480px"
+          minAncho="750px"
+
           columnas={columnas}
           filas={ingresos}
           claveDe={(i) => i.id}
