@@ -22,6 +22,7 @@ from app.modules.modulo_b_inventario.domain.entities import (
     Proveedor,
     SolicitudIngreso,
 )
+from app.modules.modulo_b_inventario.domain.precios import costo_unitario
 from app.modules.modulo_b_inventario.domain.value_objects import (
     EstadoSolicitud,
     TipoMovimiento,
@@ -344,14 +345,40 @@ class HistorialPaginadosResponse(BaseModel):
 
 
 class DetalleCreate(BaseModel):
-    producto_id: int = Field(gt=0)
+    """Una línea de la boleta.
+
+    `precio_compra_total` es lo que dice la boleta para esa línea ("7 esponjas
+    — S/ 20"), no el unitario: la solicitud es una transcripción, no un cálculo.
+
+    O viene `producto_id` (producto del catálogo), o vienen `nuevo_codigo` +
+    `nuevo_nombre` para dar de alta uno que todavía no existe. El alta ocurre
+    al aprobar, no acá.
+    """
+
     cantidad: int = Field(gt=0)
-    precio_compra_unitario: float = Field(ge=0)
+    precio_compra_total: float = Field(ge=0)
+    producto_id: int | None = Field(default=None, gt=0)
+    nuevo_codigo: str | None = Field(default=None, max_length=60)
+    nuevo_nombre: str | None = Field(default=None, max_length=150)
+    nuevo_categoria_id: int | None = Field(default=None, gt=0)
+    margen_ganancia: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _producto_o_nuevo(self) -> "DetalleCreate":
+        if self.producto_id is None and not (
+            (self.nuevo_codigo or "").strip() and (self.nuevo_nombre or "").strip()
+        ):
+            raise ValueError(
+                "Cada línea debe indicar un producto del catálogo o el código y "
+                "nombre del producto nuevo."
+            )
+        return self
 
 
 class SolicitudIngresoCreate(BaseModel):
     proveedor_id: int | None = None
-    foto_boleta_url: Annotated[str, Field(min_length=1, max_length=2000)]
+    #: Opcional: no toda compra viene con boleta. Ausente o "" = sin foto.
+    foto_boleta_url: Annotated[str, Field(max_length=2000)] = ""
     lineas: list[DetalleCreate]
 
     @model_validator(mode="after")
@@ -363,13 +390,21 @@ class SolicitudIngresoCreate(BaseModel):
 
 class DetalleResponse(BaseModel):
     id: int
-    producto_id: int
+    #: None mientras el producto todavía no se creó (solicitud sin aprobar).
+    producto_id: int | None = None
     # Resueltos por JOIN: el cliente no necesita cargar el catálogo para
     # mostrar el nombre de la línea.
     producto_nombre: str | None = None
     producto_codigo: str | None = None
     cantidad: int
+    precio_compra_total: float
+    #: Derivado, para que el front no tenga que dividir (ni redondear distinto).
     precio_compra_unitario: float
+    es_producto_nuevo: bool = False
+    nuevo_codigo: str | None = None
+    nuevo_nombre: str | None = None
+    nuevo_categoria_id: int | None = None
+    margen_ganancia: float | None = None
 
     @classmethod
     def desde_entidad(cls, d: DetalleSolicitud) -> "DetalleResponse":
@@ -379,7 +414,17 @@ class DetalleResponse(BaseModel):
             producto_nombre=d.producto_nombre,
             producto_codigo=d.producto_codigo,
             cantidad=d.cantidad,
-            precio_compra_unitario=float(d.precio_compra_unitario),
+            precio_compra_total=float(d.precio_compra_total),
+            precio_compra_unitario=float(
+                costo_unitario(d.precio_compra_total, d.cantidad)
+            ),
+            es_producto_nuevo=d.es_producto_nuevo,
+            nuevo_codigo=d.nuevo_codigo,
+            nuevo_nombre=d.nuevo_nombre,
+            nuevo_categoria_id=d.nuevo_categoria_id,
+            margen_ganancia=(
+                float(d.margen_ganancia) if d.margen_ganancia is not None else None
+            ),
         )
 
 
@@ -467,6 +512,8 @@ class AprobacionResponse(BaseModel):
     unidades_agregadas: int
     monto_total: float = 0.0
     credito_registrado: bool = False
+    #: Productos dados de alta en el catálogo al aprobar esta solicitud.
+    productos_creados: int = 0
 
 
 class RechazarIngresoRequest(BaseModel):
@@ -479,13 +526,33 @@ class RechazarIngresoRequest(BaseModel):
 
 
 class LineaIngresoUpdateItem(BaseModel):
-    """Línea dentro del PATCH /ingresos. producto_id OBLIGATORIO, cantidad>0, precio>=0."""
+    """Línea dentro del PATCH /ingresos: cantidad>0, total>=0, y producto del
+    catálogo o datos del producto a crear (mismas reglas que `DetalleCreate`).
+
+    Acá la admin puede además pisar el margen de la línea antes de aprobar,
+    que es lo que fija el precio de venta del producto nuevo.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    producto_id: int = Field(gt=0)
     cantidad: int = Field(gt=0)
-    precio_unitario: Decimal = Field(ge=0)
+    precio_compra_total: Decimal = Field(ge=0)
+    producto_id: int | None = Field(default=None, gt=0)
+    nuevo_codigo: str | None = Field(default=None, max_length=60)
+    nuevo_nombre: str | None = Field(default=None, max_length=150)
+    nuevo_categoria_id: int | None = Field(default=None, gt=0)
+    margen_ganancia: Decimal | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _producto_o_nuevo(self) -> "LineaIngresoUpdateItem":
+        if self.producto_id is None and not (
+            (self.nuevo_codigo or "").strip() and (self.nuevo_nombre or "").strip()
+        ):
+            raise ValueError(
+                "Cada línea debe indicar un producto del catálogo o el código y "
+                "nombre del producto nuevo."
+            )
+        return self
 
 
 class SolicitudIngresoUpdateRequest(BaseModel):

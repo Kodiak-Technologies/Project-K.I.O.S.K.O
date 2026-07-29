@@ -190,33 +190,28 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Actor** | Admin (manual) / Sistema (automatico, cada domingo) |
-| **Precondiciones** | El usuario tiene rol ADMIN (manual) / Google Drive autorizado (automatico) |
+| **Actor** | Sistema (automatico, diario) |
+| **Precondiciones** | Google Drive autorizado |
 | **Postcondiciones** | Existe un archivo .sql en Google Drive y registro en `respaldos` |
 
-### Flujo principal (manual)
-1. El Admin hace clic en "Crear respaldo"
+### Flujo principal
+1. Cada dia a las 3:00 AM, el sistema ejecuta el respaldo automatico
 2. Module D conecta a PostgreSQL con `asyncpg`
 3. Module D genera un archivo `.sql` con la estructura y datos de todas las tablas
 4. Module D sube el archivo a Google Drive en `respaldos/YYYY/MM/`
-5. Module D registra en `respaldos` con estado `COMPLETADO`, `usuario_id` y `drive_file_id`
-
-### Flujo principal (automatico)
-1. Cada domingo, el sistema verifica si es dia de respaldo
-2. Module D ejecuta los mismos pasos 2-5 del flujo manual
-3. `usuario_id` queda `NULL` (creado por el sistema)
+5. Module D registra en `respaldos` con estado `COMPLETADO` y `drive_file_id`
 
 ### Flujos alternativos
 - **3a.** Si falla la generacion del .sql → se registra con estado `FALLIDO`
 - **4a.** Si falla la subida a Drive → se registra con estado `FALLIDO`
-- **5a.** Los respaldos expiran despues de 21 dias; se eliminan de Drive y de la BD
+- **5a.** Los respaldos expiran despues de 4 dias; se eliminan de Drive y de la BD
 
 ### Criterios de aceptacion
 - El respaldo es un archivo `.sql` valido (no requiere `pg_dump`, usa `asyncpg`)
 - Se genera con DELETE + INSERT (ordenado por FK) + reseteo de secuencias
 - Las tablas pivote (ej: `rol_permisos`) se verifican antes de resetear secuencias
 - Se registra tamano, fecha, estado, `usuario_id` y `drive_file_id`
-- Respaldo automatico: solo los domingos, retencion 21 dias
+- Respaldo automatico: diario, retencion 4 dias
 - La eliminacion de respaldos expirados tambien elimina el archivo de Drive
 - La pagina de respaldos muestra "Creado por" con el nombre del usuario
 - La pagina de respaldos muestra aviso cuando Google Drive no esta autorizado
@@ -317,7 +312,7 @@
 | **Postcondiciones** | Las notificaciones antiguas se eliminan |
 
 ### Flujo principal
-1. El cron se ejecuta despues del backup semanal
+1. El cron se ejecuta despues del backup diario
 2. Se eliminan notificaciones con `created_at` mayor a 30 dias
 
 ### Criterios de aceptacion
@@ -330,12 +325,12 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Actor** | Sistema (cron, cada domingo) |
-| **Precondiciones** | Hay respaldos con mas de 21 dias |
+| **Actor** | Sistema (cron, diario) |
+| **Precondiciones** | Hay respaldos con mas de 4 dias |
 | **Postcondiciones** | Los respaldos expirados se eliminan de Drive y de la BD |
 
 ### Flujo principal
-1. El cron se ejecuta cada domingo junto con el respaldo automatico
+1. El cron se ejecuta cada dia junto con el respaldo automatico
 2. Se obtienen los respaldos con `expira_en < ahora`
 3. Se eliminan los archivos de Google Drive
 4. Se eliminan los registros de la BD

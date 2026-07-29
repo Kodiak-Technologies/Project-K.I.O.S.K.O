@@ -8,8 +8,8 @@
 //     entonces se aplica.
 //
 // La consulta de solo lectura del catálogo vive en el punto de venta.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, PackagePlus, Pencil, Plus, Save, ScanBarcode, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, PackagePlus, Pencil, Plus, Save, ScanBarcode, Search, SlidersHorizontal, Tag, Trash2, X } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -28,7 +28,9 @@ import {
 } from "../../../shared/components/ui";
 import { mensajeDeError } from "../../../shared/lib/http-client";
 import { ModalConfirmacion } from "../components/ModalConfirmacion";
+import { ModalGestionCategorias } from "../components/ModalGestionCategorias";
 import { PaginacionControles } from "../components/PaginacionControles";
+
 import { useCategorias } from "../hooks/useCategorias";
 import { useProductos } from "../hooks/useProductos";
 import { productosHttpAdapter } from "../services/productos.http-adapter";
@@ -112,13 +114,22 @@ export default function Catalogo() {
     ajustarStock,
     eliminar,
   } = useProductos();
-  const { categorias, crear: crearCategoria } = useCategorias();
 
-  // Alta de categoría: hasta ahora sólo se podían crear por BD. El único
-  // componente que las creaba (`SelectorCategoria`) quedó huérfano cuando esta
-  // página reemplazó a GestionProductos.
+  const {
+    categorias,
+    cargando: cargandoCategorias,
+    crear: crearCategoria,
+    editar: editarCategoria,
+    eliminar: eliminarCategoria,
+  } = useCategorias();
+
+
+  const [modalCategoriasAbierto, setModalCategoriasAbierto] = useState(false);
+
+  // Alta de categoría rápida
   const [nuevaCategoria, setNuevaCategoria] = useState<string | null>(null);
   const [creandoCategoria, setCreandoCategoria] = useState(false);
+
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -139,7 +150,7 @@ export default function Catalogo() {
   const [busquedaAplicada, setBusquedaAplicada] = useState("");
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [indiceSugerencia, setIndiceSugerencia] = useState(0);
-  const [todosLosProductos, setTodosLosProductos] = useState<Producto[]>([]);
+  const [sugerencias, setSugerencias] = useState<Producto[]>([]);
   const inputBusquedaRef = useRef<HTMLInputElement>(null);
 
   // Filtros adicionales en modal
@@ -156,34 +167,28 @@ export default function Catalogo() {
     return count;
   }, [filtroCategoriaId, filtroEstado, filtroStock]);
 
-  // Cargar catálogo completo para autocompletar sugerencias en tiempo real
-  const recargarSugerencias = useCallback(() => {
-    void productosHttpAdapter
-      .listar({ page_size: 250 })
-      .then((resp) => {
-        setTodosLosProductos(resp.items ?? []);
-      })
-      .catch(() => {});
-  }, []);
-
+  // Sugerencias del autocompletado: se piden al backend (búsqueda indexada por
+  // nombre/código) con un pequeño debounce mientras se escribe.
+  //
+  // Antes se traía TODO el catálogo de una sola vez (`page_size: 250`) para
+  // filtrarlo en el cliente, pero el backend topa `page_size` en 100: devolvía
+  // 422 y, al tragarse el error en el `.catch`, el buscador se quedaba sin
+  // sugerencias. Pedirlas al servidor cubre además catálogos de cualquier
+  // tamaño (no solo los primeros 100 productos).
   useEffect(() => {
-    recargarSugerencias();
-  }, [recargarSugerencias]);
-
-  // Coincidencias en tiempo real (autocompletado mientras escribe)
-  const sugerencias = useMemo(() => {
-    const q = busquedaInput.trim().toLowerCase();
-    if (!q) return [];
-    return todosLosProductos
-      .filter((p) => {
-        const codigoMatch = p.codigo?.toLowerCase().includes(q);
-        const palabras = p.nombre.toLowerCase().split(/\s+/);
-        const palabraMatch = palabras.some((w) => w.startsWith(q));
-        const nombreMatch = p.nombre.toLowerCase().includes(q);
-        return codigoMatch || palabraMatch || nombreMatch;
-      })
-      .slice(0, 8);
-  }, [todosLosProductos, busquedaInput]);
+    const q = busquedaInput.trim();
+    if (!q) {
+      setSugerencias([]);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      void productosHttpAdapter
+        .listar({ search: q, page_size: 8 })
+        .then((resp) => setSugerencias(resp.items ?? []))
+        .catch(() => setSugerencias([]));
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [busquedaInput]);
 
   function construirFiltros(override?: { page?: number; pageSize?: number; search?: string }) {
     const p = override?.page ?? 1;
@@ -608,24 +613,38 @@ export default function Catalogo() {
         titulo="Catálogo"
         descripcion="Se edita como una planilla: toca el lápiz para modificar una fila."
         acciones={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variante="secundario"
-              onClick={() => setNuevaCategoria("")}
-              disabled={nuevaCategoria !== null}
-              icono={<Plus className="h-4 w-4" aria-hidden />}
-            >
-              Nueva categoría
-            </Button>
+          <div className="flex flex-col w-full gap-2 sm:flex-row sm:w-auto">
+            <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
+              <Button
+                variante="secundario"
+                onClick={() => setModalCategoriasAbierto(true)}
+                icono={<Tag className="h-4 w-4" aria-hidden />}
+                className="w-full justify-center"
+              >
+                Categorías
+              </Button>
+              <Button
+                variante="secundario"
+                onClick={() => setNuevaCategoria("")}
+                disabled={nuevaCategoria !== null}
+                icono={<Plus className="h-4 w-4" aria-hidden />}
+                className="w-full justify-center"
+              >
+                Nueva categoría
+              </Button>
+            </div>
             <Button
               onClick={empezarAlta}
               disabled={editandoId !== null}
               icono={<Plus className="h-4 w-4" aria-hidden />}
+              className="w-full justify-center sm:w-auto"
             >
               Nuevo producto
             </Button>
           </div>
         }
+
+
       />
 
       {/* Alta de categoría en línea: mismo criterio que el resto de la página
@@ -680,14 +699,14 @@ export default function Catalogo() {
       )}
 
       {/* Buscador + Botón de Filtros sobre la tabla */}
-      <div className="mb-4 flex flex-wrap items-center gap-2.5">
-        <div className="relative flex-1 min-w-[260px]">
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2.5">
+        <div className="relative flex-1 w-full min-w-0">
           <div className="relative flex w-full items-center rounded-xl border border-zinc-200 bg-white p-1 shadow-sm transition-all focus-within:border-zinc-400 focus-within:ring-2 focus-within:ring-marca/20">
             <ScanBarcode className="pointer-events-none absolute left-3.5 h-5 w-5 text-zinc-400" />
             <input
               ref={inputBusquedaRef}
               type="text"
-              className="w-full bg-transparent py-2 pl-11 pr-32 text-sm text-zinc-900 focus:outline-none placeholder:text-zinc-400"
+              className="w-full bg-transparent py-2 pl-11 pr-10 sm:pr-32 text-sm text-zinc-900 focus:outline-none placeholder:text-zinc-400 truncate"
               placeholder="Escanea un código o busca por nombre…"
               value={busquedaInput}
               onChange={(e) => {
@@ -723,25 +742,25 @@ export default function Catalogo() {
             />
             <div className="absolute right-1.5 flex items-center gap-1.5">
               {(busquedaInput || busquedaAplicada) && (
-                <>
-                  <button
-                    type="button"
-                    onClick={limpiarBusqueda}
-                    title="Limpiar búsqueda"
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 transition-all active:scale-95"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                  <div className="h-4 w-px bg-zinc-200" />
-                </>
+                <button
+                  type="button"
+                  onClick={limpiarBusqueda}
+                  title="Limpiar búsqueda"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 transition-all active:scale-95"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               )}
-              <Button
-                compacto
-                onClick={() => aplicarBusqueda()}
-                icono={<Search className="h-4 w-4" aria-hidden />}
-              >
-                Buscar
-              </Button>
+              <div className="hidden sm:flex items-center gap-1.5">
+                {(busquedaInput || busquedaAplicada) && <div className="h-4 w-px bg-zinc-200" />}
+                <Button
+                  compacto
+                  onClick={() => aplicarBusqueda()}
+                  icono={<Search className="h-4 w-4" aria-hidden />}
+                >
+                  Buscar
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -797,15 +816,42 @@ export default function Catalogo() {
           )}
         </div>
 
+        {/* Fila de botones solo en MODO RESPONSIVO: Buscar + Filtros mitad y mitad (50% - 50%) */}
+        <div className="flex sm:hidden w-full gap-2">
+          <Button
+            type="button"
+            onClick={() => aplicarBusqueda()}
+            icono={<Search className="h-4 w-4" aria-hidden />}
+            className="flex-1 justify-center"
+          >
+            Buscar
+          </Button>
+          <Button
+            type="button"
+            variante={filtrosActivosCount > 0 ? "primario" : "secundario"}
+            onClick={() => setModalFiltrosAbierto(true)}
+            icono={<SlidersHorizontal className="h-4 w-4" aria-hidden />}
+            className="flex-1 justify-center"
+          >
+            <span>Filtros</span>
+            {filtrosActivosCount > 0 && (
+              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-marca shadow-xs">
+                {filtrosActivosCount}
+              </span>
+            )}
+          </Button>
+        </div>
+
+        {/* Botón de Filtros en DESKTOP */}
         <Button
           type="button"
           variante={filtrosActivosCount > 0 ? "primario" : "secundario"}
           onClick={() => setModalFiltrosAbierto(true)}
           icono={<SlidersHorizontal className="h-4 w-4" aria-hidden />}
-          className="shrink-0"
+          className="hidden sm:inline-flex shrink-0"
           title="Filtros avanzados"
         >
-          <span className="hidden sm:inline">Filtros</span>
+          <span>Filtros</span>
           {filtrosActivosCount > 0 && (
             <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-marca shadow-xs">
               {filtrosActivosCount}
@@ -813,6 +859,7 @@ export default function Catalogo() {
           )}
         </Button>
       </div>
+
 
       <Card sinPadding>
         <Table
@@ -888,7 +935,7 @@ export default function Catalogo() {
       >
         <div className="space-y-2 text-sm text-zinc-700">
           <p>
-            ¿Seguro que querés eliminar <strong>{porEliminar?.nombre}</strong> (
+            ¿Seguro que quieres eliminar <strong>{porEliminar?.nombre}</strong> (
             {porEliminar?.codigo})?
           </p>
           <p className="text-zinc-500">
@@ -989,6 +1036,17 @@ export default function Catalogo() {
           </div>
         </div>
       </Modal>
+
+      <ModalGestionCategorias
+        abierto={modalCategoriasAbierto}
+        alCerrar={() => setModalCategoriasAbierto(false)}
+        categorias={categorias}
+        cargando={cargandoCategorias}
+        onCrear={crearCategoria}
+        onEditar={editarCategoria}
+        onEliminar={eliminarCategoria}
+      />
     </div>
   );
 }
+

@@ -176,10 +176,12 @@ export default function Proveedores() {
               setErrorAccion(null);
             }}
             icono={<Plus className="h-4 w-4" aria-hidden />}
+            className="w-full justify-center sm:w-auto"
           >
             Nuevo proveedor
           </Button>
         }
+
       />
 
       {mensaje && (

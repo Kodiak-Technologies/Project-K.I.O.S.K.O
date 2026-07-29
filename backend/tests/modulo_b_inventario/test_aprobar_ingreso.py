@@ -29,6 +29,7 @@ from app.shared.kernel.exceptions import (
 
 from .dobles import (
     AuditoriaFake,
+    ConfiguracionRepoFake,
     DetalleRepoFake,
     MovimientoRepoFake,
     ProductoRepoFake,
@@ -52,13 +53,29 @@ def solicitud(**kwargs) -> SolicitudIngreso:
     return SolicitudIngreso(**base)  # type: ignore[arg-type]
 
 
-def linea(producto_id=1, cantidad=10, precio="2.00") -> DetalleSolicitud:
+def linea(producto_id=1, cantidad=10, total="20.00", **kwargs) -> DetalleSolicitud:
+    """`total` es el monto de la línea en la boleta, no el precio unitario."""
     return DetalleSolicitud(
-        id=None,
+        id=kwargs.pop("id", 100),
         solicitud_id=1,
         producto_id=producto_id,
         cantidad=cantidad,
-        precio_compra_unitario=Decimal(precio),
+        precio_compra_total=Decimal(total),
+        **kwargs,
+    )
+
+
+def linea_nueva(codigo="7501234567890", nombre="Esponja verde", **kwargs):
+    """Línea que propone dar de alta un producto al aprobar."""
+    return DetalleSolicitud(
+        id=kwargs.pop("id", 200),
+        solicitud_id=1,
+        producto_id=None,
+        cantidad=kwargs.pop("cantidad", 7),
+        precio_compra_total=Decimal(kwargs.pop("total", "20.00")),
+        nuevo_codigo=codigo,
+        nuevo_nombre=nombre,
+        **kwargs,
     )
 
 
@@ -81,12 +98,14 @@ class Escenario:
         self.movimientos = MovimientoRepoFake()
         self.auditoria = AuditoriaFake()
         self.credito = CompraCreditoFake()
+        self.configuracion = ConfiguracionRepoFake()
         self.caso = AprobarIngresoUseCase(
             self.solicitudes,
             self.detalles,
             self.productos,
             self.movimientos,
             self.auditoria,
+            self.configuracion,
             self.credito,
         )
 
@@ -134,19 +153,36 @@ class TestAprobacionExitosa:
     async def test_calcula_el_monto_total_de_la_compra(self):
         e = Escenario(
             lineas=[
-                linea(producto_id=1, cantidad=10, precio="2.50"),
-                linea(producto_id=2, cantidad=4, precio="3.00"),
+                linea(producto_id=1, cantidad=10, total="25.00", id=101),
+                linea(producto_id=2, cantidad=4, total="12.00", id=102),
             ],
             productos=[producto(id=1, stock=0), producto(id=2, stock=0)],
         )
         r = await e.aprobar()
         assert r.monto_total == Decimal("37.00")  # 25 + 12
 
+    async def test_el_monto_total_es_la_suma_de_la_boleta_sin_reconstruir(self):
+        """La regresión que motivó el cambio a total de línea.
+
+        7 unidades por S/ 20 dan un unitario de 2.857…; si el monto se
+        reconstruyera como cantidad × unitario redondeado daría 20.02 y la
+        deuda al proveedor no cuadraría contra la boleta.
+        """
+        e = Escenario(
+            lineas=[linea(producto_id=1, cantidad=7, total="20.00")],
+            productos=[producto(id=1, stock=0)],
+        )
+        r = await e.aprobar()
+        assert r.monto_total == Decimal("20.00")
+
     async def test_el_precio_de_compra_de_la_boleta_llega_al_producto(self):
         """Antes moría en el detalle y el catálogo quedaba con el precio viejo."""
         p = producto(id=1, stock=0, precio_compra_actual=Decimal("1.00"))
-        e = Escenario(lineas=[linea(producto_id=1, precio="2.75")], productos=[p])
+        e = Escenario(
+            lineas=[linea(producto_id=1, cantidad=10, total="27.50")], productos=[p]
+        )
         await e.aprobar()
+        # El catálogo guarda el UNITARIO derivado del total: 27.50 / 10.
         assert p.precio_compra_actual == Decimal("2.75")
 
     async def test_queda_registrado_en_bitacora(self):
@@ -197,6 +233,75 @@ class TestAprobacionRechazada:
         assert s.estado == EstadoSolicitud(EstadoSolicitud.PENDIENTE)
 
 
+class TestAltaDeProductoNuevo:
+    """El cajero transcribe la boleta aunque el producto no exista todavía.
+
+    El alta ocurre al aprobar y no al registrar: crear productos exige
+    `productos.crear`, permiso que el cajero no tiene.
+    """
+
+    async def test_crea_el_producto_propuesto(self):
+        e = Escenario(lineas=[linea_nueva()], productos=[])
+        r = await e.aprobar()
+        assert r.productos_creados == 1
+        creado = e.productos.productos[0]
+        assert creado.codigo == "7501234567890"
+        assert creado.nombre == "Esponja verde"
+
+    async def test_el_precio_de_venta_sale_del_margen_del_negocio(self):
+        """7 esponjas por S/ 20 con 20%: 2.857… × 1.20 = 3.428… → S/ 3.50."""
+        e = Escenario(lineas=[linea_nueva(cantidad=7, total="20.00")], productos=[])
+        await e.aprobar()
+        assert e.productos.productos[0].precio == Decimal("3.50")
+
+    async def test_el_margen_de_la_linea_le_gana_al_del_negocio(self):
+        e = Escenario(
+            lineas=[linea_nueva(cantidad=10, total="100.00", margen_ganancia=Decimal("50"))],
+            productos=[],
+        )
+        await e.aprobar()
+        assert e.productos.productos[0].precio == Decimal("15.00")
+
+    async def test_el_costo_del_catalogo_es_el_unitario_derivado(self):
+        e = Escenario(lineas=[linea_nueva(cantidad=7, total="20.00")], productos=[])
+        await e.aprobar()
+        assert e.productos.productos[0].precio_compra_actual == Decimal("2.86")
+
+    async def test_nace_con_el_stock_de_la_boleta(self):
+        """Nace en 0 y el movimiento de ingreso le suma, igual que a cualquiera."""
+        e = Escenario(lineas=[linea_nueva(cantidad=7)], productos=[])
+        await e.aprobar()
+        assert e.productos.productos[0].stock == 7
+
+    async def test_la_linea_queda_atada_al_producto_creado(self):
+        e = Escenario(lineas=[linea_nueva()], productos=[])
+        await e.aprobar()
+        creado = e.productos.productos[0]
+        assert e.detalles.por_solicitud[1][0].producto_id == creado.id
+
+    async def test_deja_el_movimiento_de_ingreso(self):
+        e = Escenario(lineas=[linea_nueva(cantidad=7)], productos=[])
+        await e.aprobar()
+        assert len(e.movimientos.movimientos) == 1
+
+    async def test_si_el_codigo_ya_existe_no_se_duplica(self):
+        """Alguien pudo crearlo entre el registro y la aprobación."""
+        ya_esta = producto(id=1, codigo="7501234567890", stock=0)
+        e = Escenario(lineas=[linea_nueva(codigo="7501234567890")], productos=[ya_esta])
+        with pytest.raises(ConflictoError):
+            await e.aprobar()
+        assert len(e.productos.productos) == 1
+
+    async def test_una_solicitud_puede_mezclar_existentes_y_nuevos(self):
+        e = Escenario(
+            lineas=[linea(producto_id=1, cantidad=2, total="10.00"), linea_nueva()],
+            productos=[producto(id=1, stock=0)],
+        )
+        r = await e.aprobar()
+        assert r.productos_creados == 1
+        assert r.productos_actualizados == 2
+
+
 class TestCompraACredito:
     async def test_no_registra_credito_si_no_se_pide(self):
         e = Escenario()
@@ -205,7 +310,7 @@ class TestCompraACredito:
         assert e.credito.llamadas == []
 
     async def test_registra_la_deuda_por_el_monto_total(self):
-        e = Escenario(lineas=[linea(cantidad=10, precio="2.00")])
+        e = Escenario(lineas=[linea(cantidad=10, total="20.00")])
         r = await e.aprobar(registrar_credito=True)
         assert r.credito_registrado is True
         assert e.credito.llamadas[0]["monto"] == Decimal("20.00")

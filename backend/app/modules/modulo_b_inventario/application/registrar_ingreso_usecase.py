@@ -1,5 +1,5 @@
 # Caso de uso: registrar una solicitud de ingreso de mercadería (HU-B05/06, REQ-ING).
-# - Valida foto_boleta_url no vacía.
+# - La foto de la boleta es OPCIONAL (cadena vacía = sin foto).
 # - Valida líneas (>=1, cada una con cantidad>0 y precio>=0).
 # - Valida productos y proveedor (opcional) existen.
 # - INSERT solicitud + detalles en una sola tx.
@@ -34,9 +34,28 @@ from app.shared.kernel.exceptions import NoEncontradoError, ValidacionError
 
 @dataclass
 class LineaSolicitudDTO:
-    producto_id: int
+    """Una línea de la boleta.
+
+    O apunta a un producto del catálogo (`producto_id`), o describe uno que
+    todavía no existe (`nuevo_*`). El segundo caso es el que evita que el
+    cajero tenga que pedirle a un ADMIN que dé de alta el producto antes de
+    poder transcribir la boleta: el producto se crea al aprobar.
+
+    `precio_compra_total` es el monto de la línea tal cual figura en la boleta
+    ("7 esponjas — S/ 20"), NO el unitario.
+    """
+
     cantidad: int
-    precio_compra_unitario: Decimal
+    precio_compra_total: Decimal
+    producto_id: int | None = None
+    nuevo_codigo: str | None = None
+    nuevo_nombre: str | None = None
+    nuevo_categoria_id: int | None = None
+    margen_ganancia: Decimal | None = None
+
+    @property
+    def es_producto_nuevo(self) -> bool:
+        return self.producto_id is None
 
 
 class RegistrarIngresoUseCase:
@@ -61,32 +80,59 @@ class RegistrarIngresoUseCase:
         self,
         *,
         proveedor_id: int | None,
-        foto_boleta_url: str,
         lineas: list[LineaSolicitudDTO],
         usuario_id: int,
         usuario_nombre: str,
+        #: Opcional: no toda compra viene con boleta, y frenar la carga por eso
+        #: dejaba mercadería sin registrar. Cadena vacía = sin foto.
+        foto_boleta_url: str = "",
         ip: str = "",
         user_agent: str = "",
     ) -> SolicitudIngreso:
-        if not foto_boleta_url or not foto_boleta_url.strip():
-            raise ValidacionError(
-                "Debes adjuntar la foto de la boleta para enviar la solicitud."
-            )
         if not lineas:
             raise ValidacionError("La solicitud debe tener al menos una línea.")
+        codigos_nuevos: set[str] = set()
         for idx, l in enumerate(lineas, start=1):
             if l.cantidad is None or l.cantidad <= 0:
                 raise ValidacionError(
                     f"La línea {idx} tiene una cantidad inválida (debe ser > 0)."
                 )
-            if l.precio_compra_unitario is None or l.precio_compra_unitario < 0:
+            if l.precio_compra_total is None or l.precio_compra_total < 0:
                 raise ValidacionError(
-                    f"La línea {idx} tiene un precio inválido (debe ser >= 0)."
+                    f"La línea {idx} tiene un total inválido (debe ser >= 0)."
                 )
-            p = await self._productos.buscar_por_id(l.producto_id)
-            if p is None or p.deleted_at is not None:
-                raise NoEncontradoError(
-                    f"El producto de la línea {idx} no existe."
+            if l.margen_ganancia is not None and l.margen_ganancia < 0:
+                raise ValidacionError(
+                    f"La línea {idx} tiene un margen inválido (debe ser >= 0)."
+                )
+
+            if not l.es_producto_nuevo:
+                p = await self._productos.buscar_por_id(l.producto_id)
+                if p is None or p.deleted_at is not None:
+                    raise NoEncontradoError(
+                        f"El producto de la línea {idx} no existe."
+                    )
+                continue
+
+            # Producto propuesto: se valida acá lo que se pueda, para no hacerle
+            # perder el trabajo al cajero recién al momento de aprobar.
+            codigo = (l.nuevo_codigo or "").strip()
+            nombre = (l.nuevo_nombre or "").strip()
+            if not codigo or not nombre:
+                raise ValidacionError(
+                    f"La línea {idx} es un producto nuevo: falta el código de "
+                    "barras o el nombre."
+                )
+            if codigo in codigos_nuevos:
+                raise ValidacionError(
+                    f"El código '{codigo}' está repetido en más de una línea."
+                )
+            codigos_nuevos.add(codigo)
+            existente = await self._productos.buscar_por_codigo(codigo)
+            if existente is not None and existente.deleted_at is None:
+                raise ValidacionError(
+                    f"El código '{codigo}' ya pertenece a '{existente.nombre}'. "
+                    "Elige ese producto del catálogo en vez de crearlo de nuevo."
                 )
 
         if proveedor_id is not None:
@@ -98,7 +144,7 @@ class RegistrarIngresoUseCase:
             SolicitudIngreso(
                 id=None,
                 estado=EstadoSolicitud("Pendiente"),
-                foto_boleta_url=foto_boleta_url.strip(),
+                foto_boleta_url=(foto_boleta_url or "").strip(),
                 solicitado_por=usuario_id,
                 solicitado_por_nombre=usuario_nombre,
                 proveedor_id=proveedor_id,
@@ -110,7 +156,11 @@ class RegistrarIngresoUseCase:
                 solicitud_id=solicitud.id,  # type: ignore[arg-type]
                 producto_id=l.producto_id,
                 cantidad=l.cantidad,
-                precio_compra_unitario=l.precio_compra_unitario,
+                precio_compra_total=l.precio_compra_total,
+                nuevo_codigo=(l.nuevo_codigo or "").strip() or None,
+                nuevo_nombre=(l.nuevo_nombre or "").strip() or None,
+                nuevo_categoria_id=l.nuevo_categoria_id,
+                margen_ganancia=l.margen_ganancia,
             )
             for l in lineas
         ]
@@ -126,12 +176,12 @@ class RegistrarIngresoUseCase:
             valor_nuevo={
                 "proveedor_id": proveedor_id,
                 "cantidad_productos": len(lineas),
+                # Suma de los totales de línea: son el dato de la boleta. Volver
+                # a multiplicar por cantidad daría un monto inventado.
                 "monto_total": float(
-                    sum(
-                        (l.cantidad * l.precio_compra_unitario for l in lineas),
-                        start=Decimal("0"),
-                    )
+                    sum((l.precio_compra_total for l in lineas), start=Decimal("0"))
                 ),
+                "productos_nuevos": sum(1 for l in lineas if l.es_producto_nuevo),
             },
             ip=ip,
             user_agent=user_agent,
@@ -145,15 +195,20 @@ class RegistrarIngresoUseCase:
             )
 
             unidades = sum(l.cantidad for l in lineas)
-            monto = sum(
-                (l.cantidad * l.precio_compra_unitario for l in lineas),
-                start=Decimal("0"),
+            monto = sum((l.precio_compra_total for l in lineas), start=Decimal("0"))
+            nuevos = sum(1 for l in lineas if l.es_producto_nuevo)
+            # Que se vea en el aviso: si hay productos nuevos, aprobar implica
+            # además darlos de alta en el catálogo.
+            aviso_nuevos = (
+                f" Incluye {nuevos} producto(s) que se van a crear en el catálogo."
+                if nuevos
+                else ""
             )
             await self._notificador.avisar(
                 TipoNotificacion.SOLICITUD_INGRESO,
                 f"Ingreso pendiente de aprobación (#{solicitud.id})",
                 f"{usuario_nombre} registró {len(lineas)} producto(s) "
-                f"({unidades} unidades) por S/ {float(monto):.2f}. "
+                f"({unidades} unidades) por S/ {float(monto):.2f}.{aviso_nuevos} "
                 "Queda pendiente hasta que lo apruebes.",
                 entidad_origen="solicitudes_ingreso",
                 entidad_id=solicitud.id,

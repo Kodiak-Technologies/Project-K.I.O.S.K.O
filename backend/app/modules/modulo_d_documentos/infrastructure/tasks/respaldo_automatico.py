@@ -24,11 +24,13 @@ logger = logging.getLogger(__name__)
 async def respaldo_automatico_diario() -> None:
     ahora = datetime.now(timezone.utc)
 
-    # Solo ejecutar los domingos (weekday == 6)
-    if ahora.weekday() != 6:
+    # Ejecutar diariamente a las 3:00 AM hora de Perú (UTC-5, sin DST)
+    from zoneinfo import ZoneInfo
+    hora_peru = datetime.now(ZoneInfo("America/Lima"))
+    if hora_peru.hour != 3:
         return
 
-    logger.info("Iniciando respaldo automático semanal (domingo)...")
+    logger.info("Iniciando respaldo automático diario (3:00 AM)...")
 
     timestamp = ahora.strftime("%Y%m%d_%H%M%S")
     nombre = f"tienda_sistema_{timestamp}.sql"
@@ -40,7 +42,7 @@ async def respaldo_automatico_diario() -> None:
             id=None,
             archivo_nombre=nombre,
             estado="PENDIENTE",
-            expira_en=ahora + timedelta(days=21),
+            expira_en=ahora + timedelta(days=4),
         )
         respaldo = await repo.crear(respaldo)
         await db.commit()
@@ -70,7 +72,7 @@ async def respaldo_automatico_diario() -> None:
             respaldo.tamano_bytes = len(sql_bytes)
             respaldo.estado = "COMPLETADO"
             respaldo.drive_file_id = drive_file_id
-            respaldo.expira_en = ahora + timedelta(days=21)
+            respaldo.expira_en = ahora + timedelta(days=4)
             await repo.actualizar(respaldo)
             await db.commit()
             logger.info("Respaldo automático completado: %s (%d bytes).", nombre, len(sql_bytes))

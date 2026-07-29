@@ -12,6 +12,7 @@ import {
   ModuloPendiente,
   PageHeader,
   PageSpinner,
+  Select,
   Table,
   type Columna,
   type Tono,
@@ -268,21 +269,20 @@ export default function ProveedorDetalle() {
       </div>
 
       <div className="mb-3 flex flex-wrap items-end gap-3">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-zinc-700">Tipo de movimiento</span>
-          <select
+        <div className="w-full sm:w-56">
+          <Select
+            label="Tipo de movimiento"
             value={filtroTipo}
             onChange={(e) => {
               setFiltroTipo(e.target.value as TipoPago | "");
               setPage(1);
             }}
-            className="min-h-tactil rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm"
           >
             <option value="">Todos</option>
             <option value="compra_credito">Compras a crédito</option>
             <option value="pago">Pagos</option>
-          </select>
-        </label>
+          </Select>
+        </div>
       </div>
 
       <Card sinPadding>

@@ -30,15 +30,6 @@ export function useRespaldos() {
     void recargar();
   }, [recargar]);
 
-  const crear = useCallback(async () => {
-    try {
-      await respaldosHttpAdapter.crear();
-      await recargar();
-    } catch (e) {
-      setError(mensajeDeError(e));
-    }
-  }, [recargar]);
-
   const descargar = useCallback(async (id: number, nombre: string) => {
     try {
       const blob = await respaldosHttpAdapter.descargar(id);
@@ -55,14 +46,5 @@ export function useRespaldos() {
     }
   }, []);
 
-  const restaurar = useCallback(async (id: number) => {
-    try {
-      await respaldosHttpAdapter.restaurar(id);
-      await recargar();
-    } catch (e) {
-      setError(mensajeDeError(e));
-    }
-  }, [recargar]);
-
-  return { respaldos, paginados, cargando, error, noDisponible, recargar, crear, descargar, restaurar };
+  return { respaldos, paginados, cargando, error, noDisponible, recargar, descargar };
 }

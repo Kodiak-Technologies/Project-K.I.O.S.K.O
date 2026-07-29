@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Database, Download, ExternalLink, Plus, RotateCcw } from "lucide-react";
+import { AlertTriangle, Database, Download, ExternalLink } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -30,7 +30,7 @@ function formatearTamano(bytes: number): string {
 }
 
 export default function Respaldos() {
-  const { respaldos, paginados, cargando, error, noDisponible, recargar, crear, descargar, restaurar } =
+  const { respaldos, paginados, cargando, error, noDisponible, recargar, descargar } =
     useRespaldos();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -122,7 +122,7 @@ export default function Respaldos() {
       alinear: "centro",
       render: (r) =>
         r.estado === "COMPLETADO" ? (
-          <div className="flex justify-center gap-1">
+          <div className="flex justify-center">
             <Button
               variante="fantasma"
               compacto
@@ -130,14 +130,6 @@ export default function Respaldos() {
               aria-label="Descargar respaldo"
               onClick={() => void descargar(r.id, r.archivo_nombre)}
               icono={<Download className="h-4 w-4 text-zinc-600" aria-hidden />}
-            />
-            <Button
-              variante="fantasma"
-              compacto
-              title="Restaurar respaldo"
-              aria-label="Restaurar respaldo"
-              onClick={() => void restaurar(r.id)}
-              icono={<RotateCcw className="h-4 w-4 text-zinc-600" aria-hidden />}
             />
           </div>
         ) : (
@@ -177,16 +169,6 @@ export default function Respaldos() {
           </Alert>
         </div>
       )}
-
-      <Card className="mb-4">
-        <Button
-          onClick={() => void crear()}
-          icono={<Plus className="h-4 w-4" aria-hidden />}
-          disabled={driveAutorizado === false}
-        >
-          Crear respaldo
-        </Button>
-      </Card>
 
       {cargando && <PageSpinner texto="Cargando respaldos…" />}
       {error && <Alert tono="peligro">{error}</Alert>}

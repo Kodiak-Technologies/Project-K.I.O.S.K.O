@@ -1,6 +1,10 @@
 from collections import defaultdict
 
-from app.modules.modulo_d_documentos.domain.entities import ResumenReporte, TopProducto
+from app.modules.modulo_d_documentos.domain.entities import (
+    CostoProveedor,
+    ResumenReporte,
+    TopProducto,
+)
 from app.modules.modulo_d_documentos.domain.ports.venta_data_provider_port import VentaDataProviderPort
 from app.modules.modulo_d_documentos.domain.ports.egresos_data_provider_port import EgresosDataProviderPort
 from app.modules.modulo_d_documentos.domain.ports.metodo_pago_provider_port import MetodoPagoProviderPort
@@ -57,8 +61,19 @@ class GenerarReporteVentasUseCase:
         )[:10]
 
         total_egresos = 0.0
+        costo_por_proveedor: list[CostoProveedor] = []
         if self._egresos_data:
             total_egresos = await self._egresos_data.total_egresos(desde, hasta)
+            # Desglose del mismo total: de dónde vino el gasto de mercadería.
+            costo_por_proveedor = [
+                CostoProveedor(
+                    proveedor=c["proveedor"],
+                    monto=float(c.get("monto", 0) or 0),
+                    unidades=int(c.get("unidades", 0) or 0),
+                    ingresos=int(c.get("ingresos", 0) or 0),
+                )
+                for c in await self._egresos_data.costo_por_proveedor(desde, hasta)
+            ]
 
         # Nota: `metodos_pago` es lo COBRADO por método (de `pagos_venta`); las
         # devoluciones tienen su propio rastro de efectivo, por eso puede no
@@ -76,6 +91,7 @@ class GenerarReporteVentasUseCase:
             numero_ventas=numero_ventas,
             top_productos=top_productos,
             metodos_pago=metodos_pago,
+            costo_por_proveedor=costo_por_proveedor,
         )
         resumen.calcular_ticket_promedio()
 

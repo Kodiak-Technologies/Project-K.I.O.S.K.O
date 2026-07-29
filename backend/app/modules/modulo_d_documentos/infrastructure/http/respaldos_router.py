@@ -17,7 +17,6 @@ from app.modules.modulo_d_documentos.infrastructure.http.schemas import (
 )
 from app.shared.kernel.exceptions import ValidacionError
 from app.modules.modulo_d_documentos.application.crear_respaldo_usecase import (
-    CrearRespaldoUseCase,
     ObtenerRutaRespaldoUseCase,
 )
 
@@ -74,14 +73,4 @@ async def descargar_respaldo(
         headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
     )
 
-
-@router.post("", response_model=RespaldoResponse, status_code=201)
-async def crear_respaldo(
-    usuario: Usuario = Depends(require_role("ADMIN")),
-    respaldo_repo=Depends(get_respaldo_repository),
-    drive_storage=Depends(get_drive_storage),
-):
-    use_case = CrearRespaldoUseCase(respaldo_repo, drive_storage)
-    respaldo = await use_case.ejecutar(usuario_id=usuario.id)
-    return RespaldoResponse.desde_entidad(respaldo)
 

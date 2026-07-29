@@ -46,7 +46,15 @@ async def crear(
         LineaSolicitudDTO(
             producto_id=l.producto_id,
             cantidad=l.cantidad,
-            precio_compra_unitario=Decimal(str(l.precio_compra_unitario)),
+            precio_compra_total=Decimal(str(l.precio_compra_total)),
+            nuevo_codigo=l.nuevo_codigo,
+            nuevo_nombre=l.nuevo_nombre,
+            nuevo_categoria_id=l.nuevo_categoria_id,
+            margen_ganancia=(
+                Decimal(str(l.margen_ganancia))
+                if l.margen_ganancia is not None
+                else None
+            ),
         )
         for l in datos.lineas
     ]
@@ -125,10 +133,8 @@ async def obtener(
         raise ProhibidoError("No tiene permisos para ver esta solicitud.")
     from decimal import Decimal
     cantidad = sum(l.cantidad for l in s.lineas)
-    monto = sum(
-        (l.cantidad * l.precio_compra_unitario for l in s.lineas),
-        start=Decimal("0"),
-    )
+    # Suma de totales de línea: es lo que dice la boleta.
+    monto = sum((l.precio_compra_total for l in s.lineas), start=Decimal("0"))
     return SolicitudIngresoResponse.desde_entidad(
         s, cantidad_productos=cantidad, monto_total=float(monto)
     )
@@ -161,6 +167,7 @@ async def aprobar(
         unidades_agregadas=resultado.unidades_agregadas,
         monto_total=float(resultado.monto_total),
         credito_registrado=resultado.credito_registrado,
+        productos_creados=resultado.productos_creados,
     )
 
 
@@ -228,7 +235,15 @@ async def editar(
                 {
                     "producto_id": l.producto_id,
                     "cantidad": l.cantidad,
-                    "precio_unitario": _Dec(str(l.precio_unitario)),
+                    "precio_compra_total": _Dec(str(l.precio_compra_total)),
+                    "nuevo_codigo": l.nuevo_codigo,
+                    "nuevo_nombre": l.nuevo_nombre,
+                    "nuevo_categoria_id": l.nuevo_categoria_id,
+                    "margen_ganancia": (
+                        _Dec(str(l.margen_ganancia))
+                        if l.margen_ganancia is not None
+                        else None
+                    ),
                 }
                 for l in body.lineas
             ]
@@ -240,10 +255,7 @@ async def editar(
     )
     # Recalcular monto_total y cantidad_productos server-side
     cantidad = sum(l.cantidad for l in resultado.lineas)
-    monto = sum(
-        (l.cantidad * l.precio_compra_unitario for l in resultado.lineas),
-        start=_Dec("0"),
-    )
+    monto = sum((l.precio_compra_total for l in resultado.lineas), start=_Dec("0"))
     return SolicitudIngresoResponse.desde_entidad(
         resultado, cantidad_productos=cantidad, monto_total=float(monto)
     )

@@ -280,6 +280,9 @@ def aprobar_ingreso_usecase(db: AsyncSession) -> AprobarIngresoUseCase:
         producto_repository(db),
         movimiento_inventario_repository(db),
         contenedor_a.auditoria_usecase(db),
+        # De acá sale el margen por defecto para los productos que se crean al
+        # aprobar una línea de producto nuevo.
+        contenedor_a.configuracion_repository(db),
         # HU-B14: permite cargar la compra a crédito en la misma transacción.
         registrar_compra_credito_usecase(db),
     )

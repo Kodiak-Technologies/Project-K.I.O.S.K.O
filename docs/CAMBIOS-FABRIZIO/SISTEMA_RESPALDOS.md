@@ -6,7 +6,7 @@
 
 ## Resumen
 
-Implementación completa del sistema de respaldo automático semanal con subida a Google Drive, y script standalone de restauración. Se resolvieron problemas de FK constraints, secuencias vacías y tablas preservadas durante el restore.
+Implementación completa del sistema de respaldo automático diario con subida a Google Drive, y script standalone de restauración. Se resolvieron problemas de FK constraints, secuencias vacías y tablas preservadas durante el restore.
 
 ## 1. Arquitectura del sistema
 
@@ -68,9 +68,9 @@ El respaldo genera un archivo `.sql` válido (sin `pg_dump`) usando `asyncpg` di
 
 **Archivo:** `modules/modulo_d_documentos/infrastructure/tasks/respaldos_automatico.py`
 
-- Se ejecuta cada domingo
-- Crea respaldo + sube a Drive + limpia respaldos expirados (>21 días)
-- Retención: 21 días (hardcoded)
+- Se ejecuta diariamente a las 3:00 AM (hora de Perú)
+- Crea respaldo + sube a Drive + limpia respaldos expirados (>4 días)
+- Retención: 4 días (hardcoded)
 
 ## 2. Problemas resueltos
 
@@ -155,7 +155,6 @@ Selecciona automáticamente el archivo y restaura sin pedir confirmación.
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | GET | `/respaldos` | Listar respaldos |
-| POST | `/respaldos` | Crear respaldo manual |
 | GET | `/respaldos/{id}/descargar` | Descargar .sql desde Drive |
 | GET | `/drive/auth-url` | Obtener URL de autorización OAuth |
 | GET | `/drive/callback` | Callback de OAuth |

@@ -43,7 +43,7 @@ class SqlEgresosDataProvider:
                     SELECT s.id,
                            (s.revisado_en AT TIME ZONE :tz)::date AS fecha,
                            p.razon_social                AS proveedor,
-                           SUM(d.cantidad * d.precio_compra_unitario) AS monto,
+                           SUM(d.precio_compra_total)    AS monto,
                            SUM(d.cantidad)               AS unidades
                     FROM solicitudes_ingreso s
                     JOIN detalle_solicitud d ON d.solicitud_id = s.id
@@ -78,12 +78,59 @@ class SqlEgresosDataProvider:
             for fila in filas
         ]
 
+    #: Etiqueta para las solicitudes que no tienen proveedor asignado. Se agrupan
+    #: bajo este nombre en vez de descartarse: si quedaran fuera, la suma por
+    #: proveedor no cuadraría con `total_egresos` y el faltante pasaría inadvertido.
+    SIN_PROVEEDOR = "Sin proveedor"
+
+    async def costo_por_proveedor(self, desde: str, hasta: str) -> list[dict]:
+        """Costo de mercadería agrupado por proveedor, de mayor a menor.
+
+        Sale de las mismas solicitudes aprobadas que `obtener_egresos`, así que
+        los totales de ambos reportes cuadran por construcción.
+        """
+        filas = (
+            await self._db.execute(
+                text(
+                    """
+                    SELECT COALESCE(p.razon_social, :sin_proveedor) AS proveedor,
+                           SUM(d.precio_compra_total) AS monto,
+                           SUM(d.cantidad)            AS unidades,
+                           COUNT(DISTINCT s.id)       AS ingresos
+                    FROM solicitudes_ingreso s
+                    JOIN detalle_solicitud d ON d.solicitud_id = s.id
+                    LEFT JOIN proveedores p  ON p.id = s.proveedor_id
+                    WHERE s.estado = 'Aprobada'
+                      AND s.deleted_at IS NULL
+                      AND (s.revisado_en AT TIME ZONE :tz)::date BETWEEN :desde AND :hasta
+                    GROUP BY COALESCE(p.razon_social, :sin_proveedor)
+                    ORDER BY monto DESC
+                    """
+                ),
+                {
+                    "desde": _a_fecha(desde, "desde"),
+                    "hasta": _a_fecha(hasta, "hasta"),
+                    "tz": settings.zona_horaria_negocio,
+                    "sin_proveedor": self.SIN_PROVEEDOR,
+                },
+            )
+        ).all()
+        return [
+            {
+                "proveedor": fila.proveedor,
+                "monto": float(fila.monto or 0),
+                "unidades": int(fila.unidades or 0),
+                "ingresos": int(fila.ingresos or 0),
+            }
+            for fila in filas
+        ]
+
     async def total_egresos(self, desde: str, hasta: str) -> float:
         total = (
             await self._db.execute(
                 text(
                     """
-                    SELECT COALESCE(SUM(d.cantidad * d.precio_compra_unitario), 0)
+                    SELECT COALESCE(SUM(d.precio_compra_total), 0)
                     FROM solicitudes_ingreso s
                     JOIN detalle_solicitud d ON d.solicitud_id = s.id
                     WHERE s.estado = 'Aprobada'

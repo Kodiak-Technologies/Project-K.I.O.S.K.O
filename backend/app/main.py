@@ -59,7 +59,7 @@ from app.shared.http.middlewares import registrar_middlewares
 
 logger = logging.getLogger(__name__)
 
-TAREA_RESPALDO_INTERVALO = 604800  # 7 días (una semana)
+TAREA_RESPALDO_INTERVALO = 86400  # 1 día
 
 # Nota: la tarea periódica de reintento de subidas a Drive
 # (`modulo_d_documentos/infrastructure/tasks/reintentar_subidas.py`) NO se
@@ -82,10 +82,16 @@ async def _ejecutar_tarea_respaldos() -> None:
     while True:
         try:
             await respaldo_automatico_diario()
+        except Exception as e:
+            logger.error("Error en respaldo automático: %s", str(e))
+        try:
             await limpiar_respaldos_expirados()
+        except Exception as e:
+            logger.error("Error limpiando respaldos expirados: %s", str(e))
+        try:
             await purgar_notificaciones_antiguas()
         except Exception as e:
-            logger.error("Error en tarea de respaldos: %s", str(e))
+            logger.error("Error purgando notificaciones antiguas: %s", str(e))
         await asyncio.sleep(TAREA_RESPALDO_INTERVALO)
 
 
