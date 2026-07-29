@@ -10,4 +10,7 @@ export interface CategoriasPort {
   crear(datos: NuevaCategoria): Promise<Categoria>;
   /** `PATCH /categorias/{id}`. */
   editar(id: number, datos: EdicionCategoria): Promise<Categoria>;
+  /** `DELETE /categorias/{id}`. */
+  eliminar(id: number): Promise<void>;
 }
+

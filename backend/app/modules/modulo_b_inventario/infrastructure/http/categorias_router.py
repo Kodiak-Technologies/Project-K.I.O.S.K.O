@@ -69,3 +69,24 @@ async def editar(
         user_agent=user_agent,
     )
     return CategoriaResponse.desde_entidad(actualizada)
+
+
+@router.delete("/{categoria_id}", status_code=204)
+async def eliminar(
+    categoria_id: int,
+    request: Request,
+    usuario: Usuario = Depends(require_permission("categorias.gestionar")),
+    db: AsyncSession = Depends(get_db),
+    auditoria=Depends(get_auditoria),
+):
+    ip, user_agent = contexto_request(request)
+    await contenedor.editar_categoria_usecase(db).ejecutar(
+        categoria_id=categoria_id,
+        cambios={"activo": False},
+        usuario_id=usuario.id,  # type: ignore[union-attr]
+        usuario_nombre=usuario.nombre,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    return None
+

@@ -15,6 +15,7 @@ interface EstadoHook {
   recargar: () => Promise<void>;
   crear: (datos: NuevaCategoria) => Promise<Categoria>;
   editar: (id: number, datos: EdicionCategoria) => Promise<Categoria>;
+  eliminar: (id: number) => Promise<void>;
 }
 
 export function useCategorias(): EstadoHook {
@@ -57,5 +58,14 @@ export function useCategorias(): EstadoHook {
     [recargar]
   );
 
-  return { categorias, cargando, error, recargar, crear, editar };
+  const eliminar = useCallback(
+    async (id: number) => {
+      await categoriasHttpAdapter.eliminar(id);
+      await recargar();
+    },
+    [recargar]
+  );
+
+  return { categorias, cargando, error, recargar, crear, editar, eliminar };
 }
+
