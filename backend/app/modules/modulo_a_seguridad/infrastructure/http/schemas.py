@@ -159,6 +159,9 @@ class ConfiguracionResponse(BaseModel):
     session_ttl_cajero_minutos: int
     max_intentos_login: int
     minutos_bloqueo: int
+    #: % de ganancia por defecto al crear un producto desde un ingreso. Lo lee
+    #: también el formulario de ingresos para previsualizar el precio de venta.
+    margen_ganancia_default: float
     updated_at: datetime | None
 
     @classmethod
@@ -170,6 +173,7 @@ class ConfiguracionResponse(BaseModel):
             session_ttl_admin_minutos=c.session_ttl_admin_minutos,
             session_ttl_cajero_minutos=c.session_ttl_cajero_minutos,
             max_intentos_login=c.max_intentos_login, minutos_bloqueo=c.minutos_bloqueo,
+            margen_ganancia_default=float(c.margen_ganancia_default),
             updated_at=c.updated_at,
         )
 
@@ -184,3 +188,4 @@ class ActualizarConfiguracionRequest(BaseModel):
     session_ttl_cajero_minutos: int | None = Field(default=None, gt=0)
     max_intentos_login: int | None = Field(default=None, gt=0, le=10)
     minutos_bloqueo: int | None = Field(default=None, gt=0, le=1440)
+    margen_ganancia_default: float | None = Field(default=None, ge=0, le=999)

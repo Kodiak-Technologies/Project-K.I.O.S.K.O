@@ -69,9 +69,9 @@ class ListarIngresosUseCase:
                 s.id  # type: ignore[arg-type]
             )
             cantidad_productos = sum(l.cantidad for l in lineas)
+            # Suma de totales de línea: es lo que dice la boleta.
             monto_total = sum(
-                (l.cantidad * l.precio_compra_unitario for l in lineas),
-                start=Decimal("0"),
+                (l.precio_compra_total for l in lineas), start=Decimal("0")
             )
             resultado.append(
                 {

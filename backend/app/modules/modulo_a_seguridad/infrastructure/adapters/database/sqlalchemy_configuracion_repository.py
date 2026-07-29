@@ -20,6 +20,7 @@ def _a_entidad(fila: ConfiguracionNegocioModel) -> ConfiguracionNegocio:
         session_ttl_cajero_minutos=fila.session_ttl_cajero_minutos,
         max_intentos_login=fila.max_intentos_login,
         minutos_bloqueo=fila.minutos_bloqueo,
+        margen_ganancia_default=fila.margen_ganancia_default,
         updated_by=fila.updated_by,
         updated_at=fila.updated_at,
     )
@@ -48,6 +49,7 @@ class SqlAlchemyConfiguracionRepository:
         fila.session_ttl_cajero_minutos = configuracion.session_ttl_cajero_minutos
         fila.max_intentos_login = configuracion.max_intentos_login
         fila.minutos_bloqueo = configuracion.minutos_bloqueo
+        fila.margen_ganancia_default = configuracion.margen_ganancia_default
         fila.updated_by = configuracion.updated_by
         await self._db.flush()
         # updated_at lo genera la BD en el UPDATE (onupdate=func.now()), así que tras

@@ -65,6 +65,11 @@ def auditoria_usecase(db: AsyncSession) -> RegistrarAuditoriaUseCase:
     return RegistrarAuditoriaUseCase(SqlAlchemyAuditoriaRepository(db))
 
 
+def configuracion_repository(db: AsyncSession) -> SqlAlchemyConfiguracionRepository:
+    """Expuesto para otros módulos: el Módulo B lee de acá el margen por defecto."""
+    return SqlAlchemyConfiguracionRepository(db)
+
+
 def login_usecase(db: AsyncSession) -> LoginUseCase:
     return LoginUseCase(
         SqlAlchemyUsuarioRepository(db),
