@@ -50,6 +50,9 @@ class ExportarReporteExcelUseCase:
                 "total_egresos": total_egresos,
                 "numero_registros": len(egresos),
                 "egresos": egresos,
+                "costo_por_proveedor": await self._egresos_data.costo_por_proveedor(
+                    desde, hasta
+                ),
             }
         else:
             use_case = GenerarReporteVentasUseCase(
@@ -69,6 +72,15 @@ class ExportarReporteExcelUseCase:
                 "top_productos": [
                     {"nombre": p.nombre, "cantidad": p.cantidad, "total": p.total}
                     for p in resumen.top_productos
+                ],
+                "costo_por_proveedor": [
+                    {
+                        "proveedor": c.proveedor,
+                        "monto": c.monto,
+                        "unidades": c.unidades,
+                        "ingresos": c.ingresos,
+                    }
+                    for c in resumen.costo_por_proveedor
                 ],
             }
 
