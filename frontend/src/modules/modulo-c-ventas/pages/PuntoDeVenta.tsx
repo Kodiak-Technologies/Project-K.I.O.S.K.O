@@ -8,8 +8,10 @@
 //   2. haciendo clic/tap en su fila de la tabla.
 //
 // Escáner (HU-C01): el lector de barras/QR emula un teclado y termina con Enter.
-// El buscador mantiene el foco (se recupera solo si se pierde), y al recibir
-// Enter con un código exacto agrega el producto al carrito al instante.
+// El buscador mantiene el foco (se recupera solo si se pierde). Al recibir Enter
+// SOLO agrega si el código COMPLETO coincide exacto (nunca el primer producto
+// parecido); si no calza, reintenta con el código invertido por si el lector lo
+// leyó al revés, y si aun así no existe muestra un aviso sin agregar nada.
 //
 // Modo offline (HU-C10, RF-26): si se cae el internet el POS sigue vendiendo con
 // el catálogo cacheado; las ventas quedan en el navegador y se sincronizan solas
@@ -151,9 +153,12 @@ export default function PuntoDeVenta() {
   const [avisoEscaneo, setAvisoEscaneo] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
-  // HU-C03: desplegable de autocompletado del buscador
+  // HU-C03: desplegable de autocompletado del buscador.
+  // `indiceSugerencia === -1` = ninguna sugerencia resaltada: Enter se trata
+  // como un escaneo (código exacto) y NO elige la primera opción del desplegable.
+  // Solo al navegar con ↑/↓ (índice >= 0) Enter agrega la sugerencia resaltada.
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
-  const [indiceSugerencia, setIndiceSugerencia] = useState(0);
+  const [indiceSugerencia, setIndiceSugerencia] = useState(-1);
   const inputBusqueda = useRef<HTMLInputElement>(null);
 
   // El escáner "tipea" donde esté el cursor: si el foco quedó en el body (tras un
@@ -221,42 +226,77 @@ export default function PuntoDeVenta() {
     setAvisoEscaneo(null);
     setBusqueda("");
     setMostrarSugerencias(false);
-    setIndiceSugerencia(0);
+    setIndiceSugerencia(-1);
     inputBusqueda.current?.focus();
   }
 
-  // Enter en el buscador = fin de un escaneo (o búsqueda manual): si el texto
-  // coincide exacto con un código, ese producto entra al carrito al instante;
-  // si no, entra la sugerencia seleccionada del desplegable.
-  //
-  // Estando en esta pantalla, escanear SIEMPRE agrega: si el código no está en
-  // la página cargada de la tabla, se lo pide al backend (búsqueda por código,
-  // indexada). Así el escaneo no depende de los filtros ni de la paginación.
+  // Busca un producto cuyo código sea EXACTAMENTE `codigo` (nada de coincidencias
+  // parciales). Primero en el catálogo cargado/cacheado —así funciona offline— y,
+  // si hay conexión y no está en esta página, se lo pide al backend (búsqueda por
+  // código, indexada y exacta), para no depender de los filtros ni la paginación.
+  async function buscarPorCodigoExacto(codigo: string): Promise<Producto | null> {
+    const local = catalogo.find((p) => p.codigo === codigo);
+    if (local) return local;
+    if (online) {
+      try {
+        const encontrado = await productosHttpAdapter.buscar(codigo);
+        // Con ?codigo= el backend devuelve un único producto (match exacto).
+        const producto = Array.isArray(encontrado) ? encontrado[0] : encontrado;
+        // Defensa extra: exigir que el código devuelto sea idéntico al buscado.
+        if (producto && producto.codigo === codigo) return producto;
+      } catch {
+        // 404 del backend: no existe ese código exacto.
+      }
+    }
+    return null;
+  }
+
+  // Enter en el buscador = fin de un escaneo (o búsqueda manual). Reglas:
+  //   1. Si el cajero resaltó una sugerencia con ↑/↓, esa manda (búsqueda por
+  //      nombre con teclado).
+  //   2. Si no, se trata como escaneo: SOLO agrega si el código COMPLETO coincide
+  //      exacto. Ya no se cuela "el primer producto parecido" cuando el lector
+  //      escribe el código a medias (o cuando se busca por nombre y se da Enter).
+  //   3. Si no calza, reintenta con el código invertido: algunos lectores leen el
+  //      código de barras al revés según el sentido del barrido.
+  //   4. Si aun así no existe, avisa y NO agrega nada (limpia para el próximo
+  //      escaneo).
   async function manejarEnterBusqueda() {
     const texto = busqueda.trim();
     if (!texto) return;
-    const porCodigo = catalogo.find((p) => p.codigo === texto);
-    if (porCodigo) {
-      agregarSiHayStock(porCodigo);
-      return;
-    }
-    if (online) {
-      try {
-        const encontrado = await productosHttpAdapter.buscar(texto);
-        const producto = Array.isArray(encontrado) ? encontrado[0] : encontrado;
-        if (producto) {
-          agregarSiHayStock(producto);
-          return;
-        }
-      } catch {
-        // 404 del backend: no existe ese código. Cae al mensaje de abajo.
-      }
-    }
-    if (sugerencias.length > 0) {
+
+    // (1) Selección deliberada de una sugerencia con el teclado.
+    if (indiceSugerencia >= 0 && sugerencias.length > 0) {
       agregarYLimpiar(sugerencias[Math.min(indiceSugerencia, sugerencias.length - 1)]);
       return;
     }
-    setAvisoEscaneo(`No hay ningún producto que coincida con "${texto}".`);
+
+    // (2) Escaneo: código completo exacto.
+    const exacto = await buscarPorCodigoExacto(texto);
+    if (exacto) {
+      agregarSiHayStock(exacto);
+      return;
+    }
+
+    // (3) Lector que leyó el código al revés: reintento con el texto invertido,
+    // también exacto. (Se omite si es capicúa: invertido == original.)
+    const invertido = texto.split("").reverse().join("");
+    if (invertido !== texto) {
+      const alReves = await buscarPorCodigoExacto(invertido);
+      if (alReves) {
+        agregarSiHayStock(alReves);
+        return;
+      }
+    }
+
+    // (4) Nada coincide exacto: aviso sin agregar y campo limpio para reintentar.
+    setAvisoEscaneo(
+      `No se encontró un producto con el código "${texto}". Revisa que el lector ` +
+        `haya leído el código completo, o toca el producto en la lista.`
+    );
+    setBusqueda("");
+    setMostrarSugerencias(false);
+    setIndiceSugerencia(-1);
   }
 
   /** Agrega al carrito si el producto está activo y tiene stock. */
@@ -500,7 +540,7 @@ export default function PuntoDeVenta() {
                 setBusqueda(e.target.value);
                 setAvisoEscaneo(null);
                 setMostrarSugerencias(true);
-                setIndiceSugerencia(0);
+                setIndiceSugerencia(-1);
               }}
               onKeyDown={manejarTeclasBusqueda}
               onFocus={() => setMostrarSugerencias(true)}

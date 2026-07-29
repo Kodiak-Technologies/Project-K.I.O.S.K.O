@@ -5,11 +5,13 @@
 // unitario) y a la derecha la boleta, para contrastarlos sin perder de vista
 // ninguno de los dos.
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ClipboardCheck, Eye, ImageOff, X } from "lucide-react";
 import {
   Alert,
   Button,
   Card,
+  DatePicker,
   EmptyState,
   ImagenConRespaldo,
   Input,
@@ -50,6 +52,8 @@ export default function AprobacionIngresos() {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
   // La cola crece mientras la administradora la revisa: con `page`/OFFSET
   // cada ingreso nuevo le corría las filas y le repetía solicitudes.
   const paginacion = usePaginacionCursor(20);
@@ -58,11 +62,13 @@ export default function AprobacionIngresos() {
   useEffect(() => {
     void recargar({
       estado: "Pendiente",
+      fecha_desde: fechaDesde || undefined,
+      fecha_hasta: fechaHasta || undefined,
       page_size: pageSize,
       ...(cursor ? { cursor } : {}),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, cursor]);
+  }, [page, pageSize, cursor, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     if (paginados) registrarRespuesta(paginados.siguiente_cursor);
@@ -272,6 +278,41 @@ export default function AprobacionIngresos() {
         </div>
       )}
 
+      {/* Filtro de rango de fechas */}
+      <Card className="mb-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-full sm:w-48">
+            <DatePicker
+              label="Desde"
+              valor={fechaDesde}
+              onChange={(val) => setFechaDesde(val)}
+              placeholder="dd/mm/aaaa"
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <DatePicker
+              label="Hasta"
+              valor={fechaHasta}
+              onChange={(val) => setFechaHasta(val)}
+              placeholder="dd/mm/aaaa"
+            />
+          </div>
+          {(fechaDesde || fechaHasta) && (
+            <Button
+              variante="secundario"
+              compacto
+              onClick={() => {
+                setFechaDesde("");
+                setFechaHasta("");
+              }}
+              icono={<X className="h-4 w-4" aria-hidden />}
+            >
+              Limpiar fechas
+            </Button>
+          )}
+        </div>
+      </Card>
+
       {/* La cola sigue siendo una tabla de filas, a todo el ancho. */}
       <Card sinPadding>
         <Table
@@ -300,7 +341,7 @@ export default function AprobacionIngresos() {
 
       {/* Detalle en pop-up: a la IZQUIERDA los productos por ingresar
           (cantidad y costo unitario), a la DERECHA la boleta para contrastar. */}
-      {detalle && modo && (
+      {detalle && modo && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4"
           onClick={cerrarDetalle}
@@ -413,7 +454,8 @@ export default function AprobacionIngresos() {
               </footer>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal: confirmar aprobación */}
@@ -434,50 +476,51 @@ export default function AprobacionIngresos() {
       />
 
       {/* Modal: rechazar (con motivo obligatorio) */}
-      <div
-        className={`fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4 ${
-          paraRechazar ? "" : "hidden"
-        }`}
-        onClick={() => !procesando && setParaRechazar(null)}
-      >
+      {paraRechazar && createPortal(
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Rechazar ingreso"
-          className="w-full max-w-lg overflow-hidden rounded-t-2xl bg-white shadow-lg sm:rounded-2xl"
-          onClick={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4"
+          onClick={() => !procesando && setParaRechazar(null)}
         >
-          <header className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
-            <h3 className="font-semibold text-zinc-900">Rechazar ingreso #{paraRechazar?.id}</h3>
-            <button
-              onClick={() => setParaRechazar(null)}
-              disabled={procesando}
-              aria-label="Cerrar"
-              className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-50"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </header>
-          <div className="px-5 py-4">
-            <Input
-              label="Motivo del rechazo"
-              requerido
-              placeholder="ej. cantidad no coincide con la guía"
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-            />
-            {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Rechazar ingreso"
+            className="w-full max-w-lg overflow-hidden rounded-t-2xl bg-white shadow-lg sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
+              <h3 className="font-semibold text-zinc-900">Rechazar ingreso #{paraRechazar?.id}</h3>
+              <button
+                onClick={() => setParaRechazar(null)}
+                disabled={procesando}
+                aria-label="Cerrar"
+                className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="px-5 py-4">
+              <Input
+                label="Motivo del rechazo"
+                requerido
+                placeholder="ej. cantidad no coincide con la guía"
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+              />
+              {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
+              <Button variante="secundario" onClick={() => setParaRechazar(null)} disabled={procesando}>
+                Cancelar
+              </Button>
+              <Button variante="peligro" cargando={procesando} onClick={() => void manejarRechazar()}>
+                Rechazar ingreso
+              </Button>
+            </footer>
           </div>
-          <footer className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
-            <Button variante="secundario" onClick={() => setParaRechazar(null)} disabled={procesando}>
-              Cancelar
-            </Button>
-            <Button variante="peligro" cargando={procesando} onClick={() => void manejarRechazar()}>
-              Rechazar ingreso
-            </Button>
-          </footer>
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

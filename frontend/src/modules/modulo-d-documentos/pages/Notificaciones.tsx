@@ -44,12 +44,6 @@ export default function Notificaciones() {
     void recargar(page, pageSize);
   }, [page, pageSize]);
 
-  useEffect(() => {
-    if (!cargando && !noDisponible && notificaciones.some((n) => !n.leida)) {
-      void notificacionesHttpAdapter.marcarTodasLeidas().then(() => void recargar(page, pageSize));
-    }
-  }, [cargando, noDisponible]);
-
   const notificacionesFiltradas = filtroTipo === "TODOS"
     ? notificaciones
     : notificaciones.filter((n) => n.tipo === filtroTipo);

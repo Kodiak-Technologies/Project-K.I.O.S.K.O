@@ -13,3 +13,4 @@ export { ColorPicker, type ColorPickerProps } from "./ColorPicker";
 export { DatePicker, type DatePickerProps } from "./DatePicker";
 export { TimePicker, type TimePickerProps } from "./TimePicker";
 export { DateTimePicker, type DateTimePickerProps } from "./DateTimePicker";
+export { SelectorCategoriaModal, type CategoriaOpcion } from "./SelectorCategoriaModal";
