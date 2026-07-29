@@ -308,6 +308,7 @@ export default function IngresosMercaderia() {
             icono={mostrarFormulario ? undefined : <Plus className="h-4 w-4" aria-hidden />}
             variante={mostrarFormulario ? "secundario" : "primario"}
             onClick={() => setMostrarFormulario(!mostrarFormulario)}
+            className="w-full justify-center sm:w-auto"
           >
             {mostrarFormulario ? "Ocultar formulario" : "Nuevo ingreso"}
           </Button>
@@ -382,17 +383,23 @@ export default function IngresosMercaderia() {
                   onEliminar={() => eliminarLinea(i)}
                 />
               ))}
-              <Button type="button" variante="secundario" onClick={agregarLinea} icono={<Plus className="h-4 w-4" aria-hidden />}>
+              <Button 
+                type="button" 
+                variante="secundario" 
+                onClick={agregarLinea} 
+                icono={<Plus className="h-4 w-4" aria-hidden />}
+                className="w-full justify-center sm:w-auto"
+              >
                 Agregar línea
               </Button>
             </div>
             {mensaje && <Alert tono="exito">{mensaje}</Alert>}
             {errorAccion && <Alert tono="peligro">{errorAccion}</Alert>}
-            <div className="flex justify-end gap-2">
-              <Button variante="secundario" onClick={() => setMostrarFormulario(false)}>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+              <Button variante="secundario" onClick={() => setMostrarFormulario(false)} className="w-full justify-center sm:w-auto">
                 Cancelar
               </Button>
-              <Button onClick={() => void manejarSolicitar()} cargando={procesando} icono={<Truck className="h-4 w-4" aria-hidden />}>
+              <Button onClick={() => void manejarSolicitar()} cargando={procesando} icono={<Truck className="h-4 w-4" aria-hidden />} className="w-full justify-center sm:w-auto">
                 Registrar ingreso
               </Button>
             </div>

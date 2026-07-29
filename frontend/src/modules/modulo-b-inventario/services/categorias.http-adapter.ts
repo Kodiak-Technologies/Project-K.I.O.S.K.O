@@ -16,4 +16,8 @@ export const categoriasHttpAdapter: CategoriasPort = {
     const { data } = await httpClient.patch<Categoria>(`/categorias/${id}`, datos);
     return data;
   },
+  async eliminar(id) {
+    await httpClient.delete(`/categorias/${id}`);
+  },
 };
+
