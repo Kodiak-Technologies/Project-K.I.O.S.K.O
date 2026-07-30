@@ -47,6 +47,7 @@ export interface ItemVenta {
   nombre: string;
   precio_unitario: number;
   cantidad: number;
+  stock?: number;
   /** id de la línea en el backend (necesario para devoluciones parciales). */
   id?: number;
   cantidad_devuelta?: number;

@@ -336,7 +336,7 @@ export default function PuntoDeVenta() {
           i.producto_id === p.id ? { ...i, cantidad: Math.min(i.cantidad + 1, p.stock) } : i
         );
       }
-      return [...actual, { producto_id: p.id, nombre: p.nombre, precio_unitario: p.precio, cantidad: 1 }];
+      return [...actual, { producto_id: p.id, nombre: p.nombre, precio_unitario: p.precio, cantidad: 1, stock: p.stock }];
     });
   }
 
@@ -345,7 +345,7 @@ export default function PuntoDeVenta() {
       actual
         .map((i) =>
           i.producto_id === productoId
-            ? { ...i, cantidad: Math.min(Math.max(i.cantidad + delta, 0), stockDe(productoId)) }
+            ? { ...i, cantidad: Math.min(Math.max(i.cantidad + delta, 0), i.stock ?? stockDe(productoId)) }
             : i
         )
         .filter((i) => i.cantidad > 0)
@@ -355,10 +355,12 @@ export default function PuntoDeVenta() {
   // HU-C02: escribir la cantidad directamente (ej. 5 botellas) sin escanear 5 veces.
   // Mientras se edita puede quedar en 0 (campo vacío); al salir del campo se normaliza.
   function fijarCantidad(productoId: number, cantidad: number) {
-    const limpia = Number.isNaN(cantidad) ? 0 : Math.min(Math.max(cantidad, 0), stockDe(productoId));
-    setCarrito((actual) =>
-      actual.map((i) => (i.producto_id === productoId ? { ...i, cantidad: limpia } : i))
-    );
+    setCarrito((actual) => {
+      const item = actual.find((i) => i.producto_id === productoId);
+      const maxStock = item?.stock ?? stockDe(productoId);
+      const limpia = Number.isNaN(cantidad) ? 0 : Math.min(Math.max(cantidad, 0), maxStock);
+      return actual.map((i) => (i.producto_id === productoId ? { ...i, cantidad: limpia } : i));
+    });
   }
 
   function normalizarCantidad(productoId: number) {
