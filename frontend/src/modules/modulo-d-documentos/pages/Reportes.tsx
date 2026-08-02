@@ -1,7 +1,7 @@
 // Página de generación/consulta de reportes de ventas (solo ADMIN).
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, BarChart3, Download } from "lucide-react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { ArrowDown, ArrowUp, BarChart3, Download, PieChart } from "lucide-react";
+import { PieChart as RechartsPieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
   Alert,
   Button,
@@ -18,7 +18,20 @@ import { useReportes } from "../hooks/useReportes";
 import type { CostoProveedor, TopProducto } from "../types";
 import { GraficoVentasEgresos } from "../components/GraficoVentasEgresos";
 
-const COLORES = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+const COLORES_FALLBACK = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+
+/** Colores por método de pago — consistentes con los minicards del modal de caja. */
+const COLORES_POR_METODO: Record<string, string> = {
+  EFECTIVO: "#10b981",      // emerald-500
+  YAPE: "#a855f7",          // purple-500
+  PLIN: "#f59e0b",          // amber-500
+  TRANSFERENCIA: "#3b82f6", // blue-500
+  TARJETA: "#71717a",       // zinc-500 (gris)
+};
+
+function colorParaMetodo(metodo: string, indice: number): string {
+  return COLORES_POR_METODO[metodo.toUpperCase()] ?? COLORES_FALLBACK[indice % COLORES_FALLBACK.length];
+}
 
 /** Etiqueta con la que el backend agrupa las solicitudes sin proveedor. */
 const SIN_PROVEEDOR = "Sin proveedor";
@@ -284,92 +297,219 @@ export default function Reportes() {
           )}
 
           {datosMetodosPago.length > 0 && (
-            <Card titulo="Cobrado por método de pago" sinPadding>
-              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-                <div className="w-full sm:w-1/2">
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie
-                        data={datosMetodosPago}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={75}
-                        paddingAngle={3}
-                        dataKey="value"
-                        label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
-                      >
-                        {datosMetodosPago.map((_, i) => (
-                          <Cell key={i} fill={COLORES[i % COLORES.length]} stroke="none" />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v) => `S/ ${Number(v).toFixed(2)}`} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex w-full flex-col gap-2.5 sm:w-1/2">
-                  {datosMetodosPago.map((m, i) => (
-                    <div key={m.name} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-100 bg-zinc-50/60 px-3.5 py-2 text-sm">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: COLORES[i % COLORES.length] }} />
-                        <span className="font-medium text-zinc-700 truncate">{m.name}</span>
-                      </div>
-                      <span className="shrink-0 font-semibold tabular-nums text-zinc-900 whitespace-nowrap">S/ {m.value.toFixed(2)}</span>
-                    </div>
-                  ))}
+            <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm transition-all duration-300 hover:shadow-md">
+              {/* Header */}
+              <div className="border-b border-zinc-100 bg-gradient-to-r from-zinc-50/80 via-white to-zinc-50/50 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600 shadow-inner">
+                    <PieChart className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-zinc-900">Cobrado por Método de Pago</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Distribución de ingresos según medio de cobro</p>
+                  </div>
                 </div>
               </div>
-            </Card>
+
+              <div className="p-5">
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+                  {/* Pie Chart */}
+                  <div className="w-full sm:w-1/2">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <RechartsPieChart>
+                        <defs>
+                          {datosMetodosPago.map((d, i) => (
+                            <linearGradient key={d.name} id={`gradMetodo_${d.name}`} x1="0" y1="0" x2="1" y2="1">
+                              <stop offset="0%" stopColor={colorParaMetodo(d.name, i)} stopOpacity={0.9} />
+                              <stop offset="100%" stopColor={colorParaMetodo(d.name, i)} stopOpacity={0.65} />
+                            </linearGradient>
+                          ))}
+                        </defs>
+                        <Pie
+                          data={datosMetodosPago}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={85}
+                          paddingAngle={4}
+                          dataKey="value"
+                          strokeWidth={2}
+                          stroke="#fff"
+                          label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
+                        >
+                          {datosMetodosPago.map((d, i) => (
+                            <Cell key={i} fill={`url(#gradMetodo_${d.name})`} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const item = payload[0];
+                              const color = colorParaMetodo(item.name as string, 0);
+                              return (
+                                <div className="rounded-xl border border-zinc-200/80 bg-white/95 p-3 shadow-xl backdrop-blur-md">
+                                  <div className="flex items-center gap-2">
+                                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
+                                    <span className="text-xs font-semibold text-zinc-500">{item.name}</span>
+                                  </div>
+                                  <p className="mt-1 text-base font-extrabold text-zinc-900 tabular-nums">
+                                    S/ {Number(item.value).toFixed(2)}
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Legend cards */}
+                  <div className="flex w-full flex-col gap-2 sm:w-1/2">
+                    {datosMetodosPago.map((m, i) => {
+                      const color = colorParaMetodo(m.name, i);
+                      const total = datosMetodosPago.reduce((s, d) => s + d.value, 0);
+                      const pct = total > 0 ? ((m.value / total) * 100).toFixed(1) : "0.0";
+                      return (
+                        <div
+                          key={m.name}
+                          className="group relative overflow-hidden rounded-xl border border-zinc-100 bg-gradient-to-r from-zinc-50/60 via-white to-zinc-50/30 px-4 py-2.5 text-sm transition-all hover:-translate-y-0.5 hover:shadow-sm"
+                        >
+                          {/* accent bar */}
+                          <div
+                            className="absolute inset-y-0 left-0 w-1 rounded-l-xl"
+                            style={{ backgroundColor: color }}
+                          />
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                className="h-3 w-3 shrink-0 rounded-full shadow-sm"
+                                style={{ backgroundColor: color }}
+                              />
+                              <span className="font-semibold text-zinc-700 truncate">{m.name}</span>
+                              <span className="text-[11px] font-medium text-zinc-400">{pct}%</span>
+                            </div>
+                            <span className="shrink-0 font-bold tabular-nums text-zinc-900 whitespace-nowrap">
+                              S/ {m.value.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
-          {/* Gasto en mercadería por proveedor. No hay tabla de gastos: sale de
-              las solicitudes de ingreso aprobadas, que es donde viven el costo
-              y la asociación al proveedor. */}
-          <Card
-            titulo="Costo por proveedor"
-            descripcion="Gasto en mercadería de los ingresos aprobados en el período."
-            sinPadding
-          >
+          {/* Gasto en mercadería por proveedor */}
+          <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm transition-all duration-300 hover:shadow-md">
+            <div className="border-b border-zinc-100 bg-gradient-to-r from-zinc-50/80 via-white to-zinc-50/50 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 shadow-inner">
+                  <BarChart3 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-zinc-900">Costo por Proveedor</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">Gasto en mercadería de los ingresos aprobados en el período</p>
+                </div>
+              </div>
+            </div>
+
             {costoProveedores.length > 0 ? (
-              <div className="p-4">
-                <ResponsiveContainer width="100%" height={Math.max(160, datosCostoProveedor.length * 42)}>
+              <div className="p-5">
+                <ResponsiveContainer width="100%" height={Math.max(180, datosCostoProveedor.length * 52)}>
                   <BarChart
                     data={datosCostoProveedor}
                     layout="vertical"
-                    margin={{ left: 0, right: esMobile ? 10 : 20, top: 10, bottom: 10 }}
+                    margin={{ left: 0, right: esMobile ? 10 : 30, top: 10, bottom: 10 }}
+                    barGap={8}
                   >
+                    <defs>
+                      <linearGradient id="gradProveedorDefault" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.85} />
+                        <stop offset="100%" stopColor="#047857" stopOpacity={1} />
+                      </linearGradient>
+                      <linearGradient id="gradProveedorSin" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#cbd5e1" stopOpacity={0.7} />
+                        <stop offset="100%" stopColor="#94a3b8" stopOpacity={0.9} />
+                      </linearGradient>
+                      <filter id="provBarShadow" x="-5%" y="-15%" width="110%" height="130%">
+                        <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.1" />
+                      </filter>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                    <XAxis type="number" tickFormatter={(v) => `S/ ${v}`} fontSize={esMobile ? 11 : 12} />
+                    <XAxis
+                      type="number"
+                      tickLine={false}
+                      axisLine={{ stroke: "#e2e8f0" }}
+                      tick={{ fill: "#94a3b8", fontSize: esMobile ? 11 : 12 }}
+                      tickFormatter={(v) => `S/ ${v}`}
+                    />
                     <YAxis
                       type="category"
                       dataKey="name"
-                      width={esMobile ? 85 : 125}
-                      fontSize={esMobile ? 11 : 12}
+                      width={esMobile ? 85 : 130}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: "#475569", fontSize: esMobile ? 11 : 12, fontWeight: 500 }}
                       interval={0}
                     />
                     <Tooltip
-                      formatter={(v) => `S/ ${Number(v).toFixed(2)}`}
-                      labelFormatter={(_, carga) =>
-                        carga?.[0]?.payload?.nombreCompleto ?? ""
-                      }
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const item = payload[0].payload;
+                          return (
+                            <div className="rounded-xl border border-zinc-200/80 bg-white/95 p-3.5 shadow-xl backdrop-blur-md">
+                              <p className="text-xs font-semibold text-zinc-500">{item.nombreCompleto}</p>
+                              <p className="mt-1 text-base font-extrabold text-zinc-900 tabular-nums">
+                                S/ {Number(payload[0].value).toFixed(2)}
+                              </p>
+                              {totalCostoProveedores > 0 && (
+                                <p className="mt-1.5 text-[11px] text-zinc-500 border-t border-zinc-100 pt-1.5">
+                                  Representa el <span className="font-bold text-zinc-900">{((item.monto / totalCostoProveedores) * 100).toFixed(1)}%</span> del gasto total
+                                </p>
+                              )}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
                     />
-                    <Bar dataKey="monto" radius={[0, 4, 4, 0]}>
+                    <Bar
+                      dataKey="monto"
+                      radius={[0, 10, 10, 0]}
+                      maxBarSize={28}
+                      filter="url(#provBarShadow)"
+                    >
                       {datosCostoProveedor.map((d, i) => (
                         <Cell
                           key={i}
-                          // "Sin proveedor" no es un proveedor: se pinta gris
-                          // para que no se lea como uno más de la lista.
                           fill={
                             d.nombreCompleto === SIN_PROVEEDOR
-                              ? "#94a3b8"
-                              : COLORES[i % COLORES.length]
+                              ? "url(#gradProveedorSin)"
+                              : "url(#gradProveedorDefault)"
                           }
                         />
                       ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-                <div className="mt-2">
+
+                {/* Leyenda */}
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-5 border-t border-zinc-100 pt-3 text-xs font-medium text-zinc-500">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-gradient-to-tr from-emerald-600 to-emerald-400 shadow-xs" />
+                    <span>Con proveedor</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-gradient-to-tr from-slate-400 to-slate-300 shadow-xs" />
+                    <span>Sin proveedor</span>
+                  </div>
+                </div>
+
+                <div className="mt-4">
                   <Table
                     columnas={columnasCostoProveedor}
                     filas={costoProveedores}
@@ -384,7 +524,7 @@ export default function Reportes() {
                 descripcion="No hubo ingresos de mercadería aprobados en el período."
               />
             )}
-          </Card>
+          </div>
 
           <Card
             titulo={orden === "mayor" ? "Productos más vendidos" : "Productos de menor rotación"}
@@ -444,9 +584,12 @@ export default function Reportes() {
                   >
                     <defs>
                       <linearGradient id="gradTopProd" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.85} />
-                        <stop offset="100%" stopColor="#1d4ed8" stopOpacity={1} />
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.85} />
+                        <stop offset="100%" stopColor="#4338ca" stopOpacity={1} />
                       </linearGradient>
+                      <filter id="topProdShadow" x="-5%" y="-15%" width="110%" height="130%">
+                        <feDropShadow dx="0" dy="2" stdDeviation="2" floodOpacity="0.1" />
+                      </filter>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                     <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: "#94a3b8", fontSize: esMobile ? 11 : 12 }} />
@@ -459,19 +602,29 @@ export default function Reportes() {
                       tick={{ fill: "#475569", fontSize: esMobile ? 11 : 12, fontWeight: 500 }}
                     />
                     <Tooltip
-                      formatter={(v) => (criterio === "unidades" ? `${v} uds` : `S/ ${Number(v).toFixed(2)}`)}
-                      labelFormatter={(_, payload) => {
-                        if (payload && payload[0]) {
-                          return payload[0].payload.nombreCompleto;
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const item = payload[0].payload;
+                          return (
+                            <div className="rounded-xl border border-zinc-200/80 bg-white/95 p-3.5 shadow-xl backdrop-blur-md">
+                              <p className="text-xs font-semibold text-zinc-500">{item.nombreCompleto}</p>
+                              <p className="mt-1 text-base font-extrabold text-zinc-900 tabular-nums">
+                                {criterio === "unidades"
+                                  ? `${item.cantidad} uds`
+                                  : `S/ ${Number(item.total).toFixed(2)}`}
+                              </p>
+                            </div>
+                          );
                         }
-                        return "";
+                        return null;
                       }}
                     />
                     <Bar
                       dataKey={criterio === "unidades" ? "cantidad" : "total"}
                       fill="url(#gradTopProd)"
-                      radius={[0, 8, 8, 0]}
+                      radius={[0, 10, 10, 0]}
                       barSize={22}
+                      filter="url(#topProdShadow)"
                     />
                   </BarChart>
                 </ResponsiveContainer>

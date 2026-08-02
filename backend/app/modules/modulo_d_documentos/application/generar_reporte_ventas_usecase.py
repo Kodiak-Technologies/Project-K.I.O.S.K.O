@@ -35,12 +35,18 @@ class GenerarReporteVentasUseCase:
         # bruto de la venta: así una devolución parcial se refleja en el reporte.
         total_vendido = 0.0
         total_devuelto = 0.0
+
         for venta in ventas:
-            items = await self._venta_data.obtener_detalle_venta(venta["id"])
+            # OPTIMIZACIÓN: la respuesta de /ventas ya trae "items" embebidos
+            # en cada venta; reutilizarlos evita N llamadas individuales a
+            # GET /ventas/{id} que causaban ~30 s de demora en producción.
+            items = venta.get("items") or []
+
             if not items:
                 # Sin detalle disponible, el total de la venta es lo mejor que hay.
                 total_vendido += float(venta.get("total", 0))
                 continue
+
             for item in items:
                 nombre = item.get("nombre", "Desconocido")
                 precio = item.get("precio_unitario", 0)
@@ -96,3 +102,4 @@ class GenerarReporteVentasUseCase:
         resumen.calcular_ticket_promedio()
 
         return resumen
+

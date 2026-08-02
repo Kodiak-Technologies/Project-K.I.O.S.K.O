@@ -55,11 +55,16 @@ class ActualizarConfiguracionUseCase:
         config.updated_by = admin.id
         actualizada = await self._configuracion.actualizar(config)
 
+        def _a_json(v: str | int | float | Decimal | None) -> str | int | float | None:
+            if isinstance(v, Decimal):
+                return float(v)
+            return v
+
         await self._auditoria.ejecutar(
             accion="configuracion_actualizada", entidad="configuracion_negocio",
             usuario_id=admin.id, rol=admin.rol_nombre, entidad_id=1,
-            valor_anterior={k: anterior[k] for k in _CAMPOS_EDITABLES},
-            valor_nuevo={k: getattr(actualizada, k) for k in _CAMPOS_EDITABLES},
+            valor_anterior={k: _a_json(anterior[k]) for k in _CAMPOS_EDITABLES},
+            valor_nuevo={k: _a_json(getattr(actualizada, k)) for k in _CAMPOS_EDITABLES},
             ip=ip, user_agent=user_agent,
         )
         return actualizada
