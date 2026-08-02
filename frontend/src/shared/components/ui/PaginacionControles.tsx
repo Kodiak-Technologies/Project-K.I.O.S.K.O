@@ -34,8 +34,8 @@ export function PaginacionControles({
 }: Props) {
   if (!paginados) return null;
   const { total, total_pages } = paginados;
-  const inicio = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const fin = Math.min(page * pageSize, total);
+  const inicio = total === 0 ? 0 : Math.min((page - 1) * pageSize + 1, fin > 0 ? fin : total);
   const sinMas = page >= total_pages;
 
   return (

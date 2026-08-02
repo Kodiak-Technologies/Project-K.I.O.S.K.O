@@ -7,11 +7,12 @@
 //    stock), queda marcada con su error para revisarla, nunca se descarta sola.
 import type { Producto } from "../../modulo-b-inventario/types";
 import { ventasHttpAdapter } from "./ventas.http-adapter";
-import type { NuevaVenta, TurnoCaja, Venta, VentaPendiente } from "../types";
+import type { ItemVenta, NuevaVenta, TurnoCaja, Venta, VentaPendiente } from "../types";
 
 const CLAVE_PENDIENTES = "kiosko_ventas_pendientes";
 const CLAVE_PRODUCTOS = "kiosko_productos_cache";
 const CLAVE_TURNO = "kiosko_turno_cache";
+const CLAVE_CARRITO = "kiosko_carrito_cache";
 
 function leer<T>(clave: string, porDefecto: T): T {
   try {
@@ -101,4 +102,14 @@ export const cacheOffline = {
   turno(): TurnoCaja | null {
     return leer<TurnoCaja | null>(CLAVE_TURNO, null);
   },
+  guardarCarrito(items: ItemVenta[]) {
+    localStorage.setItem(CLAVE_CARRITO, JSON.stringify(items));
+  },
+  carrito(): ItemVenta[] {
+    return leer<ItemVenta[]>(CLAVE_CARRITO, []);
+  },
+  limpiarCarrito() {
+    localStorage.removeItem(CLAVE_CARRITO);
+  },
 };
+
