@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Clock, X } from "lucide-react";
 
 export interface TimePickerProps {
@@ -27,6 +28,7 @@ export function TimePicker({
   const [posicionEfectiva, setPosicionEfectiva] = useState<"abajo" | "arriba">("abajo");
   const [estiloPopover, setEstiloPopover] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   const [horaSel, setHoraSel] = useState(() => (value ? value.split(":")[0] : "08"));
   const [minSel, setMinSel] = useState(() => (value ? value.split(":")[1] : "00"));
@@ -41,7 +43,13 @@ export function TimePicker({
 
   useEffect(() => {
     function alHacerClicFuera(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(target)
+      ) {
         setAbierto(false);
       }
     }
@@ -52,34 +60,46 @@ export function TimePicker({
   function recalcularPosicion() {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const espacioAbajo = window.innerHeight - rect.bottom;
     const topBarAlto = 64; // Altura de la barra superior (TopBar)
-    const espacioArribaReal = rect.top - topBarAlto;
-
-    if (espacioAbajo < 260 && espacioArribaReal >= 260) {
-      setPosicionEfectiva("arriba");
-    } else {
-      setPosicionEfectiva("abajo");
-    }
-
+    const marginMinimoTop = topBarAlto + 8;
+    const altoPop = 260;
     const anchoPop = 240; // w-60 = 240px
     const viewportAncho = window.innerWidth;
+    const viewportAlto = window.innerHeight;
     const paddingPantalla = 12;
 
-    const nuevoEstilo: React.CSSProperties = {};
+    const espacioAbajo = viewportAlto - rect.bottom;
+    const espacioArriba = rect.top - marginMinimoTop;
 
-    const rightEsperado = rect.left + anchoPop;
-    if (rightEsperado > viewportAncho - paddingPantalla) {
-      const overflow = rightEsperado - (viewportAncho - paddingPantalla);
-      nuevoEstilo.left = `-${overflow}px`;
-    } else if (rect.left < paddingPantalla) {
-      const offset = paddingPantalla - rect.left;
-      nuevoEstilo.left = `${offset}px`;
+    let posEfectiva: "abajo" | "arriba" = "abajo";
+    if (espacioAbajo < altoPop && espacioArriba >= altoPop) {
+      posEfectiva = "arriba";
     } else {
-      nuevoEstilo.left = "0px";
+      posEfectiva = "abajo";
+    }
+    setPosicionEfectiva(posEfectiva);
+
+    let top: number;
+    if (posEfectiva === "arriba") {
+      top = rect.top - altoPop - 6;
+    } else {
+      top = rect.bottom + 6;
     }
 
-    setEstiloPopover(nuevoEstilo);
+    top = Math.max(marginMinimoTop, Math.min(top, viewportAlto - altoPop - 8));
+
+    let left = rect.left;
+    if (left + anchoPop > viewportAncho - paddingPantalla) {
+      left = viewportAncho - anchoPop - paddingPantalla;
+    }
+    left = Math.max(paddingPantalla, left);
+
+    setEstiloPopover({
+      position: "fixed",
+      top: `${top}px`,
+      left: `${left}px`,
+      zIndex: 99999,
+    });
   }
 
   useEffect(() => {
@@ -160,12 +180,11 @@ export function TimePicker({
         )}
       </div>
 
-      {abierto && (
+      {abierto && createPortal(
         <div
+          ref={popoverRef}
           style={estiloPopover}
-          className={`animate-in fade-in zoom-in-95 absolute z-[9999] w-60 max-w-[calc(100vw-24px)] rounded-xl border border-zinc-200 bg-white p-3 shadow-2xl duration-100 ${
-            posicionEfectiva === "arriba" ? "bottom-full mb-1.5" : "top-full mt-1.5"
-          }`}
+          className="animate-in fade-in zoom-in-95 w-60 max-w-[calc(100vw-24px)] rounded-xl border border-zinc-200 bg-white p-3 shadow-2xl duration-100"
         >
           <div className="flex gap-2">
             <div className="flex-1">
@@ -225,8 +244,10 @@ export function TimePicker({
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 }
+

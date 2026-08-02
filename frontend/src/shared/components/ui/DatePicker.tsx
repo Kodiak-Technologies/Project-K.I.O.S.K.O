@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 
 export interface DatePickerProps {
@@ -27,7 +28,7 @@ const MESES_ES = [
 
 const MESES_CORTOS_ES = [
   "Ene", "Feb", "Mar", "Abr", "May", "Jun",
-  "Jul", "Ago", "Sep", "Oct", "Dic",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
 ];
 
 const DIAS_ES = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"];
@@ -78,6 +79,7 @@ export function DatePicker({
   const [posicionEfectiva, setPosicionEfectiva] = useState<"abajo" | "arriba">("abajo");
   const [estiloPopover, setEstiloPopover] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   const fechaObjeto = valorFinal ? isoAFechaLocal(valorFinal) : null;
   const hoy = new Date();
@@ -97,7 +99,13 @@ export function DatePicker({
 
   useEffect(() => {
     function manejarClicAfuera(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(target)
+      ) {
         setAbierto(false);
       }
     }
@@ -108,51 +116,58 @@ export function DatePicker({
   function recalcularPosicion() {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const espacioAbajo = window.innerHeight - rect.bottom;
     const topBarAlto = 64; // Altura de la barra superior (TopBar)
-    const espacioArribaReal = rect.top - topBarAlto;
-
-    if (posicion === "arriba") {
-      setPosicionEfectiva("arriba");
-    } else if (posicion === "abajo") {
-      setPosicionEfectiva("abajo");
-    } else if (espacioAbajo < 380 && espacioArribaReal >= 320) {
-      // Solo abrir hacia arriba si hay espacio de al menos 320px libre por debajo de la TopBar
-      setPosicionEfectiva("arriba");
-    } else {
-      setPosicionEfectiva("abajo");
-    }
-
+    const marginMinimoTop = topBarAlto + 8; // 72px: nunca tapar ni quedar bajo la TopBar
+    const altoCalendario = 340;
     const anchoCalendario = 288; // w-72 = 288px
     const viewportAncho = window.innerWidth;
-    const paddingPantalla = 12; // 12px de margen mínimo de pantalla
+    const viewportAlto = window.innerHeight;
+    const paddingPantalla = 12;
 
-    const nuevoEstilo: React.CSSProperties = {};
+    const espacioAbajo = viewportAlto - rect.bottom;
+    const espacioArriba = rect.top - marginMinimoTop;
 
-    if (alineacion === "derecha") {
-      const leftEsperado = rect.right - anchoCalendario;
-      if (leftEsperado < paddingPantalla) {
-        const offsetLeft = paddingPantalla - rect.left;
-        nuevoEstilo.left = `${offsetLeft}px`;
-        nuevoEstilo.right = "auto";
-      } else {
-        nuevoEstilo.right = "0px";
-        nuevoEstilo.left = "auto";
-      }
+    let posEfectiva: "abajo" | "arriba" = "abajo";
+    if (posicion === "arriba") {
+      posEfectiva = "arriba";
+    } else if (posicion === "abajo") {
+      posEfectiva = "abajo";
+    } else if (espacioAbajo < altoCalendario && espacioArriba >= altoCalendario) {
+      posEfectiva = "arriba";
+    } else if (espacioAbajo < altoCalendario && espacioArriba > espacioAbajo) {
+      posEfectiva = "arriba";
     } else {
-      const rightEsperado = rect.left + anchoCalendario;
-      if (rightEsperado > viewportAncho - paddingPantalla) {
-        const overflow = rightEsperado - (viewportAncho - paddingPantalla);
-        nuevoEstilo.left = `-${overflow}px`;
-      } else if (rect.left < paddingPantalla) {
-        const offset = paddingPantalla - rect.left;
-        nuevoEstilo.left = `${offset}px`;
-      } else {
-        nuevoEstilo.left = "0px";
-      }
+      posEfectiva = "abajo";
     }
 
-    setEstiloPopover(nuevoEstilo);
+    setPosicionEfectiva(posEfectiva);
+
+    let top: number;
+    if (posEfectiva === "arriba") {
+      top = rect.top - altoCalendario - 6;
+    } else {
+      top = rect.bottom + 6;
+    }
+
+    // Restricción estricta: nunca sobrepasar la TopBar por arriba, ni la pantalla por abajo
+    top = Math.max(marginMinimoTop, Math.min(top, viewportAlto - altoCalendario - 8));
+
+    let left: number;
+    if (alineacion === "derecha") {
+      left = rect.right - anchoCalendario;
+    } else {
+      left = rect.left;
+    }
+
+    // Evitar desbordamiento lateral de la pantalla
+    left = Math.max(paddingPantalla, Math.min(left, viewportAncho - anchoCalendario - paddingPantalla));
+
+    setEstiloPopover({
+      position: "fixed",
+      top: `${top}px`,
+      left: `${left}px`,
+      zIndex: 99999,
+    });
   }
 
   useEffect(() => {
@@ -229,10 +244,12 @@ export function DatePicker({
   const primerDiaMes = new Date(anioVista, mesVista, 1);
   const diaSemanaInicio = (primerDiaMes.getDay() + 6) % 7;
   const diasEnMes = new Date(anioVista, mesVista + 1, 0).getDate();
+  const diasEnMesAnterior = new Date(anioVista, mesVista, 0).getDate();
 
   const celdas: { dia: number; esMesActual: boolean; fechaIso: string }[] = [];
   for (let i = 0; i < diaSemanaInicio; i++) {
-    celdas.push({ dia: 0, esMesActual: false, fechaIso: "" });
+    const diaPrev = diasEnMesAnterior - diaSemanaInicio + i + 1;
+    celdas.push({ dia: diaPrev, esMesActual: false, fechaIso: "" });
   }
   for (let d = 1; d <= diasEnMes; d++) {
     const fIso = fechaLocalAIso(new Date(anioVista, mesVista, d));
@@ -280,12 +297,11 @@ export function DatePicker({
         />
       </div>
 
-      {abierto && !deshabilitadoFinal && (
+      {abierto && !deshabilitadoFinal && createPortal(
         <div
+          ref={popoverRef}
           style={estiloPopover}
-          className={`animate-in fade-in zoom-in-95 absolute z-[9999] w-72 max-w-[calc(100vw-24px)] rounded-xl border border-zinc-200 bg-white p-3.5 shadow-2xl duration-100 ${
-            posicionEfectiva === "arriba" ? "bottom-full mb-1.5" : "top-full mt-1.5"
-          }`}
+          className="animate-in fade-in zoom-in-95 w-72 max-w-[calc(100vw-24px)] rounded-xl border border-zinc-200 bg-white p-3.5 shadow-2xl duration-100"
         >
           <div className="mb-3 flex items-center justify-between">
             <button
@@ -352,7 +368,7 @@ export function DatePicker({
                 {celdas.map((c, idx) => {
                   if (!c.esMesActual) {
                     return (
-                      <div key={idx} className="py-1.5 text-zinc-300">
+                      <div key={idx} className="flex h-8 w-8 items-center justify-center text-xs text-zinc-300 select-none">
                         {c.dia}
                       </div>
                     );
@@ -433,10 +449,12 @@ export function DatePicker({
               <RotateCcw className="h-3.5 w-3.5" /> Hoy
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {error && <p className="mt-1 text-xs text-peligro">{error}</p>}
     </div>
   );
 }
+
