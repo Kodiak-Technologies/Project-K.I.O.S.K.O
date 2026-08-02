@@ -132,7 +132,13 @@ async def lifespan(app: FastAPI):
     # Iniciamos todas las tareas en segundo plano que provienen de ambos lados
     logger.info("Iniciando tareas en segundo plano...")
 
-    task_cierre = asyncio.create_task(_ejecutar_cierre_automatico_background())
+    # Cierre automático de caja DESACTIVADO temporalmente. El servidor corre en
+    # UTC (Cloud Run), así que su "medianoche" cae ~19:00-20:00 hora Perú
+    # (UTC-5) y estaba cerrando el turno del cajero a las 8pm, en plena jornada.
+    # Se apaga hasta corregir la zona horaria en `CierreAutomaticoUseCase`. El
+    # use case y `_ejecutar_cierre_automatico_background()` quedan intactos para
+    # reactivarlo cuando corresponda. NO afecta al cierre/cuadre manual (/caja/cerrar).
+    # task_cierre = asyncio.create_task(_ejecutar_cierre_automatico_background())
     task_respaldos = asyncio.create_task(_ejecutar_tarea_respaldos())
 
     try:
@@ -140,7 +146,7 @@ async def lifespan(app: FastAPI):
     finally:
         # Se asegura de cancelar absolutamente todas al apagar el server
         logger.info("Deteniendo tareas en segundo plano...")
-        task_cierre.cancel()
+        # task_cierre.cancel()
         task_respaldos.cancel()
 
 

@@ -145,7 +145,7 @@ export default function PuntoDeVenta() {
   const [precioMax, setPrecioMax] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [carrito, setCarrito] = useState<ItemVenta[]>([]);
+  const [carrito, setCarrito] = useState<ItemVenta[]>(() => cacheOffline.carrito());
   const [modalCobro, setModalCobro] = useState(false);
   // HU-C05: venta recién cerrada, para ofrecer el ticket opcional y mostrar el vuelto
   const [ventaRegistrada, setVentaRegistrada] = useState<Venta | null>(null);
@@ -153,6 +153,12 @@ export default function PuntoDeVenta() {
   const [avisoEscaneo, setAvisoEscaneo] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
+
+  // Persistir el carrito en localStorage para conservar los productos al navegar entre módulos
+  useEffect(() => {
+    cacheOffline.guardarCarrito(carrito);
+  }, [carrito]);
+
   // HU-C03: desplegable de autocompletado del buscador.
   // `indiceSugerencia === -1` = ninguna sugerencia resaltada: Enter se trata
   // como un escaneo (código exacto) y NO elige la primera opción del desplegable.
@@ -553,7 +559,7 @@ export default function PuntoDeVenta() {
             {mostrarSugerencias && sugerencias.length > 0 && (
               <ul
                 role="listbox"
-                className="absolute z-30 mt-1 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg"
+                className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1 shadow-2xl divide-y divide-zinc-50"
               >
                 {sugerencias.map((p, indice) => (
                   <li key={p.id} role="option" aria-selected={indice === indiceSugerencia}>
@@ -565,8 +571,8 @@ export default function PuntoDeVenta() {
                         agregarYLimpiar(p);
                       }}
                       onMouseEnter={() => setIndiceSugerencia(indice)}
-                      className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm ${
-                        indice === indiceSugerencia ? "bg-zinc-100" : ""
+                      className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                        indice === indiceSugerencia ? "bg-zinc-100 font-medium" : "hover:bg-zinc-50 text-zinc-700"
                       }`}
                     >
                       <span className="min-w-0">
