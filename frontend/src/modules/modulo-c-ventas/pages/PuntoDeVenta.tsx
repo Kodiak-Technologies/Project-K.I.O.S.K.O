@@ -16,7 +16,7 @@
 // Modo offline (HU-C10, RF-26): si se cae el internet el POS sigue vendiendo con
 // el catálogo cacheado; las ventas quedan en el navegador y se sincronizan solas
 // al volver la conexión (aviso visible del estado en la cabecera).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CloudUpload,
   Minus,
@@ -79,13 +79,22 @@ function vueltoLocal(pagos: NuevoPago[], total: number): number {
 export default function PuntoDeVenta() {
   const { usuario } = useAuthContext();
   const { online } = useConexion();
+  const [pageSize, setPageSize] = useState<number>(() => {
+    const guardado = localStorage.getItem("kiosko_pos_page_size");
+    return guardado ? Number(guardado) : 20;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("kiosko_pos_page_size", String(pageSize));
+  }, [pageSize]);
+
   const {
     productos,
     paginados,
     cargando,
     noDisponible,
     recargar: recargarProductos,
-  } = useProductos();
+  } = useProductos({ page_size: pageSize, activo: true });
   const { categorias } = useCategorias();
   const { turno: turnoRemoto, noDisponible: cajaNoDisponible } = useCaja();
   const { registrar } = useVenta();
@@ -108,6 +117,32 @@ export default function PuntoDeVenta() {
   }, [turnoRemoto]);
   const turno = turnoRemoto ?? (!online ? cacheOffline.turno() : null);
 
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroCategoria, setFiltroCategoria] = useState<number | "">("");
+  const [filtroEstado, setFiltroEstado] = useState<"todos" | "disponible" | "bajo_minimo" | "sin_stock">("todos");
+  const [precioMin, setPrecioMin] = useState("");
+  const [precioMax, setPrecioMax] = useState("");
+  const [page, setPage] = useState(1);
+  const [carrito, setCarrito] = useState<ItemVenta[]>(() => cacheOffline.carrito());
+  const [modalCobro, setModalCobro] = useState(false);
+  const [ventaRegistrada, setVentaRegistrada] = useState<Venta | null>(null);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [avisoEscaneo, setAvisoEscaneo] = useState<string | null>(null);
+  const [errorAccion, setErrorAccion] = useState<string | null>(null);
+  const [procesando, setProcesando] = useState(false);
+
+  const obtenerFiltrosActuales = useCallback((): FiltrosProductos => {
+    const filtros: FiltrosProductos = { page, page_size: pageSize, activo: true };
+    if (busqueda.trim()) filtros.search = busqueda.trim();
+    if (filtroCategoria !== "") filtros.categoria_id = filtroCategoria;
+    if (filtroEstado === "disponible") filtros.solo_con_stock = true;
+    if (filtroEstado === "bajo_minimo") filtros.solo_bajo_minimo = true;
+    if (filtroEstado === "sin_stock") filtros.sin_stock = true;
+    if (precioMin.trim()) filtros.precio_min = Number(precioMin);
+    if (precioMax.trim()) filtros.precio_max = Number(precioMax);
+    return filtros;
+  }, [busqueda, filtroCategoria, filtroEstado, precioMin, precioMax, page, pageSize]);
+
   // Cola de ventas pendientes de sincronizar.
   const [pendientes, setPendientes] = useState(() => colaOffline.listar().length);
   const [avisoSync, setAvisoSync] = useState<string | null>(null);
@@ -123,7 +158,7 @@ export default function PuntoDeVenta() {
           setAvisoSync(
             `Volvió la conexión: se enviaron ${sincronizadas.length} venta(s) que habían quedado guardadas en este equipo.`
           );
-          void recargarProductos();
+          void recargarProductos(obtenerFiltrosActuales());
         }
         if (conError.length > 0) {
           setAvisoSync(
@@ -135,24 +170,7 @@ export default function PuntoDeVenta() {
       .finally(() => {
         sincronizando.current = false;
       });
-  }, [online, recargarProductos]);
-
-  const [busqueda, setBusqueda] = useState("");
-  // Filtros de la tabla-catálogo (se aplican en el servidor cuando hay conexión).
-  const [filtroCategoria, setFiltroCategoria] = useState<number | "">("");
-  const [filtroEstado, setFiltroEstado] = useState<"todos" | "disponible" | "bajo_minimo" | "sin_stock">("todos");
-  const [precioMin, setPrecioMin] = useState("");
-  const [precioMax, setPrecioMax] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [carrito, setCarrito] = useState<ItemVenta[]>(() => cacheOffline.carrito());
-  const [modalCobro, setModalCobro] = useState(false);
-  // HU-C05: venta recién cerrada, para ofrecer el ticket opcional y mostrar el vuelto
-  const [ventaRegistrada, setVentaRegistrada] = useState<Venta | null>(null);
-  const [mensaje, setMensaje] = useState<string | null>(null);
-  const [avisoEscaneo, setAvisoEscaneo] = useState<string | null>(null);
-  const [errorAccion, setErrorAccion] = useState<string | null>(null);
-  const [procesando, setProcesando] = useState(false);
+  }, [online, recargarProductos, obtenerFiltrosActuales]);
 
   // Persistir el carrito en localStorage para conservar los productos al navegar entre módulos
   useEffect(() => {
@@ -186,19 +204,10 @@ export default function PuntoDeVenta() {
   useEffect(() => {
     if (!online) return;
     const handle = window.setTimeout(() => {
-      const filtros: FiltrosProductos = { page, page_size: pageSize, activo: true };
-      if (busqueda.trim()) filtros.search = busqueda.trim();
-      if (filtroCategoria !== "") filtros.categoria_id = filtroCategoria;
-      if (filtroEstado === "disponible") filtros.solo_con_stock = true;
-      if (filtroEstado === "bajo_minimo") filtros.solo_bajo_minimo = true;
-      if (filtroEstado === "sin_stock") filtros.sin_stock = true;
-      if (precioMin.trim()) filtros.precio_min = Number(precioMin);
-      if (precioMax.trim()) filtros.precio_max = Number(precioMax);
-      void recargarProductos(filtros);
+      void recargarProductos(obtenerFiltrosActuales());
     }, DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busqueda, filtroCategoria, filtroEstado, precioMin, precioMax, page, pageSize, online]);
+  }, [obtenerFiltrosActuales, online, recargarProductos]);
 
   const visibles = useMemo(() => {
     if (online) return catalogo;
@@ -427,7 +436,7 @@ export default function PuntoDeVenta() {
       setCarrito([]);
       setModalCobro(false);
       setVentaRegistrada(venta); // abre el modal con vuelto + ticket opcional
-      void recargarProductos(); // refleja el stock ya descontado
+      void recargarProductos(obtenerFiltrosActuales()); // refleja el stock ya descontado con la misma paginación y filtros
     } catch (e) {
       setErrorAccion(mensajeDeError(e));
     } finally {

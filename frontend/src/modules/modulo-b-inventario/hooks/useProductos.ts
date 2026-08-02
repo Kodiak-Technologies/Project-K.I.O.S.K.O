@@ -51,25 +51,23 @@ export function useProductos(filtrosIniciales?: FiltrosProductos): EstadoHook {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
-
-  // `cargando` es solo para la primera carga; las recargas son silenciosas.
-  const recargar = useCallback(async (filtros?: FiltrosProductos) => {
-    setError(null);
-    try {
-      const resp = await productosHttpAdapter.listar(filtros);
-      setPaginados(resp);
-      setProductos(resp.items);
-    } catch (e) {
-      if (servicioNoDisponible(e)) setNoDisponible(true);
-      else setError(mensajeDeError(e));
-    } finally {
-      setCargando(false);
-    }
-  }, []);
-
-  // El literal `{ page_size: 100 }` es un objeto nuevo en cada render: como
-  // dependencia dispara el efecto en bucle. Dependemos de su CONTENIDO.
   const { clave: filtrosKey, ref: filtrosRef } = useFiltrosEstables(filtrosIniciales);
+  const recargar = useCallback(
+    async (filtros?: FiltrosProductos) => {
+      setError(null);
+      try {
+        const resp = await productosHttpAdapter.listar(filtros ?? filtrosRef.current);
+        setPaginados(resp);
+        setProductos(resp.items);
+      } catch (e) {
+        if (servicioNoDisponible(e)) setNoDisponible(true);
+        else setError(mensajeDeError(e));
+      } finally {
+        setCargando(false);
+      }
+    },
+    [filtrosRef]
+  );
 
   useEffect(() => {
     void recargar(filtrosRef.current);
