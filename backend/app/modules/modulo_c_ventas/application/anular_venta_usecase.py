@@ -63,11 +63,11 @@ class AnularVentaUseCase:
         venta_id: int,
         usuario_id: int,
         nombre_usuario: str,
-        rol: str,
         motivo: str,
+        rol: str = "ADMIN",
         ip: str = "",
         user_agent: str = "",
-    ) -> Venta:
+    ) -> Anulacion:
         venta, turno_id, efectivo_disponible = await self._preparar(venta_id, motivo)
 
         # Reponer TODO lo que sigue vendido (lo ya devuelto parcialmente no se repone dos veces).
@@ -109,19 +109,19 @@ class AnularVentaUseCase:
             },
             motivo=motivo.strip(), ip=ip, user_agent=user_agent,
         )
-        return await self._ventas.buscar_por_id(venta_id)
+        return anulacion
 
     async def devolver(
         self,
         venta_id: int,
         usuario_id: int,
         nombre_usuario: str,
-        rol: str,
         items: list[tuple[int, int]],  # (detalle_id, cantidad)
         motivo: str,
+        rol: str = "ADMIN",
         ip: str = "",
         user_agent: str = "",
-    ) -> Venta:
+    ) -> Anulacion:
         venta, turno_id, efectivo_disponible = await self._preparar(venta_id, motivo)
         if not items:
             raise ValidacionError("Indica qué productos se devuelven.")
@@ -169,4 +169,4 @@ class AnularVentaUseCase:
             },
             motivo=motivo.strip(), ip=ip, user_agent=user_agent,
         )
-        return await self._ventas.buscar_por_id(venta_id)
+        return anulacion

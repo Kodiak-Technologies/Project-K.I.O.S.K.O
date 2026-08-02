@@ -11,6 +11,24 @@ from app.modules.modulo_a_seguridad.infrastructure.adapters.database.models impo
 )
 
 
+from decimal import Decimal
+from typing import Any
+
+
+def _sanitizar_json(val: Any) -> Any:
+    if val is None:
+        return None
+    if isinstance(val, Decimal):
+        return float(val)
+    if isinstance(val, (int, float, str, bool)):
+        return val
+    if isinstance(val, dict):
+        return {str(k): _sanitizar_json(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple, set)):
+        return [_sanitizar_json(item) for item in val]
+    return str(val)
+
+
 def _a_entidad(fila: BitacoraAuditoriaModel) -> RegistroAuditoria:
     return RegistroAuditoria(
         id=fila.id,
@@ -39,8 +57,8 @@ class SqlAlchemyAuditoriaRepository:
             accion=registro.accion,
             entidad=registro.entidad,
             entidad_id=registro.entidad_id,
-            valor_anterior=registro.valor_anterior,
-            valor_nuevo=registro.valor_nuevo,
+            valor_anterior=_sanitizar_json(registro.valor_anterior),
+            valor_nuevo=_sanitizar_json(registro.valor_nuevo),
             motivo=registro.motivo,
             ip=registro.ip,
             user_agent=registro.user_agent,
