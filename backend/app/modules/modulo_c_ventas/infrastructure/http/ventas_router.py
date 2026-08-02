@@ -93,7 +93,7 @@ async def anular(
     # La venta no se borra: reverso total que repone stock y ajusta la caja
     # del turno actual, con rastro para la administradora (RF-22).
     ip, user_agent = contexto_request(request)
-    venta = await contenedor.anular_venta_usecase(db).anular(
+    await contenedor.anular_venta_usecase(db).anular(
         venta_id=venta_id,
         usuario_id=usuario.id,
         nombre_usuario=usuario.nombre,
@@ -102,20 +102,21 @@ async def anular(
         ip=ip,
         user_agent=user_agent,
     )
+    venta = await contenedor.consultar_ventas_usecase(db).obtener(venta_id)
     return VentaResponse.desde_entidad(venta)
 
 
 @router.post("/{venta_id}/devolver", response_model=VentaResponse)
 async def devolver(
-    venta_id: int,
     datos: DevolverVentaRequest,
     request: Request,
     usuario: Usuario = Depends(require_permission("ventas.devolver")),
     db: AsyncSession = Depends(get_db),
+    venta_id: int = 0,
 ):
     # Devolución parcial (cambio de producto): repone solo lo devuelto.
     ip, user_agent = contexto_request(request)
-    venta = await contenedor.anular_venta_usecase(db).devolver(
+    await contenedor.anular_venta_usecase(db).devolver(
         venta_id=venta_id,
         usuario_id=usuario.id,
         nombre_usuario=usuario.nombre,
@@ -125,4 +126,5 @@ async def devolver(
         ip=ip,
         user_agent=user_agent,
     )
+    venta = await contenedor.consultar_ventas_usecase(db).obtener(venta_id)
     return VentaResponse.desde_entidad(venta)

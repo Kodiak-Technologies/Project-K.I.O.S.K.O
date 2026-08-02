@@ -51,6 +51,7 @@ class HttpVentaDataProvider:
             "fecha": v.get("vendida_en") or v.get("created_at"),
             "vuelto": v.get("vuelto", 0),
             "pagos": v.get("pagos", []),
+            "items": v.get("items", []),
         }
 
     async def _todas_las_ventas(self, params: dict | None = None) -> list[dict]:

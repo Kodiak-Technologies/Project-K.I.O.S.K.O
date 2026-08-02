@@ -246,14 +246,25 @@ export function DatePicker({
   const diasEnMes = new Date(anioVista, mesVista + 1, 0).getDate();
   const diasEnMesAnterior = new Date(anioVista, mesVista, 0).getDate();
 
-  const celdas: { dia: number; esMesActual: boolean; fechaIso: string }[] = [];
+  const celdas: { dia: number; tipo: "previo" | "actual" | "siguiente"; fechaIso: string }[] = [];
   for (let i = 0; i < diaSemanaInicio; i++) {
     const diaPrev = diasEnMesAnterior - diaSemanaInicio + i + 1;
-    celdas.push({ dia: diaPrev, esMesActual: false, fechaIso: "" });
+    const anioPrev = mesVista === 0 ? anioVista - 1 : anioVista;
+    const mesPrev = mesVista === 0 ? 11 : mesVista - 1;
+    const fIsoPrev = fechaLocalAIso(new Date(anioPrev, mesPrev, diaPrev));
+    celdas.push({ dia: diaPrev, tipo: "previo", fechaIso: fIsoPrev });
   }
   for (let d = 1; d <= diasEnMes; d++) {
     const fIso = fechaLocalAIso(new Date(anioVista, mesVista, d));
-    celdas.push({ dia: d, esMesActual: true, fechaIso: fIso });
+    celdas.push({ dia: d, tipo: "actual", fechaIso: fIso });
+  }
+
+  const faltantes = (7 - (celdas.length % 7)) % 7;
+  for (let d = 1; d <= faltantes; d++) {
+    const anioSig = mesVista === 11 ? anioVista + 1 : anioVista;
+    const mesSig = mesVista === 11 ? 0 : mesVista + 1;
+    const fIsoSig = fechaLocalAIso(new Date(anioSig, mesSig, d));
+    celdas.push({ dia: d, tipo: "siguiente", fechaIso: fIsoSig });
   }
 
   const aniosRango = Array.from({ length: 12 }, (_, i) => rangoAnioInicio + i);
@@ -366,11 +377,21 @@ export function DatePicker({
 
               <div className="grid grid-cols-7 gap-1 text-center text-xs">
                 {celdas.map((c, idx) => {
-                  if (!c.esMesActual) {
+                  if (c.tipo !== "actual") {
                     return (
-                      <div key={idx} className="flex h-8 w-8 items-center justify-center text-xs text-zinc-300 select-none">
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          if (c.tipo === "previo") mesAnterior();
+                          else mesSiguiente();
+                          if (alCambiarFinal) alCambiarFinal(c.fechaIso);
+                          setAbierto(false);
+                        }}
+                        className="flex h-8 w-8 items-center justify-center text-xs text-zinc-300 hover:bg-zinc-100 hover:text-zinc-500 rounded-lg transition-colors cursor-pointer"
+                      >
                         {c.dia}
-                      </div>
+                      </button>
                     );
                   }
                   const esSeleccionado = c.fechaIso === valorFinal;
