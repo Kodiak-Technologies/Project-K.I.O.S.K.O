@@ -10,9 +10,10 @@ interface Props {
   /** Botones del pie (normalmente Cancelar + acción principal). */
   pie?: ReactNode;
   children: ReactNode;
+  ancho?: string;
 }
 
-export function Modal({ abierto, titulo, alCerrar, pie, children }: Props) {
+export function Modal({ abierto, titulo, alCerrar, pie, children, ancho = "sm:max-w-lg" }: Props) {
   useEffect(() => {
     if (!abierto) return;
     const manejarTecla = (e: KeyboardEvent) => e.key === "Escape" && alCerrar();
@@ -35,7 +36,7 @@ export function Modal({ abierto, titulo, alCerrar, pie, children }: Props) {
         role="dialog"
         aria-modal="true"
         aria-label={titulo}
-        className="max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-lg sm:max-w-lg sm:rounded-2xl"
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-lg sm:rounded-2xl ${ancho}`}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
