@@ -3,7 +3,7 @@
 // PR3a: `solicitar` ahora recibe `NuevaSolicitudIngreso` (proveedor + foto +
 // líneas). `listar` devuelve respuesta paginada; el hook expone `ingresos`
 // (items aplanados, compat con páginas actuales) y `paginados` (cruda).
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mensajeDeError, servicioNoDisponible } from "../../../shared/lib/http-client";
 import { useFiltrosEstables } from "../../../shared/lib/use-filtros-estables";
 import { ingresosHttpAdapter } from "../services/ingresos.http-adapter";
@@ -38,7 +38,16 @@ export function useIngresos(filtrosIniciales?: FiltrosIngresos): EstadoHook {
   const [error, setError] = useState<string | null>(null);
   const [noDisponible, setNoDisponible] = useState(false);
 
+  // Últimos filtros con los que se pidió la lista. Las páginas (Aprobación,
+  // Ingresos) NO pasan `filtrosIniciales`: arman los filtros ellas y los mandan
+  // por `recargar(...)` cada vez que cambia la paginación o un filtro. Si las
+  // recargas post-mutación usaran `filtrosIniciales`, pedirían la lista SIN
+  // filtro: en Aprobación eso traía de vuelta la solicitud recién aprobada
+  // (estado "Aprobada") a una cola que solo debe mostrar pendientes.
+  const ultimosFiltros = useRef<FiltrosIngresos | undefined>(filtrosIniciales);
+
   const recargar = useCallback(async (filtros?: FiltrosIngresos) => {
+    ultimosFiltros.current = filtros;
     setError(null);
     try {
       const resp = await ingresosHttpAdapter.listar(filtros);
@@ -51,6 +60,9 @@ export function useIngresos(filtrosIniciales?: FiltrosIngresos): EstadoHook {
       setCargando(false);
     }
   }, []);
+
+  /** Recarga repitiendo los filtros vigentes (tras crear/aprobar/rechazar/editar). */
+  const revalidar = useCallback(() => recargar(ultimosFiltros.current), [recargar]);
 
   // El literal `{ page_size: 100 }` es un objeto nuevo en cada render: como
   // dependencia dispara el efecto en bucle. Dependemos de su CONTENIDO.
@@ -68,37 +80,37 @@ export function useIngresos(filtrosIniciales?: FiltrosIngresos): EstadoHook {
   const solicitar = useCallback(
     async (datos: NuevaSolicitudIngreso) => {
       const creada = await ingresosHttpAdapter.solicitar(datos);
-      await recargar(filtrosRef.current);
+      await revalidar();
       return creada;
     },
-    [recargar, filtrosRef]
+    [revalidar]
   );
 
   const aprobar = useCallback(
     async (id: number) => {
       const resp = await ingresosHttpAdapter.aprobar(id);
-      await recargar(filtrosRef.current);
+      await revalidar();
       return resp;
     },
-    [recargar, filtrosRef]
+    [revalidar]
   );
 
   const rechazar = useCallback(
     async (id: number, datos: RechazoIngreso) => {
       const resp = await ingresosHttpAdapter.rechazar(id, datos);
-      await recargar(filtrosRef.current);
+      await revalidar();
       return resp;
     },
-    [recargar, filtrosRef]
+    [revalidar]
   );
 
   const editar = useCallback(
     async (id: number, body: SolicitudIngresoUpdateBody) => {
       const actualizada = await ingresosHttpAdapter.editar(id, body);
-      await recargar(filtrosRef.current);
+      await revalidar();
       return actualizada;
     },
-    [recargar, filtrosRef]
+    [revalidar]
   );
 
   return {
