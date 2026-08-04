@@ -1,7 +1,7 @@
 // Modal de confirmación genérico. Reutilizable para "Aprobar", "Rechazar",
 // "Activar/Desactivar", "Registrar pago", etc.
 import type { ReactNode } from "react";
-import { Modal } from "../../../shared/components/ui";
+import { Button, Modal } from "../../../shared/components/ui";
 
 interface Props {
   abierto: boolean;
@@ -36,26 +36,15 @@ export function ModalConfirmacion({
       alCerrar={alCancelar}
       pie={
         <>
-          <button
-            type="button"
-            onClick={alCancelar}
-            disabled={cargando}
-            className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-          >
+          <Button type="button" variante="secundario" onClick={alCancelar} disabled={cargando}>
             Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={alConfirmar}
-            disabled={cargando}
-            className={`inline-flex min-h-tactil items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-60 ${
-              variante === "peligro"
-                ? "bg-peligro hover:bg-red-700"
-                : "bg-marca hover:opacity-85"
-            }`}
-          >
-            {textoConfirmar}
-          </button>
+          </Button>
+          {/* `cargando` pinta el spinner del Button: sin él, una aprobación
+              lenta no daba ninguna señal y parecía que el clic no había
+              entrado (la usuaria volvía a apretar). */}
+          <Button type="button" variante={variante} onClick={alConfirmar} cargando={cargando}>
+            {cargando ? "Procesando…" : textoConfirmar}
+          </Button>
         </>
       }
     >

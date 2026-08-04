@@ -1,5 +1,5 @@
 // Adaptador: implementa notasVenta.port.ts usando el cliente HTTP compartido (axios).
-import { httpClient } from "../../../shared/lib/http-client";
+import { httpClient, TIMEOUT_ARCHIVOS_MS } from "../../../shared/lib/http-client";
 import type { NotasVentaPort } from "./notasVenta.port";
 
 export const notasVentaHttpAdapter: NotasVentaPort = {
@@ -15,12 +15,15 @@ export const notasVentaHttpAdapter: NotasVentaPort = {
   async descargarPng(ventaId) {
     const { data } = await httpClient.get(`/notas-venta/${ventaId}/png`, {
       responseType: "blob",
+      timeout: TIMEOUT_ARCHIVOS_MS,
     });
     return data;
   },
 
   async subirADrive(ventaId) {
-    const { data } = await httpClient.post(`/notas-venta/${ventaId}/drive`);
+    const { data } = await httpClient.post(`/notas-venta/${ventaId}/drive`, undefined, {
+      timeout: TIMEOUT_ARCHIVOS_MS,
+    });
     return data;
   },
 
@@ -28,7 +31,7 @@ export const notasVentaHttpAdapter: NotasVentaPort = {
     const { data } = await httpClient.post(
       "/notas-venta/descargar",
       { desde, hasta },
-      { responseType: "blob" }
+      { responseType: "blob", timeout: TIMEOUT_ARCHIVOS_MS }
     );
     return data;
   },
