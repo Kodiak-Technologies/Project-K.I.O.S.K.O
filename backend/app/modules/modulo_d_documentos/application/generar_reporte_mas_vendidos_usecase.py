@@ -28,7 +28,7 @@ class GenerarReporteMasVendidosUseCase:
         )
 
         for venta in ventas:
-            items = await self._venta_data.obtener_detalle_venta(venta["id"])
+            items = venta.get("items") or []
             for item in items:
                 if categoria_id is not None:
                     if item.get("categoria_id") != categoria_id:

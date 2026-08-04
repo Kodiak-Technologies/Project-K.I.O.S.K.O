@@ -123,15 +123,19 @@ export default function Reportes() {
   ];
 
   const generarReportes = async () => {
-    await generar(desde, hasta);
-    await generarMasVendidos(desde, hasta, criterio, orden);
+    await Promise.all([
+      generar(desde, hasta),
+      generarMasVendidos(desde, hasta, criterio, orden),
+    ]);
   };
 
   const aplicarPreset = async (p: { desde: string; hasta: string }) => {
     setDesde(p.desde);
     setHasta(p.hasta);
-    await generar(p.desde, p.hasta);
-    await generarMasVendidos(p.desde, p.hasta, criterio, orden);
+    await Promise.all([
+      generar(p.desde, p.hasta),
+      generarMasVendidos(p.desde, p.hasta, criterio, orden),
+    ]);
   };
 
   const toggleCriterio = async (nuevo: "unidades" | "monto") => {
