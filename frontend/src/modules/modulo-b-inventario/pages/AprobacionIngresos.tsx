@@ -34,6 +34,9 @@ import type { SolicitudIngreso, SolicitudIngresoUpdateBody } from "../types";
 
 type ModoPanel = "ver" | "editar" | null;
 
+/** Solo lo pendiente se puede aprobar o rechazar (lo demás ya lo decidió alguien). */
+const esPendiente = (s: SolicitudIngreso) => s.estado === "Pendiente";
+
 export default function AprobacionIngresos() {
   // Filtro server-side: solo pendientes (la cola de aprobación).
   const { ingresos, paginados, cargando, error, noDisponible, recargar, aprobar, rechazar, editar, obtener } =
@@ -115,6 +118,7 @@ export default function AprobacionIngresos() {
     if (!paraAprobar) return;
     setProcesando(true);
     setErrorAccion(null);
+    setMensaje(null);
     try {
       const resp = await aprobar(paraAprobar.id);
       setMensaje(
@@ -136,6 +140,7 @@ export default function AprobacionIngresos() {
     }
     setProcesando(true);
     setErrorAccion(null);
+    setMensaje(null);
     try {
       await rechazar(paraRechazar.id, { motivo_rechazo: motivo.trim() });
       setMensaje(`Ingreso #${paraRechazar.id} rechazado.`);
@@ -231,30 +236,39 @@ export default function AprobacionIngresos() {
             onClick={() => void abrirDetalle(i)}
             icono={<Eye className="h-4 w-4" aria-hidden />}
           />
-          <Button
-            compacto
-            onClick={() => setParaAprobar(i)}
-            title="Aprobar"
-            aria-label={`Aprobar solicitud ${i.id}`}
-            icono={<Check className="h-4 w-4" aria-hidden />}
-          >
-            <span className="hidden sm:inline">Aprobar</span>
-          </Button>
-          <Button
-            compacto
-            variante="secundario"
-            className="text-peligro"
-            title="Rechazar"
-            aria-label={`Rechazar solicitud ${i.id}`}
-            onClick={() => {
-              setParaRechazar(i);
-              setMotivo("");
-              setErrorAccion(null);
-            }}
-            icono={<X className="h-4 w-4" aria-hidden />}
-          >
-            <span className="hidden sm:inline">Rechazar</span>
-          </Button>
+          {/* Una solicitud ya revisada no se vuelve a decidir: el backend
+              responde 409 "La solicitud ya fue revisada". Si por lo que sea
+              cae una en la lista, se muestra su estado en vez de los botones. */}
+          {esPendiente(i) ? (
+            <>
+              <Button
+                compacto
+                onClick={() => setParaAprobar(i)}
+                title="Aprobar"
+                aria-label={`Aprobar solicitud ${i.id}`}
+                icono={<Check className="h-4 w-4" aria-hidden />}
+              >
+                <span className="hidden sm:inline">Aprobar</span>
+              </Button>
+              <Button
+                compacto
+                variante="secundario"
+                className="text-peligro"
+                title="Rechazar"
+                aria-label={`Rechazar solicitud ${i.id}`}
+                onClick={() => {
+                  setParaRechazar(i);
+                  setMotivo("");
+                  setErrorAccion(null);
+                }}
+                icono={<X className="h-4 w-4" aria-hidden />}
+              >
+                <span className="hidden sm:inline">Rechazar</span>
+              </Button>
+            </>
+          ) : (
+            <span className="text-xs text-zinc-500">Ya revisada ({i.estado})</span>
+          )}
         </div>
       ),
     },
@@ -431,27 +445,31 @@ export default function AprobacionIngresos() {
                 <Button variante="secundario" onClick={cerrarDetalle}>
                   Cerrar
                 </Button>
-                <Button
-                  onClick={() => {
-                    setParaAprobar(detalle);
-                    cerrarDetalle();
-                  }}
-                  icono={<Check className="h-4 w-4" aria-hidden />}
-                >
-                  Aprobar
-                </Button>
-                <Button
-                  variante="secundario"
-                  className="text-peligro"
-                  onClick={() => {
-                    setParaRechazar(detalle);
-                    setMotivo("");
-                    cerrarDetalle();
-                  }}
-                  icono={<X className="h-4 w-4" aria-hidden />}
-                >
-                  Rechazar
-                </Button>
+                {esPendiente(detalle) && (
+                  <>
+                    <Button
+                      onClick={() => {
+                        setParaAprobar(detalle);
+                        cerrarDetalle();
+                      }}
+                      icono={<Check className="h-4 w-4" aria-hidden />}
+                    >
+                      Aprobar
+                    </Button>
+                    <Button
+                      variante="secundario"
+                      className="text-peligro"
+                      onClick={() => {
+                        setParaRechazar(detalle);
+                        setMotivo("");
+                        cerrarDetalle();
+                      }}
+                      icono={<X className="h-4 w-4" aria-hidden />}
+                    >
+                      Rechazar
+                    </Button>
+                  </>
+                )}
               </footer>
             )}
           </div>

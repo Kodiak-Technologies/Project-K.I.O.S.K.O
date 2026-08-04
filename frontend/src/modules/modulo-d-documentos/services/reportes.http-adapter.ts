@@ -1,5 +1,5 @@
 // Adaptador: implementa reportes.port.ts usando el cliente HTTP compartido (axios).
-import { httpClient } from "../../../shared/lib/http-client";
+import { httpClient, TIMEOUT_ARCHIVOS_MS } from "../../../shared/lib/http-client";
 import type { ReportesPort } from "./reportes.port";
 
 export const reportesHttpAdapter: ReportesPort = {
@@ -17,6 +17,7 @@ export const reportesHttpAdapter: ReportesPort = {
     const { data } = await httpClient.get("/reportes/exportar", {
       params: { desde, hasta, tipo },
       responseType: "blob",
+      timeout: TIMEOUT_ARCHIVOS_MS,
     });
     return data;
   },

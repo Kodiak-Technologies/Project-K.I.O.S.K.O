@@ -8,7 +8,7 @@
 //      S/ 20, se escribe 20. Pedir el unitario obligaba al cajero a dividir
 //      (y 20/7 ni siquiera da exacto).
 //   2. El producto puede no existir todavía en el catálogo. En ese caso el
-//      cajero escribe código, nombre y categoría acá mismo, sin depender de
+//      cajero escribe código, nombre y categoría aquí mismo, sin depender de
 //      que un ADMIN lo dé de alta primero. El producto se crea al aprobar.
 import { Trash2 } from "lucide-react";
 import { Input } from "../../../shared/components/ui";
@@ -226,7 +226,7 @@ export function FormularioLineaIngreso({
       >
         {linea.esNuevo
           ? "← Elegir un producto del catálogo"
-          : "El producto no está en el catálogo — crearlo desde acá"}
+          : "El producto no está en el catálogo — crearlo aquí"}
       </button>
     </div>
   );

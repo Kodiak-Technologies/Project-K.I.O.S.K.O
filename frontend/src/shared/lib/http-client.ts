@@ -20,7 +20,27 @@ export const tokenStorage = {
   },
 };
 
-export const httpClient = axios.create({ baseURL: API_BASE_URL });
+/**
+ * Tope de espera por request. Sin esto axios espera indefinidamente: si el
+ * backend se cuelga, la pantalla se queda con el spinner puesto para siempre y
+ * la usuaria no tiene forma de saber si su clic entró o no.
+ *
+ * 30s es holgado a propósito: Cloud Run arranca en frío tras un rato sin
+ * tráfico y la primera petición del día paga ese arranque. Una consulta normal
+ * responde muy por debajo.
+ */
+export const TIMEOUT_MS = 30_000;
+
+/**
+ * Para lo que legítimamente tarda: subir una boleta o el logo a Drive, bajar un
+ * respaldo o exportar un reporte. Con el tope normal, una subida desde el
+ * celular con mala señal se cortaría estando sana.
+ *
+ * Se pasa por request: `httpClient.post(url, fd, { timeout: TIMEOUT_ARCHIVOS_MS })`.
+ */
+export const TIMEOUT_ARCHIVOS_MS = 120_000;
+
+export const httpClient = axios.create({ baseURL: API_BASE_URL, timeout: TIMEOUT_MS });
 
 httpClient.interceptors.request.use((config) => {
   const token = tokenStorage.obtenerAccess();
@@ -40,7 +60,14 @@ async function renovarTokens(): Promise<string> {
   const refresh = tokenStorage.obtenerRefresh();
   if (!refresh) throw new Error("Sin refresh token");
   // axios "crudo" (no httpClient) para no entrar en bucle de interceptores.
-  const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refresh_token: refresh });
+  // Eso también lo deja fuera del timeout de la instancia, así que va explícito:
+  // todo request que reciba un 401 queda esperando a `renovacionEnCurso`, y si
+  // esta promesa no termina nunca, la app entera se cuelga en silencio.
+  const { data } = await axios.post(
+    `${API_BASE_URL}/auth/refresh`,
+    { refresh_token: refresh },
+    { timeout: TIMEOUT_MS }
+  );
   tokenStorage.guardar(data.access_token, data.refresh_token);
   return data.access_token as string;
 }
@@ -70,14 +97,30 @@ httpClient.interceptors.response.use(
   }
 );
 
-/** True si el endpoint aún no existe (módulo cuyo backend no está desplegado). */
+/** True si el request se cortó por el timeout, no por una respuesta del backend. */
+export function esTimeout(error: unknown): boolean {
+  return (
+    axios.isAxiosError(error) &&
+    !error.response &&
+    (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT")
+  );
+}
+
+/** True si el endpoint aún no existe (módulo cuyo backend no está desplegado).
+ *
+ *  Un timeout NO cuenta: el endpoint puede existir perfectamente y estar lento.
+ *  Sin esta salvedad una lista que tarda de más pintaría "módulo pendiente",
+ *  que es un diagnóstico falso y sin salida para la usuaria. */
 export function servicioNoDisponible(error: unknown): boolean {
+  if (esTimeout(error)) return false;
   return axios.isAxiosError(error) && (!error.response || [404, 501, 503].includes(error.response.status));
 }
 
 const MENSAJE_GENERICO = "No pudimos completar la operación. Intenta de nuevo en unos segundos.";
 const MENSAJE_SIN_CONEXION =
   "No hay conexión con el sistema. Revisa el internet y vuelve a intentar.";
+const MENSAJE_TIMEOUT =
+  "El sistema está tardando demasiado en responder. Verifica si la operación quedó registrada antes de repetirla.";
 
 /**
  * Mensaje listo para mostrarle a la usuaria. Solo confiamos en el `detail` que
@@ -87,6 +130,9 @@ const MENSAJE_SIN_CONEXION =
  */
 export function mensajeDeError(error: unknown): string {
   if (axios.isAxiosError(error)) {
+    // Un timeout no distingue "no llegó" de "llegó y todavía está procesando":
+    // por eso el texto pide verificar en vez de invitar a reintentar a ciegas.
+    if (esTimeout(error)) return MENSAJE_TIMEOUT;
     const status = error.response?.status;
     if (!status) return MENSAJE_SIN_CONEXION;
     const detail = (error.response?.data as { detail?: unknown })?.detail;

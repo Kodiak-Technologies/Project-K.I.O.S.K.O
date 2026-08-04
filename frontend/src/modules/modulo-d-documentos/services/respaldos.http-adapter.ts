@@ -1,4 +1,4 @@
-import { httpClient } from "../../../shared/lib/http-client";
+import { httpClient, TIMEOUT_ARCHIVOS_MS } from "../../../shared/lib/http-client";
 import type { RespaldosPort } from "./respaldos.port";
 
 export const respaldosHttpAdapter: RespaldosPort = {
@@ -12,6 +12,7 @@ export const respaldosHttpAdapter: RespaldosPort = {
   async descargar(id) {
     const { data } = await httpClient.get(`/respaldos/${id}/descargar`, {
       responseType: "blob",
+      timeout: TIMEOUT_ARCHIVOS_MS,
     });
     return data;
   },
