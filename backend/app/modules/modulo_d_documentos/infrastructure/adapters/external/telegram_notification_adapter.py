@@ -19,7 +19,7 @@ class TelegramNotificationAdapter(NotificacionSenderPort):
             return False
 
         url = self.API_URL.format(token=self.token)
-        texto = f"*{titulo}*\n\n{mensaje}"
+        texto = mensaje
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
