@@ -251,7 +251,6 @@ class SolicitudIngreso(EntidadConBorradoLogico):
                     nuevo_codigo=l.get("nuevo_codigo"),
                     nuevo_nombre=l.get("nuevo_nombre"),
                     nuevo_categoria_id=l.get("nuevo_categoria_id"),
-                    margen_ganancia=l.get("margen_ganancia"),
                 )
                 for l in lineas_payload
             ]
@@ -288,8 +287,6 @@ class DetalleSolicitud:
     nuevo_codigo: str | None = None
     nuevo_nombre: str | None = None
     nuevo_categoria_id: int | None = None
-    #: % de ganancia para el precio de venta. None = usar el de configuración.
-    margen_ganancia: Decimal | None = None
 
     @property
     def es_producto_nuevo(self) -> bool:
@@ -309,7 +306,6 @@ class DetalleSolicitud:
         nuevo_codigo: str | None = None,
         nuevo_nombre: str | None = None,
         nuevo_categoria_id: int | None = None,
-        margen_ganancia: Decimal | None = None,
     ) -> "DetalleSolicitud":
         return cls(
             id=None,
@@ -320,7 +316,6 @@ class DetalleSolicitud:
             nuevo_codigo=nuevo_codigo,
             nuevo_nombre=nuevo_nombre,
             nuevo_categoria_id=nuevo_categoria_id,
-            margen_ganancia=margen_ganancia,
         )
 
 

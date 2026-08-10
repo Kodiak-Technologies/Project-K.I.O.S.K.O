@@ -128,9 +128,6 @@ CREATE TABLE configuracion_negocio (
     session_ttl_cajero_minutos INTEGER      NOT NULL DEFAULT 720,
     max_intentos_login         INTEGER      NOT NULL DEFAULT 3,
     minutos_bloqueo            INTEGER      NOT NULL DEFAULT 15,
-    -- % de ganancia por defecto para calcular el precio de venta de un producto
-    -- nuevo dado de alta desde un ingreso. Editable por línea al aprobar.
-    margen_ganancia_default    NUMERIC(5,2) NOT NULL DEFAULT 20,
     updated_by                 BIGINT REFERENCES usuarios (id) ON DELETE RESTRICT,
     updated_at                 TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
@@ -267,9 +264,6 @@ CREATE TABLE detalle_solicitud (
     nuevo_codigo           VARCHAR(60),
     nuevo_nombre           VARCHAR(150),
     nuevo_categoria_id     INTEGER REFERENCES categorias (id) ON DELETE RESTRICT,
-    -- % de ganancia con el que se calcula el precio de venta. NULL = usar
-    -- `configuracion_negocio.margen_ganancia_default`.
-    margen_ganancia        NUMERIC(5,2),
     created_at             TIMESTAMPTZ   NOT NULL DEFAULT now(),
     CONSTRAINT chk_detsol_cantidad_positiva  CHECK (cantidad > 0),
     CONSTRAINT chk_detsol_precio_no_negativo CHECK (precio_compra_total >= 0),
@@ -278,9 +272,6 @@ CREATE TABLE detalle_solicitud (
         producto_id IS NOT NULL
         OR (nuevo_codigo IS NOT NULL AND length(trim(nuevo_codigo)) > 0
             AND nuevo_nombre IS NOT NULL AND length(trim(nuevo_nombre)) > 0)
-    ),
-    CONSTRAINT chk_detsol_margen_no_negativo CHECK (
-        margen_ganancia IS NULL OR margen_ganancia >= 0
     )
 );
 CREATE INDEX idx_detsol_solicitud ON detalle_solicitud (solicitud_id);

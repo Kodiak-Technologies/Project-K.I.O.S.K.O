@@ -30,7 +30,6 @@ def _a_entidad(
         nuevo_codigo=fila.nuevo_codigo,
         nuevo_nombre=fila.nuevo_nombre,
         nuevo_categoria_id=fila.nuevo_categoria_id,
-        margen_ganancia=fila.margen_ganancia,
     )
 
 
@@ -50,7 +49,6 @@ class SqlAlchemyDetalleSolicitudRepository(DetalleSolicitudRepositoryPort):
                 nuevo_codigo=d.nuevo_codigo,
                 nuevo_nombre=d.nuevo_nombre,
                 nuevo_categoria_id=d.nuevo_categoria_id,
-                margen_ganancia=d.margen_ganancia,
             )
             for d in detalles
         ]
