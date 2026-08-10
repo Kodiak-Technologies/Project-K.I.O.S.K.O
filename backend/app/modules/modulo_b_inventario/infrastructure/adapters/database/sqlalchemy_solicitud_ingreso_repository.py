@@ -94,7 +94,6 @@ class SqlAlchemySolicitudIngresoRepository(SolicitudIngresoRepositoryPort):
                     nuevo_codigo=linea.nuevo_codigo,
                     nuevo_nombre=linea.nuevo_nombre,
                     nuevo_categoria_id=linea.nuevo_categoria_id,
-                    margen_ganancia=linea.margen_ganancia,
                 )
             )
         return por_solicitud

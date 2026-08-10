@@ -217,10 +217,6 @@ class DetalleSolicitudModel(Base):
             "     AND nuevo_nombre IS NOT NULL AND length(trim(nuevo_nombre)) > 0)",
             name="chk_detsol_producto_o_nuevo",
         ),
-        CheckConstraint(
-            "margen_ganancia IS NULL OR margen_ganancia >= 0",
-            name="chk_detsol_margen_no_negativo",
-        ),
         Index("idx_detsol_solicitud", "solicitud_id"),
         Index(
             "idx_detsol_producto",
@@ -245,7 +241,6 @@ class DetalleSolicitudModel(Base):
     nuevo_categoria_id: Mapped[int | None] = mapped_column(
         ForeignKey("categorias.id", ondelete="RESTRICT"), nullable=True
     )
-    margen_ganancia: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

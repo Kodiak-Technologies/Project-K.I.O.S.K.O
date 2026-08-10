@@ -3,7 +3,8 @@
 Es el caso de uso más delicado del módulo porque toca tres cosas a la vez y
 todas tienen que quedar consistentes:
   1. sube el stock de cada producto y deja su asiento;
-  2. el precio de compra de la boleta pasa a ser el precio vigente del producto;
+  2. el precio de COMPRA de la boleta pasa a ser el precio de compra vigente
+     del producto (el de VENTA no se toca nunca);
   3. opcionalmente carga la compra a la deuda del proveedor.
 
 Y no puede aprobarse dos veces: eso duplicaría el stock ingresado.
@@ -29,7 +30,6 @@ from app.shared.kernel.exceptions import (
 
 from .dobles import (
     AuditoriaFake,
-    ConfiguracionRepoFake,
     DetalleRepoFake,
     MovimientoRepoFake,
     ProductoRepoFake,
@@ -98,14 +98,12 @@ class Escenario:
         self.movimientos = MovimientoRepoFake()
         self.auditoria = AuditoriaFake()
         self.credito = CompraCreditoFake()
-        self.configuracion = ConfiguracionRepoFake()
         self.caso = AprobarIngresoUseCase(
             self.solicitudes,
             self.detalles,
             self.productos,
             self.movimientos,
             self.auditoria,
-            self.configuracion,
             self.credito,
         )
 
@@ -185,6 +183,36 @@ class TestAprobacionExitosa:
         # El catálogo guarda el UNITARIO derivado del total: 27.50 / 10.
         assert p.precio_compra_actual == Decimal("2.75")
 
+    async def test_no_toca_el_precio_de_venta_del_producto(self):
+        """La regresión que motivó quitar el margen.
+
+        Aprobar un ingreso recalculaba el precio de venta a partir del costo y
+        un margen, así que cada compra le movía el precio al catálogo —y al
+        punto de venta— por la espalda. El precio de venta es del catálogo.
+        """
+        p = producto(id=1, stock=0, precio=Decimal("9.90"))
+        e = Escenario(
+            lineas=[linea(producto_id=1, cantidad=7, total="20.00")], productos=[p]
+        )
+        await e.aprobar()
+        assert p.precio == Decimal("9.90")
+
+    async def test_no_le_pone_precio_cero_a_un_producto_que_ya_existe(self):
+        """El 0 es solo para el producto que nace en esta aprobación."""
+        p = producto(id=1, stock=0, precio=Decimal("15.00"))
+        e = Escenario(lineas=[linea(producto_id=1)], productos=[p])
+        await e.aprobar()
+        assert p.precio == Decimal("15.00")
+
+    async def test_no_deja_historial_de_precio_de_venta(self):
+        """Ni siquiera un asiento: el precio de venta no participa del ingreso."""
+        p = producto(id=1, stock=0, precio=Decimal("9.90"))
+        e = Escenario(
+            lineas=[linea(producto_id=1, cantidad=7, total="20.00")], productos=[p]
+        )
+        await e.aprobar()
+        assert [h.tipo_precio.valor for h in e.productos.historial] == ["compra"]
+
     async def test_queda_registrado_en_bitacora(self):
         e = Escenario()
         await e.aprobar()
@@ -248,19 +276,24 @@ class TestAltaDeProductoNuevo:
         assert creado.codigo == "7501234567890"
         assert creado.nombre == "Esponja verde"
 
-    async def test_el_precio_de_venta_sale_del_margen_del_negocio(self):
-        """7 esponjas por S/ 20 con 20%: 2.857… × 1.20 = 3.428… → S/ 3.50."""
+    async def test_nace_sin_precio_de_venta(self):
+        """El ingreso no decide a cuánto se vende.
+
+        Antes el precio salía de un margen sobre el costo (20% por defecto), y
+        eso hacía que una compra fijara el precio del catálogo —y del punto de
+        venta— sin que nadie lo decidiera. Ahora nace en 0 y se le pone precio
+        desde el catálogo.
+        """
         e = Escenario(lineas=[linea_nueva(cantidad=7, total="20.00")], productos=[])
         await e.aprobar()
-        assert e.productos.productos[0].precio == Decimal("3.50")
+        assert e.productos.productos[0].precio == Decimal("0")
 
-    async def test_el_margen_de_la_linea_le_gana_al_del_negocio(self):
-        e = Escenario(
-            lineas=[linea_nueva(cantidad=10, total="100.00", margen_ganancia=Decimal("50"))],
-            productos=[],
-        )
-        await e.aprobar()
-        assert e.productos.productos[0].precio == Decimal("15.00")
+    async def test_el_precio_de_venta_no_depende_del_costo(self):
+        """Costos muy distintos dan el mismo precio de venta: cero."""
+        for total in ("1.00", "999.99"):
+            e = Escenario(lineas=[linea_nueva(cantidad=3, total=total)], productos=[])
+            await e.aprobar()
+            assert e.productos.productos[0].precio == Decimal("0")
 
     async def test_el_costo_del_catalogo_es_el_unitario_derivado(self):
         e = Escenario(lineas=[linea_nueva(cantidad=7, total="20.00")], productos=[])

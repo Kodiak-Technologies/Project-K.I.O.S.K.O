@@ -5,8 +5,6 @@ import { Plus, Trash2 } from "lucide-react";
 import { Alert, Button, Input } from "../../../shared/components/ui";
 import { SelectorProducto } from "./SelectorProducto";
 import { SelectorCategoria } from "./SelectorCategoria";
-import { precioVentaSugerido } from "../lib/precios";
-import { useMargenDefault } from "../hooks/useMargenDefault";
 import type {
   DetalleSolicitud,
   SolicitudIngreso,
@@ -40,7 +38,6 @@ interface LineaLocal {
   nuevo_categoria_id: number | null;
   cantidad: number;
   precio_compra_total: number;
-  margen_ganancia: number | null;
 }
 
 const LINEA_VACIA: LineaLocal = {
@@ -51,7 +48,6 @@ const LINEA_VACIA: LineaLocal = {
   nuevo_categoria_id: null,
   cantidad: 1,
   precio_compra_total: 0,
-  margen_ganancia: null,
 };
 
 /** Costo por unidad, solo para mostrar. La fuente de verdad es el total. */
@@ -68,7 +64,6 @@ function aLineaLocal(l: DetalleSolicitud): LineaLocal {
     nuevo_categoria_id: l.nuevo_categoria_id,
     cantidad: l.cantidad,
     precio_compra_total: l.precio_compra_total,
-    margen_ganancia: l.margen_ganancia,
   };
 }
 
@@ -81,7 +76,6 @@ export function FormularioIngresoEditable({
 }: Props) {
   const [motivo, setMotivo] = useState(inicial.motivo ?? "");
   const [lineas, setLineas] = useState<LineaLocal[]>(inicial.lineas.map(aLineaLocal));
-  const margenDefault = useMargenDefault();
 
   // Resync si cambia la solicitud inicial (p. ej. tras recargar)
   useEffect(() => {
@@ -140,7 +134,6 @@ export function FormularioIngresoEditable({
         nuevo_codigo: l.esNuevo ? l.nuevo_codigo.trim() : null,
         nuevo_nombre: l.esNuevo ? l.nuevo_nombre.trim() : null,
         nuevo_categoria_id: l.esNuevo ? l.nuevo_categoria_id : null,
-        margen_ganancia: l.esNuevo ? l.margen_ganancia : null,
       })),
     };
     await onSubmit(body);
@@ -258,43 +251,12 @@ export function FormularioIngresoEditable({
                         })
                       }
                     />
+                    {/* El ingreso no fija el precio de venta: el producto se
+                        crea en S/ 0 y el precio se pone desde el catálogo. */}
                     {l.esNuevo && (
-                      <>
-                        <div className="mt-1.5 flex items-center justify-end gap-1 text-xs text-zinc-500">
-                          <span>Margen</span>
-                          <input
-                            type="number"
-                            min={0}
-                            step={1}
-                            placeholder={String(margenDefault)}
-                            className="w-14 rounded border border-zinc-200 px-1 py-0.5 text-right tabular-nums"
-                            value={l.margen_ganancia ?? ""}
-                            onChange={(e) =>
-                              actualizarLinea(i, {
-                                margen_ganancia:
-                                  e.target.value === ""
-                                    ? null
-                                    : Math.max(0, Number(e.target.value) || 0),
-                              })
-                            }
-                          />
-                          <span>%</span>
-                        </div>
-                        {/* Con qué precio queda el producto en el catálogo.
-                            Es la decisión que se está tomando al aprobar. */}
-                        {l.precio_compra_total > 0 && l.cantidad > 0 && (
-                          <div className="mt-1 text-right text-xs text-emerald-800">
-                            Venta: S/{" "}
-                            <strong className="tabular-nums">
-                              {precioVentaSugerido(
-                                l.precio_compra_total,
-                                l.cantidad,
-                                l.margen_ganancia ?? margenDefault,
-                              ).toFixed(2)}
-                            </strong>
-                          </div>
-                        )}
-                      </>
+                      <div className="mt-1 text-right text-xs text-zinc-500">
+                        Se crea sin precio de venta
+                      </div>
                     )}
                   </td>
                   {/* Derivado: se muestra para control, no se edita. */}

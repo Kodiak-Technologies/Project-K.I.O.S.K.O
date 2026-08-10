@@ -1,7 +1,6 @@
 # Entidades de dominio del módulo de seguridad. Python puro: sin FastAPI ni SQLAlchemy.
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Any
 
 
@@ -100,8 +99,6 @@ class ConfiguracionNegocio:
     session_ttl_cajero_minutos: int = 720  # 12 horas
     max_intentos_login: int = 3
     minutos_bloqueo: int = 15
-    #: % de ganancia por defecto al crear un producto desde un ingreso.
-    margen_ganancia_default: Decimal = Decimal("20")
     updated_by: int | None = None
     updated_at: datetime | None = None
 

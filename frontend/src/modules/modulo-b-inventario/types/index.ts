@@ -187,8 +187,6 @@ export interface DetalleSolicitud {
   nuevo_codigo: string | null;
   nuevo_nombre: string | null;
   nuevo_categoria_id: number | null;
-  /** % de ganancia de la línea. null = usar el del negocio. */
-  margen_ganancia: number | null;
 }
 
 /** Body para `POST /ingresos`. Mínimo 1 línea; la foto de la boleta es opcional. */
@@ -212,7 +210,6 @@ export interface DetalleSolicitudCreate {
   nuevo_codigo?: string | null;
   nuevo_nombre?: string | null;
   nuevo_categoria_id?: number | null;
-  margen_ganancia?: number | null;
 }
 
 /** `GET /ingresos` (cada item) y `GET /ingresos/{id}`. */
@@ -251,7 +248,6 @@ export interface LineaIngresoUpdate {
   nuevo_codigo?: string | null;
   nuevo_nombre?: string | null;
   nuevo_categoria_id?: number | null;
-  margen_ganancia?: number | null;
 }
 
 /** Body de `POST /productos/{id}/ajustar-stock` (solo ADMIN). */

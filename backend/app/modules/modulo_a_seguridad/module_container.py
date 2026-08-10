@@ -66,7 +66,7 @@ def auditoria_usecase(db: AsyncSession) -> RegistrarAuditoriaUseCase:
 
 
 def configuracion_repository(db: AsyncSession) -> SqlAlchemyConfiguracionRepository:
-    """Expuesto para otros módulos: el Módulo B lee de acá el margen por defecto."""
+    """Expuesto para otros módulos que necesiten leer la configuración del negocio."""
     return SqlAlchemyConfiguracionRepository(db)
 
 

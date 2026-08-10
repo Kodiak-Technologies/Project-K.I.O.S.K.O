@@ -361,7 +361,6 @@ class DetalleCreate(BaseModel):
     nuevo_codigo: str | None = Field(default=None, max_length=60)
     nuevo_nombre: str | None = Field(default=None, max_length=150)
     nuevo_categoria_id: int | None = Field(default=None, gt=0)
-    margen_ganancia: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def _producto_o_nuevo(self) -> "DetalleCreate":
@@ -404,7 +403,6 @@ class DetalleResponse(BaseModel):
     nuevo_codigo: str | None = None
     nuevo_nombre: str | None = None
     nuevo_categoria_id: int | None = None
-    margen_ganancia: float | None = None
 
     @classmethod
     def desde_entidad(cls, d: DetalleSolicitud) -> "DetalleResponse":
@@ -422,9 +420,6 @@ class DetalleResponse(BaseModel):
             nuevo_codigo=d.nuevo_codigo,
             nuevo_nombre=d.nuevo_nombre,
             nuevo_categoria_id=d.nuevo_categoria_id,
-            margen_ganancia=(
-                float(d.margen_ganancia) if d.margen_ganancia is not None else None
-            ),
         )
 
 
@@ -529,8 +524,8 @@ class LineaIngresoUpdateItem(BaseModel):
     """Línea dentro del PATCH /ingresos: cantidad>0, total>=0, y producto del
     catálogo o datos del producto a crear (mismas reglas que `DetalleCreate`).
 
-    Acá la admin puede además pisar el margen de la línea antes de aprobar,
-    que es lo que fija el precio de venta del producto nuevo.
+    El ingreso no fija precios de venta: el producto que se cree al aprobar
+    nace en S/ 0 y el precio se pone después desde el catálogo.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -541,7 +536,6 @@ class LineaIngresoUpdateItem(BaseModel):
     nuevo_codigo: str | None = Field(default=None, max_length=60)
     nuevo_nombre: str | None = Field(default=None, max_length=150)
     nuevo_categoria_id: int | None = Field(default=None, gt=0)
-    margen_ganancia: Decimal | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def _producto_o_nuevo(self) -> "LineaIngresoUpdateItem":

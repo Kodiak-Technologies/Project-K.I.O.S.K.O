@@ -14,8 +14,6 @@ import { Trash2 } from "lucide-react";
 import { Input } from "../../../shared/components/ui";
 import { SelectorProducto } from "./SelectorProducto";
 import { SelectorCategoria } from "./SelectorCategoria";
-import { precioVentaSugerido } from "../lib/precios";
-import { useMargenDefault } from "../hooks/useMargenDefault";
 
 export interface LineaIngreso {
   /** true = producto a crear; false = producto del catálogo. */
@@ -29,8 +27,6 @@ export interface LineaIngreso {
   cantidad: number;
   /** Monto de la línea tal cual la boleta. */
   precio_compra_total: number;
-  /** % de ganancia. `null` = usar el del negocio. */
-  margen_ganancia: number | null;
 }
 
 export const LINEA_INGRESO_VACIA: LineaIngreso = {
@@ -41,7 +37,6 @@ export const LINEA_INGRESO_VACIA: LineaIngreso = {
   nuevo_categoria_id: null,
   cantidad: 1,
   precio_compra_total: 0,
-  margen_ganancia: null,
 };
 
 interface Props {
@@ -67,16 +62,8 @@ export function FormularioLineaIngreso({
   onChange,
   onEliminar,
 }: Props) {
-  const margenDefault = useMargenDefault();
   const costoUnitario =
     linea.cantidad > 0 ? linea.precio_compra_total / linea.cantidad : 0;
-  // El margen de la línea pisa al del negocio; si está vacío, manda el global.
-  const margenAplicado = linea.margen_ganancia ?? margenDefault;
-  const precioVenta = precioVentaSugerido(
-    linea.precio_compra_total,
-    linea.cantidad,
-    margenAplicado,
-  );
 
   function alternarModo() {
     // Limpiar ambos lados al cambiar: dejar residuos del modo anterior
@@ -88,7 +75,6 @@ export function FormularioLineaIngreso({
       nuevo_codigo: "",
       nuevo_nombre: "",
       nuevo_categoria_id: null,
-      margen_ganancia: null,
     });
   }
 
@@ -185,36 +171,14 @@ export function FormularioLineaIngreso({
               {costoUnitario.toFixed(2)} por unidad
             </p>
           )}
+          {/* El ingreso no decide a cuánto se vende: el producto se da de
+              alta sin precio y se le pone desde el catálogo. Decirlo acá evita
+              que el cajero espere verlo aparecer en el punto de venta. */}
           {linea.esNuevo && (
-            <>
-              <Input
-                label="Margen (%)"
-                type="number"
-                min={0}
-                step="1"
-                placeholder={`${margenDefault} (del negocio)`}
-                value={linea.margen_ganancia ?? ""}
-                onChange={(e) =>
-                  onChange({
-                    ...linea,
-                    margen_ganancia:
-                      e.target.value === "" ? null : Number(e.target.value),
-                  })
-                }
-              />
-              {/* Lo que el cajero necesita ver antes de enviar: con qué precio
-                  va a quedar el producto en el catálogo. */}
-              {linea.precio_compra_total > 0 && linea.cantidad > 0 && (
-                <div className="rounded-md bg-emerald-50 px-2 py-1.5 text-xs text-emerald-900">
-                  Se venderá a{" "}
-                  <strong className="tabular-nums">S/ {precioVenta.toFixed(2)}</strong>{" "}
-                  c/u
-                  <span className="block text-emerald-700">
-                    costo S/ {costoUnitario.toFixed(2)} + {margenAplicado}%
-                  </span>
-                </div>
-              )}
-            </>
+            <div className="rounded-md bg-zinc-100 px-2 py-1.5 text-xs text-zinc-600">
+              Se crea <strong>sin precio de venta</strong> (S/ 0.00). Se asigna
+              después desde Catálogo.
+            </div>
           )}
         </div>
       </div>
