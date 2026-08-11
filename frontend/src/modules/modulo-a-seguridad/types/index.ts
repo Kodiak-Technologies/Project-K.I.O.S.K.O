@@ -74,6 +74,5 @@ export interface Configuracion {
   max_intentos_login: number;
   minutos_bloqueo: number;
   /** % de ganancia por defecto al crear un producto desde un ingreso. */
-  margen_ganancia_default: number;
   updated_at: string | null;
 }

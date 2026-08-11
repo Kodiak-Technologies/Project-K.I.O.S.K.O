@@ -8,7 +8,6 @@ que el stock nunca queda negativo.
 from __future__ import annotations
 
 from decimal import Decimal
-from types import SimpleNamespace
 
 from app.modules.modulo_b_inventario.domain.entities import (
     Producto,
@@ -47,6 +46,9 @@ class ProductoRepoFake:
     def __init__(self, productos: list[Producto] | None = None):
         self.productos = list(productos or [])
         self.alertas_marcadas: list[int] = []
+        #: Todas las filas de historial generadas, en orden. Sirve para afirmar
+        #: qué precios se tocaron de verdad (y cuáles no).
+        self.historial: list = []
         self.eliminados: list[int] = []
         self._correlativo = 0
 
@@ -149,6 +151,7 @@ class ProductoRepoFake:
                 )
             )
             p.precio_compra_actual = Decimal(str(precio_compra_actual))
+        self.historial.extend(filas)
         return p, filas
 
     async def actualizar_general(self, producto_id: int, cambios: dict, *args, **kwargs) -> Producto:
@@ -257,16 +260,6 @@ class DetalleRepoFake:
             for d in lineas:
                 if d.id == detalle_id:
                     d.producto_id = producto_id
-
-
-class ConfiguracionRepoFake:
-    """Solo la parte de configuración que le importa al Módulo B."""
-
-    def __init__(self, margen_ganancia_default=Decimal("20")):
-        self.margen_ganancia_default = margen_ganancia_default
-
-    async def obtener(self):
-        return SimpleNamespace(margen_ganancia_default=self.margen_ganancia_default)
 
 
 class ProveedorRepoFake:

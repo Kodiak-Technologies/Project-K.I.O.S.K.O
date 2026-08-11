@@ -11,19 +11,13 @@ from decimal import Decimal
 from app.modules.modulo_a_seguridad.application.registrar_auditoria_usecase import (
     RegistrarAuditoriaUseCase,
 )
-from app.modules.modulo_a_seguridad.domain.ports.configuracion_repository_port import (
-    ConfiguracionRepositoryPort,
-)
 from app.modules.modulo_b_inventario.domain.entities import (
     DetalleSolicitud,
     MovimientoInventario,
     Producto,
     SolicitudIngreso,
 )
-from app.modules.modulo_b_inventario.domain.precios import (
-    costo_unitario,
-    precio_venta_sugerido,
-)
+from app.modules.modulo_b_inventario.domain.precios import costo_unitario
 from app.modules.modulo_b_inventario.domain.ports.detalle_solicitud_repository_port import (
     DetalleSolicitudRepositoryPort,
 )
@@ -62,7 +56,6 @@ class AprobarIngresoUseCase:
         producto_repo: ProductoRepositoryPort,
         movimiento_repo: MovimientoInventarioRepositoryPort,
         auditoria: RegistrarAuditoriaUseCase,
-        configuracion_repo: ConfiguracionRepositoryPort,
         compra_credito_usecase=None,
     ):
         self._solicitudes = solicitud_repo
@@ -70,8 +63,6 @@ class AprobarIngresoUseCase:
         self._productos = producto_repo
         self._movimientos = movimiento_repo
         self._auditoria = auditoria
-        # De acá sale el % de ganancia por defecto para los productos nuevos.
-        self._configuracion = configuracion_repo
         # Opcional (los tests unitarios no lo inyectan): permite cargar la
         # compra a crédito del proveedor en la MISMA transacción (HU-B14).
         self._compra_credito = compra_credito_usecase
@@ -79,16 +70,18 @@ class AprobarIngresoUseCase:
     async def _crear_producto_de_linea(
         self,
         d: DetalleSolicitud,
-        margen_default: Decimal,
         usuario_id: int,
         usuario_nombre: str,
     ) -> DetalleSolicitud:
         """Da de alta el producto que propuso el cajero y ata la línea a él.
 
-        El precio de venta sale del margen (el de la línea si la admin lo pisó,
-        si no el del negocio) aplicado sobre el costo unitario derivado del
-        total de la boleta. Nace con stock 0: el stock lo suma el movimiento de
-        ingreso, igual que para cualquier otro producto.
+        Nace SIN precio de venta (0): el ingreso no decide a cuánto se vende.
+        Antes se calculaba con un margen sobre el costo, y eso hacía que una
+        compra terminara fijando el precio de catálogo (y el del punto de
+        venta). El precio se pone después desde el catálogo, a mano.
+
+        Nace con stock 0: el stock lo suma el movimiento de ingreso, igual que
+        para cualquier otro producto.
         """
         codigo = (d.nuevo_codigo or "").strip()
         # El código pudo haberse dado de alta entre el registro y la aprobación.
@@ -99,14 +92,13 @@ class AprobarIngresoUseCase:
                 "Edita la solicitud para apuntar la línea a ese producto."
             )
 
-        margen = d.margen_ganancia if d.margen_ganancia is not None else margen_default
         creado = await self._productos.crear(
             Producto(
                 id=None,
                 codigo=codigo,
                 nombre=(d.nuevo_nombre or "").strip(),
                 categoria_id=d.nuevo_categoria_id,
-                precio=precio_venta_sugerido(d.precio_compra_total, d.cantidad, margen),
+                precio=Decimal("0"),
                 precio_compra_actual=costo_unitario(d.precio_compra_total, d.cantidad),
                 stock=0,
                 creado_por=usuario_id,
@@ -141,7 +133,6 @@ class AprobarIngresoUseCase:
         productos_creados = 0
         unidades_agregadas = 0
         monto_total = Decimal("0")
-        margen_default = (await self._configuracion.obtener()).margen_ganancia_default
         for d in detalles:
             # 2.a) Alta del producto propuesto por el cajero. Se hace ACÁ y no
             # al registrar la solicitud a propósito: crear productos exige
@@ -149,9 +140,7 @@ class AprobarIngresoUseCase:
             # sí, así que el catálogo sigue bajo control sin que el cajero
             # dependa de nadie para transcribir la boleta.
             if d.es_producto_nuevo:
-                d = await self._crear_producto_de_linea(
-                    d, margen_default, usuario_id, usuario_nombre
-                )
+                d = await self._crear_producto_de_linea(d, usuario_id, usuario_nombre)
                 productos_creados += 1
 
             ok, _stock_actual = await self._productos.incrementar_stock_atomic(
@@ -172,10 +161,14 @@ class AprobarIngresoUseCase:
                     usuario_nombre=usuario_nombre,
                 )
             )
-            # HU-B05/HU-B11: el precio de compra de la boleta pasa a ser el
+            # HU-B05/HU-B11: el precio de COMPRA de la boleta pasa a ser el
             # precio de compra vigente del producto y queda en el historial
             # (antes se guardaba en el detalle y nunca llegaba al catálogo).
             # El unitario se deriva del total de línea; el total es el dato real.
+            #
+            # El primer argumento va en None a propósito: aprobar un ingreso
+            # NUNCA toca el precio de venta de un producto que ya existe. Ese
+            # precio lo fija el catálogo y es el que ve el punto de venta.
             await self._productos.actualizar_precio(
                 d.producto_id,
                 None,

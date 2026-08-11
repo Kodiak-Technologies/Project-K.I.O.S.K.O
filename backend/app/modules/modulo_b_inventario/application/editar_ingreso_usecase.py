@@ -70,7 +70,7 @@ class EditarIngresoUseCase:
     ) -> Any:  # returns SolicitudIngreso
         """lineas: list of dicts con {cantidad, precio_compra_total} y, o bien
         `producto_id`, o bien `nuevo_codigo`/`nuevo_nombre` para un producto a
-        crear al aprobar. `margen_ganancia` es opcional. None = no tocar."""
+        crear al aprobar. None = no tocar."""
 
         # 1. EMPTY_PATCH check (FR-3.3.2)
         if all(
@@ -112,7 +112,6 @@ class EditarIngresoUseCase:
                         "nuevo_codigo": codigo or None,
                         "nuevo_nombre": nombre or None,
                         "nuevo_categoria_id": l.get("nuevo_categoria_id"),
-                        "margen_ganancia": l.get("margen_ganancia"),
                     }
                 )
 

@@ -131,9 +131,9 @@ class RegistrarVentaUseCase:
                 continue  # ya se avisó y todavía no se repuso
             await self._notificador.avisar(
                 TipoNotificacion.STOCK_BAJO,
-                f"Stock bajo: {producto.nombre}",
-                f"Quedan {restante} unidades (mínimo {producto.stock_minimo}). "
-                "Conviene reponer.",
+                f"Stock bajo:\n{producto.nombre}\nquedan {restante} unidades",
+                f"Stock bajo:\n{producto.nombre}\nquedan {restante} unidades "
+                f"(mínimo {producto.stock_minimo}). Conviene reponer.",
                 entidad_origen="productos",
                 entidad_id=producto.id,
                 producto_id=producto.id,

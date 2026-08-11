@@ -50,11 +50,6 @@ async def crear(
             nuevo_codigo=l.nuevo_codigo,
             nuevo_nombre=l.nuevo_nombre,
             nuevo_categoria_id=l.nuevo_categoria_id,
-            margen_ganancia=(
-                Decimal(str(l.margen_ganancia))
-                if l.margen_ganancia is not None
-                else None
-            ),
         )
         for l in datos.lineas
     ]
@@ -239,11 +234,6 @@ async def editar(
                     "nuevo_codigo": l.nuevo_codigo,
                     "nuevo_nombre": l.nuevo_nombre,
                     "nuevo_categoria_id": l.nuevo_categoria_id,
-                    "margen_ganancia": (
-                        _Dec(str(l.margen_ganancia))
-                        if l.margen_ganancia is not None
-                        else None
-                    ),
                 }
                 for l in body.lineas
             ]

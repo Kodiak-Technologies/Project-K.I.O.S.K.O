@@ -51,7 +51,6 @@ class LineaSolicitudDTO:
     nuevo_codigo: str | None = None
     nuevo_nombre: str | None = None
     nuevo_categoria_id: int | None = None
-    margen_ganancia: Decimal | None = None
 
     @property
     def es_producto_nuevo(self) -> bool:
@@ -101,11 +100,6 @@ class RegistrarIngresoUseCase:
                 raise ValidacionError(
                     f"La línea {idx} tiene un total inválido (debe ser >= 0)."
                 )
-            if l.margen_ganancia is not None and l.margen_ganancia < 0:
-                raise ValidacionError(
-                    f"La línea {idx} tiene un margen inválido (debe ser >= 0)."
-                )
-
             if not l.es_producto_nuevo:
                 p = await self._productos.buscar_por_id(l.producto_id)
                 if p is None or p.deleted_at is not None:
@@ -160,7 +154,6 @@ class RegistrarIngresoUseCase:
                 nuevo_codigo=(l.nuevo_codigo or "").strip() or None,
                 nuevo_nombre=(l.nuevo_nombre or "").strip() or None,
                 nuevo_categoria_id=l.nuevo_categoria_id,
-                margen_ganancia=l.margen_ganancia,
             )
             for l in lineas
         ]

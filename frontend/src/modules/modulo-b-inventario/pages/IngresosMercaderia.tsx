@@ -234,7 +234,6 @@ export default function IngresosMercaderia() {
           nuevo_codigo: l.esNuevo ? l.nuevo_codigo.trim() : null,
           nuevo_nombre: l.esNuevo ? l.nuevo_nombre.trim() : null,
           nuevo_categoria_id: l.esNuevo ? l.nuevo_categoria_id : null,
-          margen_ganancia: l.esNuevo ? l.margen_ganancia : null,
         })),
       });
       setMensaje("Ingreso registrado. Queda pendiente de la aprobación del administrador.");
