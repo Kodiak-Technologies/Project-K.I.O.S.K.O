@@ -48,9 +48,37 @@ export default function Configuracion() {
   const [subiendoLogo, setSubiendoLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  const fetchDriveStatus = async () => {
+    if (!isAdmin) return;
+    try {
+      setLoadingDrive(true);
+      const { data } = await httpClient.get<DriveStatus>("/drive/status");
+      setDriveStatus(data);
+    } catch (error) {
+      console.error("Error al obtener estado de Google Drive:", error);
+    } finally {
+      setLoadingDrive(false);
+    }
+  };
+
   useEffect(() => {
     configuracionHttpAdapter.obtener().then(setConfig).catch((e) => setError(mensajeDeError(e)));
-  }, []);
+    fetchDriveStatus();
+    const interval = setInterval(fetchDriveStatus, 30000);
+    return () => clearInterval(interval);
+  }, [isAdmin]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const driveParam = params.get("drive");
+    if (driveParam === "ok" || driveParam === "error") {
+      setTimeout(fetchDriveStatus, 500);
+      params.delete("drive");
+      params.delete("mensaje");
+      const newSearch = params.toString();
+      navigate({ pathname: location.pathname, search: newSearch ? `?${newSearch}` : "" }, { replace: true });
+    }
+  }, [location.search]);
 
   function actualizarCampo<K extends keyof ConfiguracionDto>(campo: K, valor: ConfiguracionDto[K]) {
     if (config) setConfig({ ...config, [campo]: valor });

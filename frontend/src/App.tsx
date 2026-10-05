@@ -79,9 +79,18 @@ function Inicio() {
 
   useEffect(() => {
     fetchDriveStatus();
+    const interval = setInterval(fetchDriveStatus, 30000);
+    return () => clearInterval(interval);
   }, [esAdmin]);
 
-  const driveNoConectado = esAdmin && driveStatus && !driveStatus.conectado;
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("drive") === "ok" || params.get("drive") === "error") {
+      setTimeout(fetchDriveStatus, 500);
+    }
+  }, [esAdmin]);
+
+  const driveNoConectado = esAdmin && driveStatus !== null && !driveStatus.conectado;
 
   return (
     <div>
