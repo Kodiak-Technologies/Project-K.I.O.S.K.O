@@ -54,13 +54,18 @@ async def drive_callback(
     adapter = GoogleDriveAdapter(token_repository=token_repository)
     token_entity = await adapter.intercambiar_code_por_tokens(code)
 
+    # Normalizar refresh_token
+    refresh_token_norm = (token_entity.refresh_token or "").strip()
+
     existente = await token_repository.obtener_por_proveedor("google_drive")
     if existente:
         existente.access_token = token_entity.access_token
-        existente.refresh_token = token_entity.refresh_token
+        if refresh_token_norm:
+            existente.refresh_token = refresh_token_norm
         existente.token_expiry = token_entity.token_expiry
         await token_repository.actualizar(existente)
     else:
+        token_entity.refresh_token = refresh_token_norm
         await token_repository.guardar(token_entity)
 
     return RedirectResponse(url=f"{settings.frontend_url}?drive=ok")
@@ -85,7 +90,7 @@ async def drive_status(
 
     tiene_refresh_token = bool(token.refresh_token and token.refresh_token.strip())
     expirado = token.esta_expirado
-    conectado = (not expirado) or tiene_refresh_token
+    conectado = tiene_refresh_token or (not expirado)
     puede_reconectar = tiene_refresh_token
 
     return {
