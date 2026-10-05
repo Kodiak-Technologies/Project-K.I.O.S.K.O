@@ -12,15 +12,35 @@ import {
   PageSpinner,
   Select,
 } from "../../../shared/components/ui";
-import { mensajeDeError, normalizarImagenUrl } from "../../../shared/lib/http-client";
+import { httpClient, mensajeDeError, normalizarImagenUrl } from "../../../shared/lib/http-client";
 import { useTema } from "../../../shared/lib/theme-context";
 import { configuracionHttpAdapter } from "../services/configuracion.http-adapter";
 import type { Configuracion as ConfiguracionDto } from "../types";
+import { AlertTriangle, ExternalLink } from "lucide-react";
+import { Badge } from "../../../shared/components/ui/badge";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuthStore } from "../../../store/authStore";
 
 const TIPOGRAFIAS = ["Inter", "Roboto", "Poppins", "Lato", "Montserrat", "system-ui"];
 
+interface DriveStatus {
+  autorizado: boolean;
+  conectado: boolean;
+  expirado: boolean;
+  tiene_refresh_token: boolean;
+  puede_reconectar: boolean;
+  token_expiry: string | null;
+  mensaje: string | null;
+}
+
 export default function Configuracion() {
   const { aplicarTema } = useTema();
+  const { user } = useAuthStore();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isAdmin = user?.rol === "ADMIN";
+  const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
+  const [loadingDrive, setLoadingDrive] = useState(false);
   const [config, setConfig] = useState<ConfiguracionDto | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +140,39 @@ export default function Configuracion() {
         <div className="mb-4">
           <Alert tono="peligro">{error}</Alert>
         </div>
+      )}
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Google Drive</CardTitle>
+            <CardDescription>
+              Integración para respaldos automáticos y subida de documentos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium">Estado</span>
+                {driveStatus?.conectado ? (
+                  <Badge variant="success">Conectado</Badge>
+                ) : (
+                  <Badge variant="destructive">No conectado</Badge>
+                )}
+              </div>
+              {!driveStatus?.conectado && (
+                <Button
+                  onClick={handleConectarDrive}
+                  disabled={loadingDrive}
+                  className="w-full sm:w-auto"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Conectar a Google Drive
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <form onSubmit={(e) => void manejarGuardar(e)} className="space-y-5">
