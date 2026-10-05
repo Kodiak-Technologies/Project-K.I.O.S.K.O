@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Database, Download, ExternalLink } from "lucide-react";
+import { Database, Download, ExternalLink } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -145,9 +145,7 @@ export default function Respaldos() {
       {driveAutorizado === false && (
         <div className="mb-4">
           <Alert tono="alerta">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-              <div>
+            <div>
                 <p className="font-medium">Google Drive no está autorizado</p>
                 <p className="mt-1 text-sm">
                   Los respaldos necesitan Google Drive para almacenarse. Autoriza la aplicación
