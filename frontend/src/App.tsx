@@ -11,8 +11,8 @@ import Login from "./modules/modulo-a-seguridad/pages/Login";
 import { Layout } from "./shared/components/Layout";
 import { ProtectedRoute } from "./shared/components/ProtectedRoute";
 import { Card, PageHeader } from "./shared/components/ui";
-import { Alert, AlertDescription } from "./shared/components/ui/alert";
-import { Button } from "./shared/components/ui/button";
+import { Alert } from "./shared/components/ui/Feedback";
+import { Button } from "./shared/components/ui/Button";
 import { AuthProvider } from "./shared/lib/auth-context";
 import { TemaProvider } from "./shared/lib/theme-context";
 import { EstiloProvider } from "./shared/lib/estilo-context";
@@ -86,12 +86,13 @@ function Inicio() {
   return (
     <div>
       {driveNoConectado && (
-        <Alert variant="warning" className="mb-6 border-amber-200 bg-amber-50">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>Google Drive no está conectado.</span>
+        <Alert tono="alerta">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
+            <span className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Google Drive no está conectado.
+            </span>
             <Button
-              size="sm"
               onClick={handleConectarDrive}
               disabled={loadingDrive}
               className="w-full sm:w-auto"
@@ -99,7 +100,7 @@ function Inicio() {
               <ExternalLink className="mr-2 h-4 w-4" />
               Conectar a Google Drive
             </Button>
-          </AlertDescription>
+          </div>
         </Alert>
       )}
       <PageHeader

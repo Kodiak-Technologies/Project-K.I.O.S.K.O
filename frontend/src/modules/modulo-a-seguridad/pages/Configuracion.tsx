@@ -17,9 +17,9 @@ import { useTema } from "../../../shared/lib/theme-context";
 import { configuracionHttpAdapter } from "../services/configuracion.http-adapter";
 import type { Configuracion as ConfiguracionDto } from "../types";
 import { AlertTriangle, ExternalLink } from "lucide-react";
-import { Badge } from "../../../shared/components/ui/badge";
+import { Badge } from "../../../shared/components/ui/Badge";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAuthStore } from "../../../store/authStore";
+import { useAuthContext } from "../../../shared/lib/auth-context";
 
 const TIPOGRAFIAS = ["Inter", "Roboto", "Poppins", "Lato", "Montserrat", "system-ui"];
 
@@ -35,10 +35,10 @@ interface DriveStatus {
 
 export default function Configuracion() {
   const { aplicarTema } = useTema();
-  const { user } = useAuthStore();
+  const { usuario } = useAuthContext();
   const location = useLocation();
   const navigate = useNavigate();
-  const isAdmin = user?.rol === "ADMIN";
+  const isAdmin = usuario?.rol === "ADMIN";
   const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
   const [loadingDrive, setLoadingDrive] = useState(false);
   const [config, setConfig] = useState<ConfiguracionDto | null>(null);
@@ -143,35 +143,39 @@ export default function Configuracion() {
       )}
 
       {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Google Drive</CardTitle>
-            <CardDescription>
-              Integración para respaldos automáticos y subida de documentos
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium">Estado</span>
-                {driveStatus?.conectado ? (
-                  <Badge variant="success">Conectado</Badge>
-                ) : (
-                  <Badge variant="destructive">No conectado</Badge>
-                )}
-              </div>
-              {!driveStatus?.conectado && (
-                <Button
-                  onClick={handleConectarDrive}
-                  disabled={loadingDrive}
-                  className="w-full sm:w-auto"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Conectar a Google Drive
-                </Button>
+        <Card
+          titulo="Google Drive"
+          descripcion="Integración para respaldos automáticos y subida de documentos"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium">Estado</span>
+              {driveStatus?.conectado ? (
+                <Badge tono="exito">Conectado</Badge>
+              ) : (
+                <Badge tono="peligro">No conectado</Badge>
               )}
             </div>
-          </CardContent>
+            {!driveStatus?.conectado && (
+              <Button
+                onClick={() => {
+                  (async () => {
+                    try {
+                      const { data } = await httpClient.get<{ auth_url: string }>("/drive/auth-url");
+                      window.open(data.auth_url, "_blank", "noopener,noreferrer");
+                    } catch (error) {
+                      console.error("Error al obtener URL de autorización de Google Drive:", error);
+                    }
+                  })();
+                }}
+                disabled={loadingDrive}
+                className="w-full sm:w-auto"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Conectar a Google Drive
+              </Button>
+            )}
+          </div>
         </Card>
       )}
 
