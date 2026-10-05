@@ -79,6 +79,9 @@ async def _ejecutar_tarea_respaldos() -> None:
     from app.modules.modulo_d_documentos.infrastructure.tasks.purgar_notificaciones import (
         purgar_notificaciones_antiguas,
     )
+    from app.modules.modulo_d_documentos.infrastructure.tasks.reintentar_subidas import (
+        reintentar_subidas_pendientes,
+    )
     while True:
         try:
             await respaldo_automatico_diario()
@@ -92,6 +95,10 @@ async def _ejecutar_tarea_respaldos() -> None:
             await purgar_notificaciones_antiguas()
         except Exception as e:
             logger.error("Error purgando notificaciones antiguas: %s", str(e))
+        try:
+            await reintentar_subidas_pendientes()
+        except Exception as e:
+            logger.error("Error reintentando subidas a Drive: %s", str(e))
         await asyncio.sleep(TAREA_RESPALDO_INTERVALO)
 
 

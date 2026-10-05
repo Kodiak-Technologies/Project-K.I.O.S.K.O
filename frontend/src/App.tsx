@@ -11,10 +11,15 @@ import Login from "./modules/modulo-a-seguridad/pages/Login";
 import { Layout } from "./shared/components/Layout";
 import { ProtectedRoute } from "./shared/components/ProtectedRoute";
 import { Card, PageHeader } from "./shared/components/ui";
+import { Alert } from "./shared/components/ui/Feedback";
+import { Button } from "./shared/components/ui/Button";
 import { AuthProvider } from "./shared/lib/auth-context";
 import { TemaProvider } from "./shared/lib/theme-context";
 import { EstiloProvider } from "./shared/lib/estilo-context";
 import { useAuthContext } from "./shared/lib/auth-context";
+import { useEffect, useState } from "react";
+import { httpClient } from "./shared/lib/http-client";
+import { AlertTriangle, ExternalLink } from "lucide-react";
 
 function AccesoRapido({ a, titulo, detalle, icono: Icono }: { a: string; titulo: string; detalle: string; icono: LucideIcon }) {
   return (
@@ -34,12 +39,77 @@ function AccesoRapido({ a, titulo, detalle, icono: Icono }: { a: string; titulo:
   );
 }
 
+interface DriveStatus {
+  autorizado: boolean;
+  conectado: boolean;
+  expirado: boolean;
+  tiene_refresh_token: boolean;
+  puede_reconectar: boolean;
+  token_expiry: string | null;
+  mensaje: string | null;
+}
+
 function Inicio() {
   const { usuario } = useAuthContext();
   const esAdmin = usuario?.rol === "ADMIN";
+  const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
+  const [loadingDrive, setLoadingDrive] = useState(false);
+
+  const fetchDriveStatus = async () => {
+    if (!esAdmin) return;
+    try {
+      setLoadingDrive(true);
+      const { data } = await httpClient.get<DriveStatus>("/drive/status");
+      setDriveStatus(data);
+    } catch (error) {
+      console.error("Error al obtener estado de Google Drive:", error);
+    } finally {
+      setLoadingDrive(false);
+    }
+  };
+
+  const handleConectarDrive = async () => {
+    try {
+      const { data } = await httpClient.get<{ auth_url: string }>("/drive/auth-url");
+      window.open(data.auth_url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Error al obtener URL de autorización de Google Drive:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchDriveStatus();
+    const interval = setInterval(fetchDriveStatus, 30000);
+    return () => clearInterval(interval);
+  }, [esAdmin]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("drive") === "ok" || params.get("drive") === "error") {
+      setTimeout(fetchDriveStatus, 500);
+    }
+  }, [esAdmin]);
+
+  const driveNoConectado = esAdmin && driveStatus !== null && !driveStatus.conectado;
 
   return (
     <div>
+      {driveNoConectado && (
+        <Alert tono="alerta">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
+            <span>Google Drive no está conectado.</span>
+            <Button
+              onClick={handleConectarDrive}
+              disabled={loadingDrive}
+              className="w-full sm:w-auto"
+              compacto
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Conectar a Google Drive
+            </Button>
+          </div>
+        </Alert>
+      )}
       <PageHeader
         titulo={`Hola, ${usuario?.nombre ?? ""}`}
         descripcion="¿Qué necesitas hacer hoy?"
