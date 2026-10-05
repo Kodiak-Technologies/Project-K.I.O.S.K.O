@@ -162,7 +162,6 @@ export default function Respaldos() {
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 )}
-              </div>
             </div>
           </Alert>
         </div>
