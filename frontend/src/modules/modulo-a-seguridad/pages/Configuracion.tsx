@@ -170,6 +170,7 @@ export default function Configuracion() {
                 }}
                 disabled={loadingDrive}
                 className="w-full sm:w-auto"
+                compacto
               >
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Conectar a Google Drive

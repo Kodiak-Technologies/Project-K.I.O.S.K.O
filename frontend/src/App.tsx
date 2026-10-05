@@ -88,14 +88,15 @@ function Inicio() {
       {driveNoConectado && (
         <Alert tono="alerta">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
-            <span className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Google Drive no está conectado.
-            </span>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" aria-hidden />
+              <span>Google Drive no está conectado.</span>
+            </div>
             <Button
               onClick={handleConectarDrive}
               disabled={loadingDrive}
               className="w-full sm:w-auto"
+              compacto
             >
               <ExternalLink className="mr-2 h-4 w-4" />
               Conectar a Google Drive
