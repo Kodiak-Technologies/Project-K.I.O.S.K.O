@@ -16,6 +16,7 @@ from app.modules.modulo_c_ventas.infrastructure.http.schemas import (
     AnulacionResponse,
     EditarTurnoRequest,
     CerrarCajaRequest,
+    MovimientoFiadoResponse,
     MovimientosTurnoResponse,
     ResumenCajaResponse,
     TurnoCajaResponse,
@@ -121,8 +122,12 @@ async def movimientos(
 ):
     """El RASTRO del turno (HU-C08): ventas y anulaciones/devoluciones con
     quién/cuándo/motivo. Es el modal del panel de la administradora."""
-    ventas, reversos = await contenedor.consultar_caja_usecase(db).movimientos(turno_id)
+    ventas, reversos, cobros, clientes = await contenedor.consultar_caja_usecase(db).movimientos(
+        turno_id
+    )
     return MovimientosTurnoResponse(
         ventas=[VentaResponse.desde_entidad(v) for v in ventas],
         reversos=[AnulacionResponse.desde_entidad(r) for r in reversos],
+        cobros_fiado=[MovimientoFiadoResponse.desde_entidad(c) for c in cobros],
+        clientes_fiado=clientes,
     )

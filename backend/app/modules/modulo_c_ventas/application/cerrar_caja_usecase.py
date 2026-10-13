@@ -17,12 +17,26 @@ from app.modules.modulo_c_ventas.domain.value_objects import monto_dinero
 from app.shared.kernel.exceptions import ConflictoError, ProhibidoError, ValidacionError
 
 
-async def calcular_resumen(caja_repo: CajaRepositoryPort, turno: TurnoCaja) -> ResumenCaja:
-    """Foto del turno para la pantalla de cierre y para el arqueo definitivo."""
+async def calcular_resumen(
+    caja_repo: CajaRepositoryPort, turno: TurnoCaja, fiado_repo=None
+) -> ResumenCaja:
+    """Foto del turno para la pantalla de cierre y para el arqueo definitivo.
+
+    Lo fiado NO suma a la caja (es FIADO, no efectivo). Lo que sí suma son los
+    pagos de fiados y adelantos cobrados EN este turno, aunque la venta fiada
+    sea de otro."""
     totales = await caja_repo.totales_de_turno(turno.id)
+    cobros_efectivo = Decimal("0")
+    cobros_por_metodo: dict[str, float] = {}
+    if fiado_repo is not None:
+        for fila in await fiado_repo.cobros_por_metodo_de_turno(turno.id):
+            cobros_por_metodo[fila.codigo_metodo] = float(fila.monto)
+            if fila.es_efectivo:
+                cobros_efectivo += fila.monto
     esperado = monto_dinero(
         turno.monto_inicial
         + totales["ventas_efectivo"]
+        + cobros_efectivo
         - totales["devoluciones_efectivo"]
     )
     return ResumenCaja(
@@ -34,6 +48,8 @@ async def calcular_resumen(caja_repo: CajaRepositoryPort, turno: TurnoCaja) -> R
         totales_por_metodo=totales["totales_por_metodo"],
         total_vendido=monto_dinero(totales["total_vendido"]),
         numero_ventas=totales["numero_ventas"],
+        cobros_fiado_efectivo=monto_dinero(cobros_efectivo),
+        cobros_fiado_por_metodo=cobros_por_metodo,
     )
 
 
@@ -43,11 +59,13 @@ class CerrarCajaUseCase:
         caja_repo: CajaRepositoryPort,
         auditoria: RegistrarAuditoriaUseCase,
         notificador=None,
+        fiado_repo=None,
     ):
         self._caja = caja_repo
         self._auditoria = auditoria
-        # Opcional (tests con mocks); el contenedor siempre lo inyecta.
+        # Opcionales (tests con mocks); el contenedor siempre los inyecta.
         self._notificador = notificador
+        self._fiados = fiado_repo
 
     async def ejecutar(
         self,
@@ -67,7 +85,7 @@ class CerrarCajaUseCase:
             raise ProhibidoError("Este turno ha sido asignado a otro cajero.")
 
         contado = monto_dinero(monto_final)
-        resumen = await calcular_resumen(self._caja, turno)
+        resumen = await calcular_resumen(self._caja, turno, self._fiados)
         diferencia = monto_dinero(contado - resumen.efectivo_esperado, minimo=None)
 
         comentario = (comentario or "").strip() or None

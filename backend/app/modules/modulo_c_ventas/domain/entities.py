@@ -73,6 +73,60 @@ class ResumenCaja:
     totales_por_metodo: dict[str, float]
     total_vendido: Decimal
     numero_ventas: int
+    # Pagos de fiados y adelantos cobrados EN este turno: suman a su caja aunque
+    # la venta fiada sea de otro turno.
+    cobros_fiado_efectivo: Decimal = Decimal("0")
+    cobros_fiado_por_metodo: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class ClienteFiado:
+    """Cuenta de un cliente al que se le fía.
+
+    saldo > 0 = crédito ya pagado a favor; saldo < 0 = lo que debe. El límite es
+    MENSUAL y no bloquea: pasarlo solo deja una alerta para la administradora.
+    """
+
+    id: int | None
+    nombre: str
+    telefono: str | None = None
+    nota: str | None = None
+    limite_mensual: Decimal = Decimal("0")
+    saldo: Decimal = Decimal("0")
+    activo: bool = True
+    consumo_mes: Decimal = Decimal("0")  # lo fiado este mes (calculado)
+    created_at: datetime | None = None
+
+    @property
+    def deuda(self) -> Decimal:
+        return -self.saldo if self.saldo < 0 else Decimal("0")
+
+    @property
+    def excede_limite(self) -> bool:
+        return self.consumo_mes > self.limite_mensual
+
+
+@dataclass
+class MovimientoFiado:
+    """Una línea del estado de cuenta del cliente (CONSUMO, PAGO, ADELANTO, REVERSO)."""
+
+    id: int | None
+    cliente_id: int
+    tipo: str
+    monto: Decimal  # siempre positivo; el tipo dice si suma o resta
+    saldo_resultante: Decimal
+    usuario_id: int
+    registrado_por: str
+    venta_id: int | None = None
+    anulacion_id: int | None = None
+    turno_id: int | None = None
+    metodo_pago_id: int | None = None
+    codigo_metodo: str | None = None
+    es_efectivo: bool = False
+    entra_a_caja: bool = False
+    nota: str | None = None
+    cliente_nombre: str | None = None
+    created_at: datetime | None = None
 
 
 @dataclass
@@ -165,6 +219,8 @@ class Venta:
     registrada_offline: bool = False
     vendida_en: datetime | None = None  # momento real de la venta
     created_at: datetime | None = None
+    # Solo en la respuesta del registro: aviso si un fiado pasó el límite mensual.
+    alerta: str | None = None
 
     @property
     def anulada(self) -> bool:
@@ -200,3 +256,5 @@ class Anulacion:
     efectivo_devuelto: Decimal  # cuánto salió del cajón (<= monto)
     items: list[dict]  # [{producto_id, nombre, cantidad}]
     created_at: datetime | None = None
+    # Parte del reverso que se descontó de la deuda del cliente (venta fiada).
+    fiado_revertido: Decimal = Decimal("0")

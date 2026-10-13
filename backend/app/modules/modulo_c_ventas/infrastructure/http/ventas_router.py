@@ -40,6 +40,7 @@ async def registrar(
         client_uuid=datos.client_uuid,
         registrada_offline=datos.registrada_offline,
         vendida_en=datos.vendida_en,
+        cliente_fiado_id=datos.cliente_fiado_id,
         ip=ip,
         user_agent=user_agent,
     )

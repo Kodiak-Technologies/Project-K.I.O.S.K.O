@@ -37,28 +37,48 @@ class SqlAlchemyStockAdapter(ProductoStockPort):
 
     async def descontar_stock(
         self,
-        producto_id: int,
-        cantidad: int,
+        cantidades: dict[int, int],
         usuario_id: int | None = None,
         usuario_nombre: str = "",
-    ) -> bool:
-        # UPDATE condicional: atómico a nivel de fila. Si dos cajas compiten por
-        # las últimas unidades, solo una gana; la otra recibe rowcount 0.
-        resultado = await self._db.execute(
-            text(
-                "UPDATE productos SET stock = stock - :cantidad, updated_at = now() "
-                "WHERE id = :id AND stock >= :cantidad AND deleted_at IS NULL"
-            ),
-            {"id": producto_id, "cantidad": cantidad},
-        )
-        if resultado.rowcount != 1:
-            return False
+    ) -> set[int]:
+        # Una sola consulta para todo el carrito (antes eran 2 por producto: el
+        # UPDATE y el asiento). El UPDATE sigue siendo condicional por fila: si
+        # dos cajas compiten por las últimas unidades, solo una gana; a la otra
+        # ese producto no le aparece en RETURNING.
         # D-07: `movimientos_inventario` es la bitácora de TODA variación de
-        # stock. Las ventas no dejaban rastro ahí (solo cambiaban `productos`).
-        await self._registrar_movimiento(
-            producto_id, -cantidad, "venta", None, usuario_id, usuario_nombre
+        # stock; el asiento va en la misma sentencia. Sin `usuario_id` no se
+        # cumple el NOT NULL de `registrado_por` y se omite el asiento en vez
+        # de romper la venta.
+        ids = list(cantidades)
+        parametros = {"ids": ids, "cantidades": [cantidades[i] for i in ids]}
+        asiento = " "
+        if usuario_id is not None:
+            asiento = (
+                ", asientos AS ("
+                "  INSERT INTO movimientos_inventario "
+                "  (producto_id, cantidad, tipo, motivo, registrado_por, registrado_por_nombre) "
+                "  SELECT id, -cantidad, 'venta', NULL, "
+                "         CAST(:usuario_id AS bigint), CAST(:usuario_nombre AS varchar) "
+                "  FROM descontados"
+                ") "
+            )
+            parametros |= {"usuario_id": usuario_id, "usuario_nombre": usuario_nombre or ""}
+        filas = await self._db.execute(
+            text(
+                "WITH pedido AS ("
+                "  SELECT * FROM unnest(CAST(:ids AS bigint[]), CAST(:cantidades AS integer[])) "
+                "  AS p(id, cantidad)"
+                "), descontados AS ("
+                "  UPDATE productos AS pr "
+                "  SET stock = pr.stock - p.cantidad, updated_at = now() "
+                "  FROM pedido AS p "
+                "  WHERE pr.id = p.id AND pr.stock >= p.cantidad AND pr.deleted_at IS NULL "
+                "  RETURNING pr.id, p.cantidad"
+                ")" + asiento + "SELECT id FROM descontados"
+            ),
+            parametros,
         )
-        return True
+        return set(cantidades) - {fila.id for fila in filas}
 
     async def reponer_stock(
         self,
