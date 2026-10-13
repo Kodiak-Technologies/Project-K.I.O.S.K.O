@@ -48,12 +48,16 @@ from app.modules.modulo_c_ventas.application.cierre_automatico_usecase import (
 from app.modules.modulo_c_ventas.infrastructure.adapters.database.sqlalchemy_caja_repository import (
     SqlAlchemyCajaRepository,
 )
+from app.modules.modulo_c_ventas.infrastructure.adapters.database.esquema_fiados import (
+    asegurar_esquema_fiados,
+)
 from app.modules.modulo_c_ventas.infrastructure.http.caja_router import router as caja_router
+from app.modules.modulo_c_ventas.infrastructure.http.fiados_router import router as fiados_router
 from app.modules.modulo_c_ventas.infrastructure.http.metodos_pago_router import (
     router as metodos_pago_router,
 )
 from app.modules.modulo_c_ventas.infrastructure.http.ventas_router import router as ventas_router
-from app.shared.database.session import SessionLocal
+from app.shared.database.session import SessionLocal, engine
 from app.shared.http.error_handlers import registrar_error_handlers
 from app.shared.http.middlewares import registrar_middlewares
 
@@ -129,6 +133,10 @@ async def _ejecutar_cierre_automatico_background() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Tablas de fiados (idempotente; solo crea lo que falta). Si falla, el resto
+    # del sistema arranca igual: ver esquema_fiados.py.
+    await asegurar_esquema_fiados(engine)
+
     # Iniciamos todas las tareas en segundo plano que provienen de ambos lados
     logger.info("Iniciando tareas en segundo plano...")
 
@@ -171,6 +179,7 @@ app.include_router(storage_router)
 app.include_router(caja_router)
 app.include_router(ventas_router)
 app.include_router(metodos_pago_router)
+app.include_router(fiados_router)
 
 # --- Módulo D (Fabrizio): Documentos ---
 from app.modules.modulo_d_documentos.infrastructure.http.notas_venta_router import router as notas_venta_router

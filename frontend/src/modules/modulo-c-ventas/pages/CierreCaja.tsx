@@ -95,8 +95,16 @@ export default function CierreCaja() {
     );
   }
 
+  // FIADO no es dinero cobrado: se muestra aparte y no suma a ninguna caja.
   const digitales = resumen
-    ? Object.entries(resumen.totales_por_metodo).filter(([codigo]) => codigo !== "EFECTIVO")
+    ? Object.entries(resumen.totales_por_metodo).filter(
+        ([codigo]) => codigo !== "EFECTIVO" && codigo !== "FIADO"
+      )
+    : [];
+  const fiadoDelTurno = resumen?.totales_por_metodo["FIADO"] ?? 0;
+  const cobrosFiadoEfectivo = resumen?.desglose.cobros_fiado_efectivo ?? 0;
+  const cobrosFiadoDigitales = resumen
+    ? Object.entries(resumen.cobros_fiado_por_metodo ?? {}).filter(([codigo]) => codigo !== "EFECTIVO")
     : [];
 
   return (
@@ -122,6 +130,12 @@ export default function CierreCaja() {
                   <dt className="text-zinc-500">+ Ventas en efectivo</dt>
                   <dd className="tabular-nums">S/ {resumen.desglose.ventas_efectivo.toFixed(2)}</dd>
                 </div>
+                {cobrosFiadoEfectivo > 0 && (
+                  <div className="flex justify-between">
+                    <dt className="text-zinc-500">+ Pagos de fiado en efectivo</dt>
+                    <dd className="tabular-nums">S/ {cobrosFiadoEfectivo.toFixed(2)}</dd>
+                  </div>
+                )}
                 {resumen.desglose.devoluciones_efectivo > 0 && (
                   <div className="flex justify-between">
                     <dt className="text-zinc-500">− Devoluciones en efectivo</dt>
@@ -158,6 +172,24 @@ export default function CierreCaja() {
                     </div>
                   ))}
                 </dl>
+              )}
+              {cobrosFiadoDigitales.length > 0 && (
+                <dl className="mt-2 space-y-2 text-sm">
+                  {cobrosFiadoDigitales.map(([codigo, monto]) => (
+                    <div key={codigo} className="flex justify-between">
+                      <dt className="flex items-center gap-1.5 text-zinc-500">
+                        <Smartphone className="h-4 w-4" aria-hidden /> Pagos de fiado · {codigo}
+                      </dt>
+                      <dd className="tabular-nums">S/ {monto.toFixed(2)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {fiadoDelTurno > 0 && (
+                <div className="mt-2 flex justify-between text-sm">
+                  <span className="text-zinc-500">Fiado (no entra a caja hasta que lo paguen)</span>
+                  <span className="tabular-nums text-orange-700">S/ {fiadoDelTurno.toFixed(2)}</span>
+                </div>
               )}
               <div className="mt-3 flex items-center justify-between border-t border-zinc-100 pt-2 text-sm">
                 <span className="text-zinc-500">

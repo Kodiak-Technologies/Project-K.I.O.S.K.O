@@ -20,14 +20,16 @@ class ProductoStockPort(ABC):
     @abstractmethod
     async def descontar_stock(
         self,
-        producto_id: int,
-        cantidad: int,
+        cantidades: dict[int, int],
         usuario_id: int | None = None,
         usuario_nombre: str = "",
-    ) -> bool:
-        """Descuenta stock de forma atómica. False si no hay existencias suficientes
-        (el stock nunca queda negativo, RF-08). El usuario se usa para dejar el
-        asiento en `movimientos_inventario` (D-07)."""
+    ) -> set[int]:
+        """Descuenta el stock de todo el carrito ({producto_id: cantidad}) de una vez.
+
+        Devuelve los productos SIN existencias suficientes (vacío = todo OK; el
+        stock nunca queda negativo, RF-08). Si no está vacío, el llamador debe
+        abortar para que la transacción revierta lo que sí se descontó. El
+        usuario se usa para dejar el asiento en `movimientos_inventario` (D-07)."""
 
     @abstractmethod
     async def marcar_alerta_stock(self, producto_id: int) -> bool:

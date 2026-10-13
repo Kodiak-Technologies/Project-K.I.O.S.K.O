@@ -32,11 +32,34 @@ class AnularVentaUseCase:
         caja_repo: CajaRepositoryPort,
         stock: ProductoStockPort,
         auditoria: RegistrarAuditoriaUseCase,
+        fiados=None,
     ):
         self._ventas = venta_repo
         self._caja = caja_repo
         self._stock = stock
         self._auditoria = auditoria
+        # Opcional (tests con mocks): GestionarFiadosUseCase, para descontar de
+        # la deuda del cliente lo que se anula/devuelve de una venta fiada.
+        self._fiados = fiados
+
+    async def _repartir(self, venta_id: int, monto: Decimal, efectivo_disponible: Decimal):
+        """Cuánto del reverso baja la deuda del fiado y cuánto sale del cajón.
+
+        Primero la deuda: lo fiado y no pagado no es dinero que haya entrado a
+        la caja. Lo que quede se devuelve en efectivo (si la venta tuvo)."""
+        fiado = Decimal("0")
+        if self._fiados is not None:
+            fiado = min(monto, await self._fiados.pendiente_de_venta(venta_id))
+        return fiado, min(monto - fiado, efectivo_disponible)
+
+    async def _revertir_fiado(
+        self, anulacion: Anulacion, fiado: Decimal, usuario_id: int, nombre_usuario: str
+    ) -> None:
+        if fiado > 0 and self._fiados is not None:
+            anulacion.fiado_revertido = await self._fiados.revertir_de_venta(
+                anulacion.venta_id, fiado, anulacion.id, anulacion.turno_id,
+                usuario_id, nombre_usuario,
+            )
 
     async def _preparar(self, venta_id: int, motivo: str) -> tuple[Venta, int, Decimal]:
         if not motivo.strip():
@@ -88,7 +111,7 @@ class AnularVentaUseCase:
             monto += detalle.precio_unitario * restante
 
         monto = monto_dinero(monto)
-        efectivo_devuelto = min(monto, efectivo_disponible)
+        fiado, efectivo_devuelto = await self._repartir(venta_id, monto, efectivo_disponible)
         await self._ventas.actualizar_estado(venta_id, VENTA_ANULADA, motivo.strip())
         anulacion = await self._ventas.crear_anulacion(
             Anulacion(
@@ -97,6 +120,7 @@ class AnularVentaUseCase:
                 monto=monto, efectivo_devuelto=efectivo_devuelto, items=items,
             )
         )
+        await self._revertir_fiado(anulacion, fiado, usuario_id, nombre_usuario)
         await self._auditoria.ejecutar(
             accion="venta_anulada", entidad="ventas", entidad_id=venta_id,
             usuario_id=usuario_id, rol=rol,
@@ -105,6 +129,7 @@ class AnularVentaUseCase:
                 "estado": VENTA_ANULADA,
                 "monto_revertido": float(monto),
                 "efectivo_devuelto": float(efectivo_devuelto),
+                "fiado_revertido": float(anulacion.fiado_revertido),
                 "reverso_id": anulacion.id,
             },
             motivo=motivo.strip(), ip=ip, user_agent=user_agent,
@@ -149,7 +174,7 @@ class AnularVentaUseCase:
             monto += detalle.precio_unitario * cantidad
 
         monto = monto_dinero(monto)
-        efectivo_devuelto = min(monto, efectivo_disponible)
+        fiado, efectivo_devuelto = await self._repartir(venta_id, monto, efectivo_disponible)
         await self._ventas.actualizar_estado(venta_id, VENTA_DEVUELTA_PARCIAL)
         anulacion = await self._ventas.crear_anulacion(
             Anulacion(
@@ -158,6 +183,7 @@ class AnularVentaUseCase:
                 monto=monto, efectivo_devuelto=efectivo_devuelto, items=items_rastro,
             )
         )
+        await self._revertir_fiado(anulacion, fiado, usuario_id, nombre_usuario)
         await self._auditoria.ejecutar(
             accion="venta_devuelta", entidad="ventas", entidad_id=venta_id,
             usuario_id=usuario_id, rol=rol,
@@ -165,6 +191,7 @@ class AnularVentaUseCase:
                 "items": items_rastro,
                 "monto_devuelto": float(monto),
                 "efectivo_devuelto": float(efectivo_devuelto),
+                "fiado_revertido": float(anulacion.fiado_revertido),
                 "reverso_id": anulacion.id,
             },
             motivo=motivo.strip(), ip=ip, user_agent=user_agent,

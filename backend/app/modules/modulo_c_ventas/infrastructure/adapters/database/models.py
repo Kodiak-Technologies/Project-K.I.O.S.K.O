@@ -205,3 +205,72 @@ class PagoVentaModel(Base):
     monto_recibido: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
 
     venta: Mapped[VentaModel] = relationship(back_populates="pagos")
+
+
+class ClienteFiadoModel(Base):
+    """Cuenta de un cliente al que se le fía (ver esquema_fiados.py)."""
+
+    __tablename__ = "clientes_fiado"
+    __table_args__ = (
+        CheckConstraint("limite_mensual >= 0", name="ck_clientes_fiado_limite_no_negativo"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    telefono: Mapped[str | None] = mapped_column(String(30))
+    nota: Mapped[str | None] = mapped_column(String(300))
+    # Tope MENSUAL de lo que se le permite fiar. No bloquea: pasarlo deja alerta.
+    limite_mensual: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
+    # > 0 crédito ya pagado a favor; < 0 lo que debe.
+    saldo: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    creado_por: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="RESTRICT"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class MovimientoFiadoModel(Base):
+    """Estado de cuenta del cliente. Append-only: nada se edita ni se borra."""
+
+    __tablename__ = "movimientos_fiado"
+    __table_args__ = (
+        CheckConstraint("monto > 0", name="ck_movimientos_fiado_monto_positivo"),
+        CheckConstraint(
+            "tipo IN ('CONSUMO','PAGO','ADELANTO','REVERSO')", name="ck_movimientos_fiado_tipo"
+        ),
+        Index("ix_movimientos_fiado_cliente", "cliente_id", "created_at"),
+        Index("ix_movimientos_fiado_turno", "turno_id"),
+        Index("ix_movimientos_fiado_venta", "venta_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    cliente_id: Mapped[int] = mapped_column(
+        ForeignKey("clientes_fiado.id", ondelete="RESTRICT"), nullable=False
+    )
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False)
+    monto: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    saldo_resultante: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    venta_id: Mapped[int | None] = mapped_column(ForeignKey("ventas.id", ondelete="RESTRICT"))
+    anulacion_id: Mapped[int | None] = mapped_column(
+        ForeignKey("anulaciones.id", ondelete="RESTRICT")
+    )
+    # CONSUMO: turno en que se fió. PAGO/ADELANTO: turno a cuya caja entró.
+    turno_id: Mapped[int | None] = mapped_column(ForeignKey("turnos_caja.id", ondelete="RESTRICT"))
+    metodo_pago_id: Mapped[int | None] = mapped_column(
+        ForeignKey("metodos_pago.id", ondelete="RESTRICT")
+    )
+    codigo_metodo: Mapped[str | None] = mapped_column(String(20))
+    es_efectivo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    entra_a_caja: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    nota: Mapped[str | None] = mapped_column(String(300))
+    usuario_id: Mapped[int] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False
+    )
+    registrado_por: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
