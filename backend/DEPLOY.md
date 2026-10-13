@@ -27,6 +27,43 @@ guarda en **Artifact Registry** y corre en **Cloud Run**. La base de datos es **
 
 ---
 
+## 0. Deploy completo con un script (recomendado)
+
+`scripts/desplegar.ps1` toma **todas** las variables del `.env` y hace todo: secretos →
+build → deploy. Usa el proyecto activo de `gcloud` (o `-Project ID`). Desde `backend/`:
+
+```powershell
+.\scripts\desplegar.ps1 -DryRun    # muestra el plan sin subir nada
+.\scripts\desplegar.ps1 -Setup     # 1ra vez en un proyecto nuevo (APIs, repo, permisos)
+.\scripts\desplegar.ps1            # redeploy normal
+```
+
+- Servicio por defecto: `minimarket-backend` (cambia con `-Service`). Secretos e imagen llevan
+  ese prefijo (`minimarket-database-url`, …), así conviven con otros servicios del mismo
+  proyecto GCP sin pisarse. Se niega a sobrescribir un servicio que no creó él.
+- Las claves sensibles van a Secret Manager (solo agrega versión si el valor cambió).
+- `ENVIRONMENT`, `CORS_*` y `GOOGLE_DRIVE_REDIRECT_URI` van como env vars. La redirect URI
+  se calcula con la URL real del servicio; los `CORS_*` salen del `.env` si están, si no se
+  usan localhost + el regex de Vercel.
+- `SECRET_KEY` de ejemplo (`change-me`) → genera una aleatoria la 1ra vez y luego la conserva.
+- Reemplaza todas las variables del servicio: lo que no esté en el `.env` se quita.
+
+Despliegue junto a la BD (Supabase `aws-1-us-west-2` = Oregón → Cloud Run `us-west1`):
+
+```powershell
+.\scripts\desplegar.ps1 -Project minimarket-oregon-9669 -Service minimarket -Region us-west1 `
+  -ModoSesion -MinInstancias 1 -MaxInstancias 1
+```
+
+- `-ModoSesion`: el `DATABASE_URL` pasa del pooler 6543 (transaction) al 5432 (session) solo
+  en el servicio; `session.py` detecta el puerto y activa el caché de consultas (1 viaje en
+  vez de 2). El `.env` local no cambia.
+- `-MaxInstancias 1`: en session mode cada instancia ocupa hasta 5 de los 15 clientes del pooler.
+- `-PrefijoSecretos` / `-RegionRepo`: para no compartir secretos con otro servicio del mismo
+  proyecto y para usar un repo de imágenes de otra región.
+
+---
+
 ## 1. Redeploy (el caso más común)
 
 Cada vez que cambias código del backend y quieres publicarlo. La infraestructura

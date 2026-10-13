@@ -7,7 +7,9 @@ from pydantic import BaseModel, Field
 from app.modules.modulo_c_ventas.domain.entities import (
     Anulacion,
     ArqueoCaja,
+    ClienteFiado,
     MetodoPago,
+    MovimientoFiado,
     ResumenCaja,
     TurnoCaja,
     Venta,
@@ -82,10 +84,12 @@ class TurnoCajaResponse(BaseModel):
 class ResumenCajaResponse(BaseModel):
     turno: TurnoCajaResponse
     efectivo_esperado: float
-    desglose: dict[str, float]  # monto_inicial, ventas_efectivo, devoluciones_efectivo
+    desglose: dict[str, float]  # monto_inicial, ventas_efectivo, cobros_fiado_efectivo, devoluciones_efectivo
     totales_por_metodo: dict[str, float]
     total_vendido: float
     numero_ventas: int
+    # Pagos de fiado/adelantos que entraron a la caja de ESTE turno, por método.
+    cobros_fiado_por_metodo: dict[str, float] = {}
 
     @classmethod
     def desde_entidad(cls, r: ResumenCaja) -> "ResumenCajaResponse":
@@ -95,11 +99,13 @@ class ResumenCajaResponse(BaseModel):
             desglose={
                 "monto_inicial": float(r.monto_inicial),
                 "ventas_efectivo": float(r.ventas_efectivo),
+                "cobros_fiado_efectivo": float(r.cobros_fiado_efectivo),
                 "devoluciones_efectivo": float(r.devoluciones_efectivo),
             },
             totales_por_metodo=r.totales_por_metodo,
             total_vendido=float(r.total_vendido),
             numero_ventas=r.numero_ventas,
+            cobros_fiado_por_metodo=r.cobros_fiado_por_metodo,
         )
 
 
@@ -127,6 +133,8 @@ class AnulacionResponse(BaseModel):
     motivo: str
     monto: float
     efectivo_devuelto: float
+    # Parte del reverso que bajó la deuda del cliente (venta fiada).
+    fiado_revertido: float = 0
     items: list[dict]
     created_at: datetime | None
 
@@ -136,6 +144,7 @@ class AnulacionResponse(BaseModel):
             id=a.id, venta_id=a.venta_id, turno_id=a.turno_id, tipo=a.tipo,
             realizado_por=a.realizado_por, motivo=a.motivo,
             monto=float(a.monto), efectivo_devuelto=float(a.efectivo_devuelto),
+            fiado_revertido=float(a.fiado_revertido),
             items=a.items, created_at=a.created_at,
         )
 
@@ -191,6 +200,8 @@ class RegistrarVentaRequest(BaseModel):
     client_uuid: str | None = Field(default=None, max_length=36)
     registrada_offline: bool = False
     vendida_en: datetime | None = None
+    # Obligatorio si algún pago es FIADO: a la cuenta de quién se carga.
+    cliente_fiado_id: int | None = None
 
     def pagos_normalizados(self) -> list[dict]:
         if self.pagos:
@@ -242,6 +253,8 @@ class VentaResponse(BaseModel):
     registrada_offline: bool = False
     vendida_en: datetime | None = None
     created_at: datetime | None
+    # Solo al registrar: aviso si el fiado pasó el límite mensual del cliente.
+    alerta: str | None = None
 
     @classmethod
     def desde_entidad(cls, v: Venta) -> "VentaResponse":
@@ -278,6 +291,7 @@ class VentaResponse(BaseModel):
             registrada_offline=v.registrada_offline,
             vendida_en=v.vendida_en,
             created_at=v.created_at,
+            alerta=v.alerta,
         )
 
 
@@ -287,3 +301,85 @@ class MovimientosTurnoResponse(BaseModel):
 
     ventas: list[VentaResponse]
     reversos: list[AnulacionResponse]
+    # Pagos de fiado y créditos ya pagados que entraron a la caja de este turno.
+    cobros_fiado: list["MovimientoFiadoResponse"] = []
+    # {venta_id: nombre del cliente} de las ventas fiadas del turno.
+    clientes_fiado: dict[int, str] = {}
+
+
+# ---------- Fiados ----------
+class ClienteFiadoResponse(BaseModel):
+    id: int
+    nombre: str
+    telefono: str | None
+    nota: str | None
+    limite_mensual: float
+    saldo: float  # > 0 a favor, < 0 debe
+    deuda: float
+    consumo_mes: float
+    excede_limite: bool
+    activo: bool
+    created_at: datetime | None
+
+    @classmethod
+    def desde_entidad(cls, c: ClienteFiado) -> "ClienteFiadoResponse":
+        return cls(
+            id=c.id, nombre=c.nombre, telefono=c.telefono, nota=c.nota,
+            limite_mensual=float(c.limite_mensual), saldo=float(c.saldo),
+            deuda=float(c.deuda), consumo_mes=float(c.consumo_mes),
+            excede_limite=c.excede_limite, activo=c.activo, created_at=c.created_at,
+        )
+
+
+class MovimientoFiadoResponse(BaseModel):
+    id: int
+    cliente_id: int
+    cliente_nombre: str | None
+    tipo: str  # CONSUMO | PAGO | ADELANTO | REVERSO
+    monto: float
+    saldo_resultante: float
+    venta_id: int | None
+    turno_id: int | None
+    metodo: str | None
+    es_efectivo: bool
+    entra_a_caja: bool
+    nota: str | None
+    registrado_por: str
+    created_at: datetime | None
+
+    @classmethod
+    def desde_entidad(cls, m: MovimientoFiado) -> "MovimientoFiadoResponse":
+        return cls(
+            id=m.id, cliente_id=m.cliente_id, cliente_nombre=m.cliente_nombre, tipo=m.tipo,
+            monto=float(m.monto), saldo_resultante=float(m.saldo_resultante),
+            venta_id=m.venta_id, turno_id=m.turno_id, metodo=m.codigo_metodo,
+            es_efectivo=m.es_efectivo, entra_a_caja=m.entra_a_caja, nota=m.nota,
+            registrado_por=m.registrado_por, created_at=m.created_at,
+        )
+
+
+class EstadoCuentaFiadoResponse(BaseModel):
+    cliente: ClienteFiadoResponse
+    movimientos: list[MovimientoFiadoResponse]
+
+
+class CrearClienteFiadoRequest(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    telefono: str | None = Field(default=None, max_length=30)
+    nota: str | None = Field(default=None, max_length=300)
+    # Solo lo toma en cuenta si lo crea el ADMIN.
+    limite_mensual: float | None = Field(default=None, ge=0)
+
+
+class ActualizarClienteFiadoRequest(BaseModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=120)
+    telefono: str | None = Field(default=None, max_length=30)
+    nota: str | None = Field(default=None, max_length=300)
+    limite_mensual: float | None = Field(default=None, ge=0)  # solo ADMIN
+    activo: bool | None = None  # solo ADMIN
+
+
+class PagoFiadoRequest(BaseModel):
+    monto: float = Field(gt=0)
+    metodo: str = Field(min_length=1, max_length=20)
+    nota: str | None = Field(default=None, max_length=300)

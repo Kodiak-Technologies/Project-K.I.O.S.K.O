@@ -6,6 +6,7 @@ from app.modules.modulo_c_ventas.application.cerrar_caja_usecase import calcular
 from app.modules.modulo_c_ventas.domain.entities import (
     Anulacion,
     ArqueoCaja,
+    MovimientoFiado,
     ResumenCaja,
     TurnoCaja,
     Venta,
@@ -20,9 +21,11 @@ class ConsultarCajaUseCase:
         self,
         caja_repo: CajaRepositoryPort,
         venta_repo: VentaRepositoryPort,
+        fiado_repo=None,
     ):
         self._caja = caja_repo
         self._ventas = venta_repo
+        self._fiados = fiado_repo
 
     async def turno_actual(self) -> TurnoCaja | None:
         return await self._caja.turno_abierto()
@@ -32,18 +35,28 @@ class ConsultarCajaUseCase:
         turno = await self._caja.turno_abierto()
         if turno is None:
             raise ConflictoError("No hay un turno de caja abierto.")
-        return await calcular_resumen(self._caja, turno)
+        return await calcular_resumen(self._caja, turno, self._fiados)
 
     async def historial(self, limite: int = 30) -> list[tuple[TurnoCaja, ArqueoCaja | None]]:
         turnos = await self._caja.listar(limite)
         arqueos = await self._caja.arqueos_por_turno([t.id for t in turnos])
         return [(t, arqueos.get(t.id)) for t in turnos]
 
-    async def movimientos(self, turno_id: int) -> tuple[list[Venta], list[Anulacion]]:
+    async def movimientos(
+        self, turno_id: int
+    ) -> tuple[list[Venta], list[Anulacion], list[MovimientoFiado], dict[int, str]]:
         """El RASTRO de un turno para el panel de la administradora (HU-C08):
-        ventas del turno y reversos hechos durante él."""
+        ventas del turno, reversos hechos durante él, cobros de fiado que
+        entraron a su caja y {venta_id: cliente} de las ventas fiadas."""
         if await self._caja.buscar_por_id(turno_id) is None:
             raise NoEncontradoError("Turno no encontrado.")
         ventas, _total = await self._ventas.listar(turno_id=turno_id)
         reversos = await self._ventas.anulaciones_de_turno(turno_id)
-        return ventas, reversos
+        if self._fiados is None:
+            return ventas, reversos, [], {}
+        cobros = await self._fiados.cobros_de_turno(turno_id)
+        clientes = await self._fiados.clientes_por_venta([v.id for v in ventas])
+        revertido = await self._fiados.fiado_revertido_por_anulacion([r.id for r in reversos])
+        for r in reversos:
+            r.fiado_revertido = revertido.get(r.id, r.fiado_revertido)
+        return ventas, reversos, cobros, clientes

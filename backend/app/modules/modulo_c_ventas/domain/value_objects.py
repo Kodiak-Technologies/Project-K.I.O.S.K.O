@@ -20,6 +20,17 @@ REVERSO_DEVOLUCION = "DEVOLUCION"
 
 # Códigos de método de pago con significado especial para la caja
 METODO_EFECTIVO = "EFECTIVO"
+# Lo fiado NO entra a la caja: se carga a la cuenta del cliente y suma a la caja
+# recién en el turno en que lo paga (MOV_FIADO_PAGO).
+METODO_FIADO = "FIADO"
+
+# Movimientos de la cuenta de un cliente de fiado. El saldo es positivo a favor
+# (adelantos) y negativo cuando debe.
+MOV_FIADO_CONSUMO = "CONSUMO"    # venta fiada: resta saldo, no entra a caja
+MOV_FIADO_PAGO = "PAGO"          # paga lo que debe: suma saldo, entra a caja
+MOV_FIADO_ADELANTO = "ADELANTO"  # crédito ya pagado (solo ADMIN): suma saldo, entra a caja
+MOV_FIADO_REVERSO = "REVERSO"    # anulación/devolución de una venta fiada: suma saldo
+MOVIMIENTOS_QUE_ENTRAN_A_CAJA = {MOV_FIADO_PAGO, MOV_FIADO_ADELANTO}
 
 
 def monto_dinero(valor, minimo: Decimal | None = Decimal("0")) -> Decimal:

@@ -107,14 +107,19 @@ class StockFake:
         return {pid: self.productos[pid] for pid in producto_ids if pid in self.productos}
 
     async def descontar_stock(
-        self, producto_id: int, cantidad: int, usuario_id=None, usuario_nombre=""
-    ) -> bool:
-        p = self.productos.get(producto_id)
-        if p is None or p.stock < cantidad:
-            return False
-        p.stock -= cantidad
-        self.descuentos.append((producto_id, cantidad))
-        return True
+        self, cantidades: dict[int, int], usuario_id=None, usuario_nombre=""
+    ) -> set[int]:
+        # Todo o nada, como el UPDATE real dentro de una transacción que se revierte.
+        sin_stock = {
+            pid for pid, cant in cantidades.items()
+            if pid not in self.productos or self.productos[pid].stock < cant
+        }
+        if sin_stock:
+            return sin_stock
+        for pid, cant in cantidades.items():
+            self.productos[pid].stock -= cant
+            self.descuentos.append((pid, cant))
+        return set()
 
     async def marcar_alerta_stock(self, producto_id: int) -> bool:
         if producto_id in self._ya_avisados:

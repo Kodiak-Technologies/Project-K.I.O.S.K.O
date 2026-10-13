@@ -9,7 +9,7 @@ from app.modules.modulo_c_ventas.domain.entities import MetodoPago
 from app.modules.modulo_c_ventas.domain.ports.metodo_pago_repository_port import (
     MetodoPagoRepositoryPort,
 )
-from app.modules.modulo_c_ventas.domain.value_objects import METODO_EFECTIVO
+from app.modules.modulo_c_ventas.domain.value_objects import METODO_EFECTIVO, METODO_FIADO
 from app.shared.kernel.exceptions import ConflictoError, NoEncontradoError, ValidacionError
 
 PROTEGIDOS = {METODO_EFECTIVO}
@@ -21,7 +21,9 @@ class GestionarMetodosPagoUseCase:
         self._auditoria = auditoria
 
     async def listar(self, solo_activos: bool = True) -> list[MetodoPago]:
-        return await self._metodos.listar(solo_activos)
+        # FIADO no es un método "de catálogo": lo maneja el módulo de fiados
+        # (exige cliente) y no se activa/desactiva desde aquí.
+        return [m for m in await self._metodos.listar(solo_activos) if m.codigo != METODO_FIADO]
 
     async def crear(
         self, admin_id: int, rol: str, codigo: str, nombre: str, es_efectivo: bool,
@@ -51,6 +53,8 @@ class GestionarMetodosPagoUseCase:
         actual = actuales.get(metodo_id)
         if actual is None:
             raise NoEncontradoError("Método de pago no encontrado.")
+        if actual.codigo == METODO_FIADO:
+            raise ValidacionError("El fiado se gestiona desde el módulo de Fiados.")
         if actual.codigo in PROTEGIDOS and cambios.get("activo") is False:
             raise ValidacionError(f"El método {actual.codigo} no se puede desactivar.")
         actualizado = await self._metodos.actualizar(metodo_id, cambios)

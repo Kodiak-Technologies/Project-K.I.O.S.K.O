@@ -1,11 +1,22 @@
 // Modal de cobro del POS (HU-C04, RF-20): ninguna venta se confirma sin método
 // de pago. Métodos desde el catálogo del backend (el ADMIN puede agregar más),
 // pago mixto (dividir entre varios métodos) y cálculo del vuelto en efectivo.
+// Fiado: se agrega como un método más (también en mixto) y exige elegir el
+// cliente; esa parte no entra a la caja hasta que el cliente la pague.
 import { useMemo, useState } from "react";
 import { Coins, SplitSquareHorizontal } from "lucide-react";
 import { Alert, Button, Input, Modal } from "../../../shared/components/ui";
 import { useMetodosPago } from "../hooks/useMetodosPago";
-import type { NuevoPago } from "../types";
+import { METODO_FIADO, type ClienteFiado, type MetodoPagoInfo, type NuevoPago } from "../types";
+import { SelectorClienteFiado } from "./SelectorClienteFiado";
+
+const FIADO_INFO: MetodoPagoInfo = {
+  id: -1,
+  codigo: METODO_FIADO,
+  nombre: "Fiado",
+  es_efectivo: false,
+  activo: true,
+};
 
 interface Props {
   abierto: boolean;
@@ -13,7 +24,9 @@ interface Props {
   procesando: boolean;
   error: string | null;
   alCerrar: () => void;
-  alConfirmar: (pagos: NuevoPago[]) => void;
+  alConfirmar: (pagos: NuevoPago[], clienteFiadoId?: number) => void;
+  /** Sin conexión no se puede fiar (hay que consultar la cuenta del cliente). */
+  permitirFiado?: boolean;
 }
 
 export function ModalCobro({
@@ -23,8 +36,15 @@ export function ModalCobro({
   error,
   alCerrar,
   alConfirmar,
+  permitirFiado = true,
 }: Props) {
-  const { metodos } = useMetodosPago();
+  const { metodos: catalogo } = useMetodosPago();
+  // FIADO no está en el catálogo (lo maneja el módulo de fiados): va al final.
+  const metodos = useMemo(
+    () => (permitirFiado ? [...catalogo.filter((m) => m.codigo !== METODO_FIADO), FIADO_INFO] : catalogo),
+    [catalogo, permitirFiado]
+  );
+  const [clienteFiado, setClienteFiado] = useState<ClienteFiado | null>(null);
 
   const [mixto, setMixto] = useState(false);
   const [metodoSimple, setMetodoSimple] = useState("EFECTIVO");
@@ -61,11 +81,20 @@ export function ModalCobro({
       : null;
   const mixtoValido = restante === 0 && sumaMixto > 0 && (vueltoMixto === null || vueltoMixto >= 0);
 
+  // --- fiado: cuánto de esta venta se carga a la cuenta del cliente ---
+  const montoFiado = mixto
+    ? Number(montosMixto[METODO_FIADO]) || 0
+    : metodoSimple === METODO_FIADO
+      ? total
+      : 0;
+  const fiadoValido = montoFiado <= 0 || clienteFiado !== null;
+
   function reiniciar() {
     setMixto(false);
     setMetodoSimple("EFECTIVO");
     setRecibido("");
     setMontosMixto({});
+    setClienteFiado(null);
   }
 
   function confirmar() {
@@ -77,14 +106,17 @@ export function ModalCobro({
           monto: Number(montosMixto[m.codigo]),
           ...(m.es_efectivo && recibido !== "" ? { monto_recibido: recibidoNum } : {}),
         }));
-      alConfirmar(pagos);
+      alConfirmar(pagos, montoFiado > 0 ? clienteFiado?.id : undefined);
     } else {
-      alConfirmar([
-        {
-          metodo: metodoSimple,
-          ...(infoSimple?.es_efectivo && recibido !== "" ? { monto_recibido: recibidoNum } : {}),
-        },
-      ]);
+      alConfirmar(
+        [
+          {
+            metodo: metodoSimple,
+            ...(infoSimple?.es_efectivo && recibido !== "" ? { monto_recibido: recibidoNum } : {}),
+          },
+        ],
+        montoFiado > 0 ? clienteFiado?.id : undefined
+      );
     }
   }
 
@@ -111,7 +143,7 @@ export function ModalCobro({
           </Button>
           <Button
             cargando={procesando}
-            disabled={mixto ? !mixtoValido : !simpleValido}
+            disabled={(mixto ? !mixtoValido : !simpleValido) || !fiadoValido}
             onClick={confirmar}
           >
             Confirmar venta
@@ -223,6 +255,14 @@ export function ModalCobro({
               />
             )}
           </>
+        )}
+
+        {montoFiado > 0 && (
+          <SelectorClienteFiado
+            cliente={clienteFiado}
+            alElegir={setClienteFiado}
+            montoFiado={montoFiado}
+          />
         )}
 
         {vuelto !== null && vuelto >= 0 && (

@@ -18,6 +18,7 @@ import {
   Truck,
   BarChart3,
   Database,
+  HandCoins,
   Users,
   Wallet,
 } from "lucide-react";
@@ -45,6 +46,7 @@ const GRUPOS: Grupo[] = [
       { a: "/pos", texto: "Punto de venta", icono: ShoppingCart },
       { a: "/caja", texto: "Caja", icono: Wallet },
       { a: "/historial-ventas", texto: "Historial", icono: History },
+      { a: "/fiados", texto: "Fiados", icono: HandCoins },
     ],
   },
   {

@@ -17,7 +17,7 @@ from app.modules.modulo_c_ventas.domain.ports.metodo_pago_repository_port import
 )
 from app.modules.modulo_c_ventas.domain.ports.producto_stock_port import ProductoStockPort
 from app.modules.modulo_c_ventas.domain.ports.venta_repository_port import VentaRepositoryPort
-from app.modules.modulo_c_ventas.domain.value_objects import monto_dinero
+from app.modules.modulo_c_ventas.domain.value_objects import METODO_FIADO, monto_dinero
 from app.shared.kernel.exceptions import ConflictoError, NoEncontradoError, ProhibidoError, ValidacionError
 
 
@@ -30,14 +30,16 @@ class RegistrarVentaUseCase:
         metodos_repo: MetodoPagoRepositoryPort,
         auditoria: RegistrarAuditoriaUseCase,
         notificador=None,
+        fiados=None,
     ):
         self._ventas = venta_repo
         self._caja = caja_repo
         self._stock = stock
         self._metodos = metodos_repo
         self._auditoria = auditoria
-        # Opcional (tests con mocks); el contenedor siempre lo inyecta.
+        # Opcionales (tests con mocks); el contenedor siempre los inyecta.
         self._notificador = notificador
+        self._fiados = fiados  # GestionarFiadosUseCase
 
     async def ejecutar(
         self,
@@ -49,6 +51,7 @@ class RegistrarVentaUseCase:
         client_uuid: str | None = None,  # idempotencia de la sincronización offline
         registrada_offline: bool = False,
         vendida_en=None,  # momento real de la venta (modo offline)
+        cliente_fiado_id: int | None = None,  # obligatorio si algún pago es FIADO
         ip: str = "",
         user_agent: str = "",
     ) -> Venta:
@@ -72,12 +75,20 @@ class RegistrarVentaUseCase:
         if not pagos:
             raise ValidacionError("La venta no tiene método de pago (RF-20).")
 
+        # Fiado: se valida el cliente ANTES de tocar stock.
+        hay_fiado = any(str(p.get("metodo", "")).strip().upper() == METODO_FIADO for p in pagos)
+        cliente_fiado = None
+        if hay_fiado:
+            if self._fiados is None:
+                raise ValidacionError("El fiado no está disponible.")
+            cliente_fiado = await self._fiados.cliente_para_fiar(cliente_fiado_id)
+
         detalles, productos = await self._armar_detalles_y_descontar_stock(
             items, usuario_id, nombre_usuario
         )
         total = monto_dinero(sum(d.subtotal for d in detalles))
 
-        pagos_venta = await self._validar_pagos(pagos, total)
+        pagos_venta = await self._validar_pagos(pagos, total, hay_fiado)
         resumen_metodo = pagos_venta[0].codigo_metodo if len(pagos_venta) == 1 else "MIXTO"
 
         venta = await self._ventas.crear(
@@ -96,6 +107,15 @@ class RegistrarVentaUseCase:
             )
         )
 
+        # Lo fiado se carga a la cuenta del cliente; NO entra a la caja.
+        monto_fiado = sum(
+            (p.monto for p in pagos_venta if p.codigo_metodo == METODO_FIADO), Decimal("0")
+        )
+        if cliente_fiado is not None and monto_fiado > 0:
+            venta.alerta = await self._fiados.cargar_consumo(
+                cliente_fiado, monto_fiado, venta.id, turno.id, usuario_id, nombre_usuario
+            )
+
         await self._auditoria.ejecutar(
             accion="venta_registrada",
             entidad="ventas", entidad_id=venta.id,
@@ -105,6 +125,7 @@ class RegistrarVentaUseCase:
                 "metodo_pago": resumen_metodo,
                 "pagos": [{"metodo": p.codigo_metodo, "monto": float(p.monto)} for p in pagos_venta],
                 "turno_id": turno.id,
+                "cliente_fiado_id": cliente_fiado.id if cliente_fiado else None,
                 "items": [{"producto_id": d.producto_id, "cantidad": d.cantidad} for d in detalles],
             },
             ip=ip, user_agent=user_agent,
@@ -154,21 +175,27 @@ class RegistrarVentaUseCase:
 
         productos = await self._stock.obtener_para_venta(list(cantidades))
 
-        detalles: list[DetalleVenta] = []
-        for producto_id, cantidad in cantidades.items():
+        for producto_id in cantidades:
             producto = productos.get(producto_id)
             if producto is None:
                 raise NoEncontradoError(f"El producto {producto_id} no existe en el catálogo.")
             if not producto.activo:
                 raise ValidacionError(f"'{producto.nombre}' está inactivo y no se puede vender.")
-            # Descuento atómico: si otra venta ganó las últimas unidades, esto
-            # devuelve False y toda la operación se revierte (RNF-03).
-            if not await self._stock.descontar_stock(
-                producto_id, cantidad, usuario_id, nombre_usuario
-            ):
+
+        # Descuento atómico de todo el carrito en una consulta: si otra venta
+        # ganó las últimas unidades de algún producto, se aborta y la
+        # transacción revierte también lo que sí se descontó (RNF-03).
+        sin_stock = await self._stock.descontar_stock(cantidades, usuario_id, nombre_usuario)
+        for producto_id in cantidades:  # se reporta el primero en el orden del carrito
+            if producto_id in sin_stock:
+                producto = productos[producto_id]
                 raise ConflictoError(
                     f"Stock insuficiente de '{producto.nombre}': quedan {producto.stock}."
                 )
+
+        detalles: list[DetalleVenta] = []
+        for producto_id, cantidad in cantidades.items():
+            producto = productos[producto_id]
             detalles.append(
                 DetalleVenta(
                     id=None,
@@ -180,8 +207,18 @@ class RegistrarVentaUseCase:
             )
         return detalles, productos
 
-    async def _validar_pagos(self, pagos: list[dict], total: Decimal) -> list[PagoVenta]:
+    async def _validar_pagos(
+        self, pagos: list[dict], total: Decimal, hay_fiado: bool = False
+    ) -> list[PagoVenta]:
         catalogo = {m.codigo: m for m in await self._metodos.listar(solo_activos=True)}
+        # FIADO está INACTIVO en el catálogo a propósito (el POS viejo no debe
+        # ofrecerlo): solo se acepta por este camino, con cliente validado.
+        catalogo.pop(METODO_FIADO, None)
+        if hay_fiado:
+            fiado = await self._metodos.buscar_por_codigo(METODO_FIADO)
+            if fiado is None:
+                raise ValidacionError("El fiado aún no está habilitado en la base de datos.")
+            catalogo[METODO_FIADO] = fiado
 
         pagos_venta: list[PagoVenta] = []
         for pago in pagos:

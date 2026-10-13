@@ -417,7 +417,7 @@ export default function PuntoDeVenta() {
     });
   }
 
-  async function manejarCobrar(pagos: NuevoPago[]) {
+  async function manejarCobrar(pagos: NuevoPago[], clienteFiadoId?: number) {
     if (!online) {
       cobrarOffline(pagos);
       return;
@@ -428,10 +428,13 @@ export default function PuntoDeVenta() {
       const venta = await registrar({
         items: armarItemsVenta(),
         pagos,
+        ...(clienteFiadoId ? { cliente_fiado_id: clienteFiadoId } : {}),
       });
       const conVuelto = venta.vuelto > 0 ? ` · Vuelto: S/ ${venta.vuelto.toFixed(2)}` : "";
+      // Si el fiado pasó el límite mensual del cliente, se avisa al cajero.
+      const conAlerta = venta.alerta ? ` ⚠ ${venta.alerta}` : "";
       setMensaje(
-        `Venta #${venta.id} registrada: S/ ${venta.total.toFixed(2)} (${venta.metodo_pago})${conVuelto}.`
+        `Venta #${venta.id} registrada: S/ ${venta.total.toFixed(2)} (${venta.metodo_pago})${conVuelto}.${conAlerta}`
       );
       setCarrito([]);
       setModalCobro(false);
@@ -806,7 +809,8 @@ export default function PuntoDeVenta() {
           setModalCobro(false);
           setErrorAccion(null);
         }}
-        alConfirmar={(pagos) => void manejarCobrar(pagos)}
+        alConfirmar={(pagos, clienteFiadoId) => void manejarCobrar(pagos, clienteFiadoId)}
+        permitirFiado={online}
       />
 
       {/* Post-venta (HU-C05): vuelto en grande + ticket térmico opcional */}
