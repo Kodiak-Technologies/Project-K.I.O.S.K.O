@@ -1,5 +1,6 @@
 # Puerto: contrato para persistir/consultar aperturas y cierres de caja.
 from abc import ABC, abstractmethod
+from datetime import date
 from decimal import Decimal
 
 from app.modules.modulo_c_ventas.domain.entities import ArqueoCaja, TurnoCaja
@@ -20,8 +21,17 @@ class CajaRepositoryPort(ABC):
     async def actualizar(self, turno: TurnoCaja) -> TurnoCaja: ...
 
     @abstractmethod
-    async def listar(self, limite: int = 30) -> list[TurnoCaja]:
-        """Turnos más recientes primero (historial visible para todos los usuarios)."""
+    async def listar(
+        self,
+        limite: int = 30,
+        desde: date | None = None,
+        hasta: date | None = None,
+    ) -> list[TurnoCaja]:
+        """Turnos más recientes primero (historial visible para todos los usuarios).
+
+        Con `desde`/`hasta` acota a los turnos abiertos dentro del rango (inclusive),
+        calculado en la zona horaria del negocio. Sin fechas, devuelve los más recientes.
+        """
 
     @abstractmethod
     async def cerrar(
