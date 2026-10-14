@@ -19,8 +19,10 @@ export const cajaHttpAdapter: CajaPort = {
     const { data } = await httpClient.post("/caja/cerrar", { monto_final, comentario });
     return data;
   },
-  async turnos(limite = 30) {
-    const { data } = await httpClient.get("/caja/turnos", { params: { limite } });
+  async turnos(limite = 30, desde?: string, hasta?: string) {
+    const { data } = await httpClient.get("/caja/turnos", {
+      params: { limite, desde, hasta },
+    });
     return data;
   },
   async editar(turnoId, datos) {

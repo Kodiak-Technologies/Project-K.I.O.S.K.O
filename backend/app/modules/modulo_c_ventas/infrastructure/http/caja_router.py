@@ -1,4 +1,5 @@
 # Router HTTP: /caja/*. Sin lógica de negocio.
+from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
@@ -105,12 +106,17 @@ async def cerrar(
 @router.get("/turnos", response_model=list[TurnoCajaResponse])
 async def historial(
     limite: int = 30,
+    desde: date | None = None,
+    hasta: date | None = None,
     usuario: Usuario = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     # Visible para TODOS los usuarios: el cajero entrante ve con cuánto abrió y
     # cerró el turno anterior; la administradora supervisa a todos por igual.
-    turnos = await contenedor.consultar_caja_usecase(db).historial(min(limite, 100))
+    # `desde`/`hasta` acotan por día (zona del negocio); sin ellos, los más recientes.
+    turnos = await contenedor.consultar_caja_usecase(db).historial(
+        min(limite, 100), desde, hasta
+    )
     return [TurnoCajaResponse.desde_entidad(t, a) for t, a in turnos]
 
 

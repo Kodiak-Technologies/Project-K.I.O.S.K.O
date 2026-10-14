@@ -43,18 +43,10 @@ function hoyISO(): string {
   return `${y}-${m}-${d}`;
 }
 
-/** Extrae la parte de fecha local (YYYY-MM-DD) de una cadena ISO. */
-function fechaLocalDe(iso: string): string {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dia = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dia}`;
-}
-
 export default function AperturaCaja() {
   const { usuario } = useAuthContext();
-  const { turno, turnos, cargando, error, noDisponible, abrir, editar } = useCaja();
+  const { turno, turnos, cargando, error, noDisponible, abrir, editar, cargarHistorial } =
+    useCaja();
   const [montoInicial, setMontoInicial] = useState("");
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
@@ -83,6 +75,13 @@ export default function AperturaCaja() {
     }
     return () => { montado = false; };
   }, [esAdmin, cajeros.length]);
+
+  // El historial se pide al backend por la fecha seleccionada (no se filtra en
+  // el cliente): así aparecen también los turnos de días anteriores. Se recarga
+  // además cuando cambia el turno (apertura/cierre/asignación) para reflejarlo.
+  useEffect(() => {
+    void cargarHistorial(fechaFiltro, fechaFiltro);
+  }, [fechaFiltro, turno, cargarHistorial]);
 
   const turnoAsignadoAOtro = 
     turno && turno.asignado_a_id !== null && turno.asignado_a_id !== usuario?.id && !esAdmin;
@@ -157,9 +156,6 @@ export default function AperturaCaja() {
   if (error) return <Alert tono="peligro">{error}</Alert>;
 
   const abierta = turno?.estado === "ABIERTO";
-
-  // Filtrar turnos por la fecha seleccionada (comparando fecha local de apertura)
-  const turnosFiltrados = turnos.filter((t) => fechaLocalDe(t.abierto_en) === fechaFiltro);
 
   const columnas: Columna<TurnoCaja>[] = [
     { titulo: "N°", alinear: "centro", render: (t) => <span className="font-mono text-xs text-zinc-500">#{t.id}</span> },
@@ -379,7 +375,7 @@ export default function AperturaCaja() {
           // redondeo arriba para no dejar un escalón bajo el título.
           sinRedondeoSuperior
           columnas={columnas}
-          filas={turnosFiltrados}
+          filas={turnos}
           claveDe={(t) => t.id}
           vacio={
             <EmptyState

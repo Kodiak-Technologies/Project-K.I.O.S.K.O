@@ -1,9 +1,11 @@
 # Adaptador: implementa CajaRepositoryPort usando SQLAlchemy.
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.shared.config.zona_horaria import zona_negocio
 
 from app.modules.modulo_c_ventas.domain.entities import ArqueoCaja, TurnoCaja
 from app.modules.modulo_c_ventas.domain.ports.caja_repository_port import CajaRepositoryPort
@@ -69,10 +71,31 @@ class SqlAlchemyCajaRepository(CajaRepositoryPort):
         await self._db.flush()
         return _a_entidad(fila)
 
-    async def listar(self, limite: int = 30) -> list[TurnoCaja]:
+    async def listar(
+        self,
+        limite: int = 30,
+        desde: date | None = None,
+        hasta: date | None = None,
+    ) -> list[TurnoCaja]:
+        # El rango se arma en la zona del NEGOCIO, no en UTC: si no, un turno
+        # abierto a las 23:55 en Lima caería en el día siguiente y "los turnos
+        # de hoy" saldrían incompletos.
+        zona = zona_negocio()
+        filtros = []
+        if desde is not None:
+            filtros.append(
+                TurnoCajaModel.abierto_en >= datetime.combine(desde, time.min, tzinfo=zona)
+            )
+        if hasta is not None:
+            filtros.append(
+                TurnoCajaModel.abierto_en <= datetime.combine(hasta, time.max, tzinfo=zona)
+            )
         filas = (
             await self._db.execute(
-                select(TurnoCajaModel).order_by(TurnoCajaModel.id.desc()).limit(limite)
+                select(TurnoCajaModel)
+                .where(*filtros)
+                .order_by(TurnoCajaModel.id.desc())
+                .limit(limite)
             )
         ).scalars()
         return [_a_entidad(f) for f in filas]

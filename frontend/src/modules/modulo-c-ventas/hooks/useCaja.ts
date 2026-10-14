@@ -12,15 +12,12 @@ export function useCaja() {
   const [noDisponible, setNoDisponible] = useState(false);
 
   // `cargando` es solo para la primera carga; las recargas son silenciosas.
+  // El historial NO se carga acá: depende de la fecha elegida y lo pide
+  // `cargarHistorial` desde la pantalla.
   const recargar = useCallback(async () => {
     setError(null);
     try {
-      const [actual, historial] = await Promise.all([
-        cajaHttpAdapter.turnoActual(),
-        cajaHttpAdapter.turnos(),
-      ]);
-      setTurno(actual);
-      setTurnos(historial);
+      setTurno(await cajaHttpAdapter.turnoActual());
     } catch (e) {
       if (servicioNoDisponible(e)) setNoDisponible(true);
       else setError(mensajeDeError(e));
@@ -32,6 +29,19 @@ export function useCaja() {
   useEffect(() => {
     void recargar();
   }, [recargar]);
+
+  // El historial depende de la fecha elegida: se pide al backend el día exacto.
+  // Antes el listado traía solo los últimos turnos y, al filtrar por una fecha
+  // antigua en el cliente, esa fecha quedaba vacía porque no estaba incluida.
+  const cargarHistorial = useCallback(async (desde?: string, hasta?: string) => {
+    setError(null);
+    try {
+      setTurnos(await cajaHttpAdapter.turnos(undefined, desde, hasta));
+    } catch (e) {
+      if (servicioNoDisponible(e)) setNoDisponible(true);
+      else setError(mensajeDeError(e));
+    }
+  }, []);
 
   const abrir = useCallback(
     async (montoInicial: number) => {
@@ -59,5 +69,16 @@ export function useCaja() {
     [recargar]
   );
 
-  return { turno, turnos, cargando, error, noDisponible, recargar, abrir, cerrar, editar };
+  return {
+    turno,
+    turnos,
+    cargando,
+    error,
+    noDisponible,
+    recargar,
+    cargarHistorial,
+    abrir,
+    cerrar,
+    editar,
+  };
 }
