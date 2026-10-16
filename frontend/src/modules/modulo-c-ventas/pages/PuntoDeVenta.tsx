@@ -274,8 +274,8 @@ export default function PuntoDeVenta() {
   //      escribe el código a medias (o cuando se busca por nombre y se da Enter).
   //   3. Si no calza, reintenta con el código invertido: algunos lectores leen el
   //      código de barras al revés según el sentido del barrido.
-  //   4. Si aun así no existe, avisa y NO agrega nada (limpia para el próximo
-  //      escaneo).
+  //   4. Si aun así no existe, NO agrega nada y deja el texto seleccionado (no
+  //      lo borra: así una búsqueda por nombre no reinicia la lista).
   async function manejarEnterBusqueda() {
     const texto = busqueda.trim();
     if (!texto) return;
@@ -304,14 +304,19 @@ export default function PuntoDeVenta() {
       }
     }
 
-    // (4) Nada coincide exacto: aviso sin agregar y campo limpio para reintentar.
-    setAvisoEscaneo(
-      `No se encontró un producto con el código "${texto}". Revisa que el lector ` +
-        `haya leído el código completo, o toca el producto en la lista.`
-    );
-    setBusqueda("");
+    // (4) Nada coincide exacto: no se agrega nada. El texto NO se borra (si era
+    // una búsqueda por nombre, como "coca", la lista filtrada se mantiene); queda
+    // seleccionado para que el próximo escaneo lo reemplace al escribir encima.
+    // El aviso de lector solo aplica a códigos de barras (solo dígitos).
+    if (/^\d+$/.test(texto)) {
+      setAvisoEscaneo(
+        `No se encontró un producto con el código "${texto}". Revisa que el lector ` +
+          `haya leído el código completo, o toca el producto en la lista.`
+      );
+    }
     setMostrarSugerencias(false);
     setIndiceSugerencia(-1);
+    inputBusqueda.current?.select();
   }
 
   /** Agrega al carrito si el producto está activo y tiene stock. */
