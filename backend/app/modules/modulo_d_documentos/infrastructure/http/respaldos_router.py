@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,10 +17,13 @@ from app.modules.modulo_d_documentos.infrastructure.http.schemas import (
     RespaldoResponse,
     RespaldosPaginadosResponse,
 )
-from app.shared.kernel.exceptions import ValidacionError
+from app.shared.kernel.exceptions import ErrorDeDominio, ValidacionError
 from app.modules.modulo_d_documentos.application.crear_respaldo_usecase import (
+    CrearRespaldoUseCase,
     ObtenerRutaRespaldoUseCase,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/respaldos", tags=["Documentos"])
 
@@ -56,6 +61,39 @@ async def listar_respaldos(
         page_size=page_size,
         total_pages=(total + page_size - 1) // page_size if total else 0,
     )
+
+
+@router.post("", response_model=RespaldoResponse, status_code=201)
+async def crear_respaldo(
+    usuario: Usuario = Depends(require_role("ADMIN")),
+    respaldo_repo=Depends(get_respaldo_repository),
+    drive_storage=Depends(get_drive_storage),
+    db: AsyncSession = Depends(get_db),
+):
+    """Genera un respaldo manual (sin esperar al automático de las 3:00 AM)."""
+    use_case = CrearRespaldoUseCase(respaldo_repo, drive_storage)
+    try:
+        respaldo = await use_case.ejecutar()
+    except ErrorDeDominio:
+        raise
+    except Exception as exc:
+        # El use case dejó el registro en FALLIDO; hay que confirmarlo antes de
+        # re-lanzar, porque `get_db` hace rollback al propagarse el error y el
+        # estado se perdería.
+        await _confirmar_estado_fallido(db)
+        raise HTTPException(
+            status_code=500, detail=f"Error al generar el respaldo: {exc}"
+        ) from exc
+
+    return RespaldoResponse.desde_entidad(respaldo)
+
+
+async def _confirmar_estado_fallido(db: AsyncSession) -> None:
+    try:
+        await db.commit()
+    except Exception:
+        logger.error("No se pudo persistir el estado FALLIDO del respaldo.")
+        await db.rollback()
 
 
 @router.get("/{respaldo_id}/descargar")

@@ -6,8 +6,10 @@ from decimal import Decimal
 from app.modules.modulo_d_documentos.domain.entities import Respaldo
 from app.modules.modulo_d_documentos.domain.ports.respaldo_repository_port import RespaldoRepositoryPort
 from app.modules.modulo_d_documentos.domain.ports.drive_storage_port import DriveStoragePort
+from app.modules.modulo_d_documentos.domain.value_objects import EstadoRespaldo
 from app.shared.config.settings import settings
 from app.shared.database.asyncpg_directo import conectar as conectar_directo
+from app.shared.kernel.exceptions import ValidacionError
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +211,73 @@ class ObtenerRutaRespaldoUseCase:
 
         contenido = await self._drive.descargar(respaldo.drive_file_id)
         return contenido, respaldo.archivo_nombre
+
+
+class CrearRespaldoUseCase:
+    """Genera un respaldo SQL bajo demanda y lo sube a Google Drive.
+
+    Es el mismo flujo que usa la tarea automática diaria: el registro nace en
+    PENDIENTE, se volca la base, se sube el archivo a `respaldos/{año}/{mes}`
+    y pasa a COMPLETADO (o a FALLIDO si algo falla en el camino). Lo único
+    distinto es que aquí no hay chequeo de hora: se ejecuta cuando alguien lo
+    pide.
+    """
+
+    def __init__(
+        self,
+        respaldo_repository: RespaldoRepositoryPort,
+        drive_storage: DriveStoragePort,
+        database_url: str | None = None,
+        generar_dump=None,
+    ) -> None:
+        self._repo = respaldo_repository
+        self._drive = drive_storage
+        self._database_url = settings.database_url if database_url is None else database_url
+        # Inyectable para poder probar el flujo sin tocar la BD real.
+        self._generar_dump = _generar_dump_sql if generar_dump is None else generar_dump
+
+    async def ejecutar(self) -> Respaldo:
+        if not self._database_url:
+            raise ValidacionError("DATABASE_URL no configurada. Respaldo abortado.")
+
+        ahora = datetime.now(timezone.utc)
+        timestamp = ahora.strftime("%Y%m%d_%H%M%S")
+        nombre = f"tienda_sistema_{timestamp}.sql"
+
+        respaldo = Respaldo(
+            id=None,
+            archivo_nombre=nombre,
+            estado=EstadoRespaldo.PENDIENTE.value,
+            expira_en=ahora + timedelta(days=4),
+        )
+        respaldo = await self._repo.crear(respaldo)
+
+        try:
+            db_params = _parsear_database_url(self._database_url)
+            sql_bytes = await self._generar_dump(db_params)
+
+            carpeta = f"respaldos/{ahora.strftime('%Y')}/{ahora.strftime('%m')}"
+            drive_file_id = await self._drive.subir(
+                archivo_bytes=sql_bytes,
+                nombre=nombre,
+                carpeta=carpeta,
+            )
+
+            respaldo.tamano_bytes = len(sql_bytes)
+            respaldo.estado = EstadoRespaldo.COMPLETADO.value
+            respaldo.drive_file_id = drive_file_id
+            respaldo.expira_en = ahora + timedelta(days=4)
+            respaldo = await self._repo.actualizar(respaldo)
+            logger.info("Respaldo manual completado: %s (%d bytes).", nombre, len(sql_bytes))
+            return respaldo
+        except Exception as exc:
+            logger.error("Error durante el respaldo manual: %s", str(exc))
+            try:
+                respaldo.estado = EstadoRespaldo.FALLIDO.value
+                await self._repo.actualizar(respaldo)
+            except Exception:
+                logger.error("Error actualizando estado del respaldo a FALLIDO.")
+            raise
 
 
 

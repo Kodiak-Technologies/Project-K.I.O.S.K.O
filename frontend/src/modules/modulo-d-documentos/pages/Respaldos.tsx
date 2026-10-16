@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Database, Download, ExternalLink } from "lucide-react";
+import { Database, Download, ExternalLink } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -16,6 +16,17 @@ import {
 import { useRespaldos } from "../hooks/useRespaldos";
 import { httpClient } from "../../../shared/lib/http-client";
 import type { EstadoRespaldo, Respaldo } from "../types";
+import { useAuthContext } from "../../../shared/lib/auth-context";
+
+interface DriveStatus {
+  autorizado: boolean;
+  conectado: boolean;
+  expirado: boolean;
+  tiene_refresh_token: boolean;
+  puede_reconectar: boolean;
+  token_expiry: string | null;
+  mensaje: string | null;
+}
 
 const TONO_ESTADO: Record<EstadoRespaldo, "exito" | "alerta" | "info"> = {
   COMPLETADO: "exito",
@@ -30,34 +41,53 @@ function formatearTamano(bytes: number): string {
 }
 
 export default function Respaldos() {
+  const { usuario } = useAuthContext();
+  const isAdmin = usuario?.rol === "ADMIN";
   const { respaldos, paginados, cargando, error, noDisponible, recargar, descargar } =
     useRespaldos();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
+  const [loadingDrive, setLoadingDrive] = useState(false);
 
   useEffect(() => {
     void recargar(page, pageSize);
   }, [page, pageSize]);
-  const [driveAutorizado, setDriveAutorizado] = useState<boolean | null>(null);
-  const [authUrl, setAuthUrl] = useState<string | null>(null);
+
+  const fetchDriveStatus = async () => {
+    if (!isAdmin) return;
+    try {
+      setLoadingDrive(true);
+      const { data } = await httpClient.get<DriveStatus>("/drive/status");
+      setDriveStatus(data);
+    } catch (error) {
+      console.error("Error al obtener estado de Google Drive:", error);
+    } finally {
+      setLoadingDrive(false);
+    }
+  };
+
+  const handleConectarDrive = async () => {
+    try {
+      const { data } = await httpClient.get<{ auth_url: string }>("/drive/auth-url");
+      window.open(data.auth_url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Error al obtener URL de autorización de Google Drive:", error);
+    }
+  };
 
   useEffect(() => {
-    void httpClient
-      .get("/drive/status")
-      .then(({ data }) => {
-        setDriveAutorizado(data.autorizado);
-        if (!data.autorizado) {
-          return httpClient.get("/drive/auth-url");
-        }
-        return null;
-      })
-      .then((resp) => {
-        if (resp?.data?.auth_url) setAuthUrl(resp.data.auth_url);
-      })
-      .catch(() => {
-        setDriveAutorizado(false);
-      });
-  }, []);
+    fetchDriveStatus();
+    const interval = setInterval(fetchDriveStatus, 30000);
+    return () => clearInterval(interval);
+  }, [isAdmin]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("drive") === "ok" || params.get("drive") === "error") {
+      setTimeout(fetchDriveStatus, 500);
+    }
+  }, [isAdmin]);
 
   if (noDisponible) {
     return (
@@ -142,29 +172,20 @@ export default function Respaldos() {
     <div>
       <PageHeader titulo="Respaldos" descripcion="Copias de seguridad de la base de datos." />
 
-      {driveAutorizado === false && (
+      {driveStatus !== null && !driveStatus.conectado && (
         <div className="mb-4">
           <Alert tono="alerta">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-              <div>
-                <p className="font-medium">Google Drive no está autorizado</p>
-                <p className="mt-1 text-sm">
-                  Los respaldos necesitan Google Drive para almacenarse. Autoriza la aplicación
-                  haciendo clic en el enlace y seleccionando tu cuenta de Google.
-                </p>
-                {authUrl && (
-                  <a
-                    href={authUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-blue-600 underline"
-                  >
-                    Autorizar Google Drive
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
+              <span>Google Drive no está conectado.</span>
+              <Button
+                onClick={handleConectarDrive}
+                disabled={loadingDrive}
+                className="w-full sm:w-auto"
+                compacto
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Conectar a Google Drive
+              </Button>
             </div>
           </Alert>
         </div>

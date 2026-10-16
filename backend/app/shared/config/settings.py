@@ -33,13 +33,16 @@ class Settings(BaseSettings):
     google_drive_redirect_uri: str = "http://localhost:8000/drive/callback"
     google_drive_folder_id: str = ""
 
+    # Frontend URL para redirecciones OAuth (callback de Google Drive)
+    frontend_url: str = "http://localhost:5173"
+
     # Module D: Telegram
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
 
     # Module D: Correo (SMTP)
     smtp_host: str = ""
-    smtp_port: str = ""
+    smtp_port: int = 587
     smtp_user: str = ""
     smtp_pass: str = ""
     correo_remitente: str = ""
