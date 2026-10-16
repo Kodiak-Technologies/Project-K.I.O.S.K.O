@@ -102,6 +102,38 @@
   --ui-scroll-thumb-hover: #f97316;
 }
 
+/* ── Halloween: paneles naranja calabaza, textos y activo verde ── */
+[data-estilo="halloween"] {
+  --ui-fondo:              #fff3e3;
+  --ui-fondo-panel:        #fdba74;
+  --ui-borde:              #f59e4c;
+  --ui-texto-principal:    #1f3d0c;
+  --ui-texto-secundario:   #365314;
+  --ui-item-hover:         #fdab5c;
+  --ui-item-activo:        #bef264;
+  --ui-activo-bg:          #f1fbd9;
+  --ui-separador:          #f59e4c;
+  --ui-scroll-track:       #ffe8cc;
+  --ui-scroll-thumb:       #f97316;
+  --ui-scroll-thumb-hover: #4d7c0f;
+}
+
+/* ── Navidad: paneles rojo, fondo nieve, textos y activo verde pino ── */
+[data-estilo="navidad"] {
+  --ui-fondo:              #fffaf5;
+  --ui-fondo-panel:        #fca5a5;
+  --ui-borde:              #f87171;
+  --ui-texto-principal:    #0f3d22;
+  --ui-texto-secundario:   #14532d;
+  --ui-item-hover:         #f99090;
+  --ui-item-activo:        #86efac;
+  --ui-activo-bg:          #dcfce7;
+  --ui-separador:          #f87171;
+  --ui-scroll-track:       #fde2e2;
+  --ui-scroll-thumb:       #ef4444;
+  --ui-scroll-thumb-hover: #15803d;
+}
+
 /* ── Scrollbar global: responde a data-estilo ── */
 * {
   scrollbar-width: thin;
