@@ -1,9 +1,18 @@
-// Estilos de interfaz: 6 paletas predefinidas de superficie (fondos, navbar,
+// Estilos de interfaz: paletas predefinidas de superficie (fondos, navbar,
 // sidebar). No tocan --color-primario ni --color-secundario (esos son la marca).
 // Se aplican vía data-estilo en <html> y variables CSS de superficie.
+// Los de temporada (Halloween, Navidad) además ponen una marca de agua en Inicio.
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
-export type EstiloId = "claro" | "celeste" | "menta" | "rosa" | "lavanda" | "melocoton";
+export type EstiloId =
+  | "claro"
+  | "celeste"
+  | "menta"
+  | "rosa"
+  | "lavanda"
+  | "melocoton"
+  | "halloween"
+  | "navidad";
 
 export interface EstiloUI {
   id: EstiloId;
@@ -65,6 +74,22 @@ export const ESTILOS_UI: EstiloUI[] = [
     previewFondo: "#fff7ed",
     previewPanel: "#ffedd5",
     previewAccent: "#fed7aa",
+  },
+  {
+    id: "halloween",
+    nombre: "Halloween",
+    descripcion: "Naranja calabaza y verde, con marca de agua en Inicio",
+    previewFondo: "#fff3e3",
+    previewPanel: "#fdba74",
+    previewAccent: "#65a30d",
+  },
+  {
+    id: "navidad",
+    nombre: "Navidad",
+    descripcion: "Rojo y verde pino navideños, con marca de agua en Inicio",
+    previewFondo: "#fffaf5",
+    previewPanel: "#fca5a5",
+    previewAccent: "#16a34a",
   },
 ];
 

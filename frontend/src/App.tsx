@@ -9,6 +9,7 @@ import { rutasModuloD } from "./modules/modulo-d-documentos/routes";
 import CambiarPassword from "./modules/modulo-a-seguridad/pages/CambiarPassword";
 import Login from "./modules/modulo-a-seguridad/pages/Login";
 import { Layout } from "./shared/components/Layout";
+import { MarcaAguaTematica } from "./shared/components/MarcaAguaTematica";
 import { ProtectedRoute } from "./shared/components/ProtectedRoute";
 import { Card, PageHeader } from "./shared/components/ui";
 import { AuthProvider } from "./shared/lib/auth-context";
@@ -39,21 +40,26 @@ function Inicio() {
   const esAdmin = usuario?.rol === "ADMIN";
 
   return (
-    <div>
-      <PageHeader
-        titulo={`Hola, ${usuario?.nombre ?? ""}`}
-        descripcion="¿Qué necesitas hacer hoy?"
-      />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <AccesoRapido a="/pos" titulo="Punto de venta" detalle="Registrar una venta" icono={ShoppingCart} />
-        <AccesoRapido a="/caja" titulo="Caja" detalle="Abrir o cerrar el turno" icono={Wallet} />
-        <AccesoRapido a="/catalogo" titulo="Catálogo" detalle="Consultar stock y precios" icono={Package} />
-        {esAdmin && (
-          <>
-            <AccesoRapido a="/usuarios" titulo="Usuarios" detalle="Cuentas del personal" icono={Users} />
-            <AccesoRapido a="/bitacora" titulo="Bitácora" detalle="Quién hizo qué y cuándo" icono={ScrollText} />
-          </>
-        )}
+    // min-h-full + relative: la marca de agua de temporada se ancla abajo a la
+    // derecha del área de contenido; el contenido va por encima (z-10).
+    <div className="relative min-h-full">
+      <MarcaAguaTematica />
+      <div className="relative z-10">
+        <PageHeader
+          titulo={`Hola, ${usuario?.nombre ?? ""}`}
+          descripcion="¿Qué necesitas hacer hoy?"
+        />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <AccesoRapido a="/pos" titulo="Punto de venta" detalle="Registrar una venta" icono={ShoppingCart} />
+          <AccesoRapido a="/caja" titulo="Caja" detalle="Abrir o cerrar el turno" icono={Wallet} />
+          <AccesoRapido a="/catalogo" titulo="Catálogo" detalle="Consultar stock y precios" icono={Package} />
+          {esAdmin && (
+            <>
+              <AccesoRapido a="/usuarios" titulo="Usuarios" detalle="Cuentas del personal" icono={Users} />
+              <AccesoRapido a="/bitacora" titulo="Bitácora" detalle="Quién hizo qué y cuándo" icono={ScrollText} />
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

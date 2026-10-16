@@ -1,5 +1,5 @@
 // Modal de selección de estilo de interfaz.
-// Muestra las 3 paletas como tarjetas visuales con preview de colores.
+// Muestra las paletas como tarjetas visuales con preview de colores.
 import { createPortal } from "react-dom";
 import { Check, X } from "lucide-react";
 import { ESTILOS_UI, useEstiloUI, type EstiloId } from "../lib/estilo-context";
@@ -60,7 +60,7 @@ export function ModalEstiloUI({ abierto, alCerrar }: Props) {
         </div>
 
         {/* Tarjetas de estilos */}
-        <div className="grid grid-cols-3 gap-3 p-5">
+        <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-4">
           {ESTILOS_UI.map((estilo) => {
             const activo = estiloActivo === estilo.id;
             return (
