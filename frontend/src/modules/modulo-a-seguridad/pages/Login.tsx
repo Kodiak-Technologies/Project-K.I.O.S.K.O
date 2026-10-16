@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { Store } from "lucide-react";
+import { BotonInstalarApp } from "../../../shared/components/BotonInstalarApp";
 import { Alert } from "../../../shared/components/ui";
 import { Button } from "../../../shared/components/ui";
 import { Input } from "../../../shared/components/ui";
@@ -97,6 +98,8 @@ export default function Login() {
         <p className="mt-4 text-center text-xs text-zinc-400">
           ¿Olvidaste tu contraseña? Pídele al administrador que la resetee.
         </p>
+        {/* Solo aparece en el navegador: ya instalada, se oculta. */}
+        <BotonInstalarApp className="mt-4 w-full" />
       </div>
     </div>
   );
