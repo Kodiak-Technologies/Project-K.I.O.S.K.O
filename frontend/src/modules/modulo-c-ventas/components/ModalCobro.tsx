@@ -3,7 +3,7 @@
 // pago mixto (dividir entre varios métodos) y cálculo del vuelto en efectivo.
 // Fiado: se agrega como un método más (también en mixto) y exige elegir el
 // cliente; esa parte no entra a la caja hasta que el cliente la pague.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Coins, SplitSquareHorizontal } from "lucide-react";
 import { Alert, Button, Input, Modal } from "../../../shared/components/ui";
 import { useMetodosPago } from "../hooks/useMetodosPago";
@@ -96,6 +96,12 @@ export function ModalCobro({
     setMontosMixto({});
     setClienteFiado(null);
   }
+
+  // El modal queda montado entre ventas (solo se oculta), así que su estado
+  // sobrevive a un cobro exitoso: cada venta nueva arranca en efectivo y limpia.
+  useEffect(() => {
+    if (abierto) reiniciar();
+  }, [abierto]);
 
   function confirmar() {
     if (mixto) {
